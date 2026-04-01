@@ -1,0 +1,33 @@
+# OpenSim Pipeline 설정 (CONFIG + 실행 옵션)
+# 터미널: python OpenSim_Pipeline.py --config configs/pipeline_config.yaml
+# 또는:   python OpenSim_Pipeline.py --config configs/pipeline_config.yaml --sub_name SUB2
+
+# ---------- CONFIG (__init__.py와 동일 키) ----------
+root_dir: "E:\\Dropbox\\SEL\\BOX\\OpenSim\\_Main_\\c_AddBio_Continous"
+sub_name: SUB1
+symmetric: true
+kg: 15
+bpm: 10  # 단일 값 또는 리스트 → kg_bpm 자동 조합
+task_type: OneCycle   # OneCycle | UpDown
+updown: ""           # UpDown 전용: U | D (task_type: OneCycle이면 사용 안 함, 공란/생략 가능)
+APP: APP2_preRiCTO    # APP1_OneCycle, APP2_OneCycle, APP3, APP4, APP2_preRiCTO, APP2_postRiCTO 등
+extload_variant: null # null | original | corrected (null이면 APP에 따라 자동)
+
+# ---------- 실행 범위 (반드시 [시작, 끝] 2개: Python range(start, end) → end 미만) ----------
+trial_range: [1, 2]   # trial 1만 → range(1,2)
+task_range: [1,2]   # task 6만 → range(6,7). 여러 개면 예: [6, 11] → 6,7,8,9,10
+
+# ---------- 실행할 단계 (원하는 것만 true) ----------
+run:
+  extload_set:    false
+  ik:             false
+  so_set:         false
+  so:             false
+  bk_set:         false
+  bk:             false
+  jr_set:         false
+  jr:                  true
+  jr_ground_app4: false   # APP4일 때 JR ground 프레임 추가 실행
+
+# ---------- 기타 ----------
+print_time: true   # 단계별 소요 시간 출력

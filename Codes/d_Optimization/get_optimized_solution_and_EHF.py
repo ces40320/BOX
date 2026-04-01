@@ -72,9 +72,13 @@ def read_opensim_storage(path):
 def write_opensim_storage(path, df, meta, float_fmt="%.8f", write_blank_after_header=False):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # ExtLoad .mot: 첫 행(name/경로)을 출력 절대경로로 갱신
+    header_lines = list(meta["header_lines"])
+    if header_lines:
+        header_lines[0] = str(path.resolve()) + ("\n" if header_lines[0].endswith("\n") else "")
 
     with path.open("w", encoding="utf-8") as f:
-        for line in meta["header_lines"]:
+        for line in header_lines:
             f.write(line)
         if write_blank_after_header:
             for line in meta["blank_lines_after_header"]:
@@ -430,6 +434,18 @@ def process_trial(trial_num: int):
 
 
     ################### 4. Save Results ###################
+    # Trial 절대 시간 기준으로 CSV 출력 (trial이 0초부터 시작하지 않는 경우 대비)
+    t_start = float(mot_df["time"].iloc[0])
+    part1_end = float(part1["time_1000"][-1])
+    part2_offset = part1_end + DT_TARGET
+
+    save_path = SAVE_DIR / f"Trial{trial_num}"
+    save_path = SAVE_DIR / f"Trial{trial_num}"
+    # Trial 절대 시간 기준으로 CSV 출력 (trial이 0초부터 시작하지 않는 경우 대비)
+    t_start = float(mot_df["time"].iloc[0])
+    part1_end = float(part1["time_1000"][-1])
+    part2_offset = part1_end + DT_TARGET
+
     save_path = SAVE_DIR / f"Trial{trial_num}"
     save_path.mkdir(parents=True, exist_ok=True)
     
@@ -439,9 +455,15 @@ def process_trial(trial_num: int):
     original_ExtLoad_mot_path = ExtLoad_dir / f"{base_basename}{EXTLOAD_ORIGINAL_SUFFIX}.mot"
     corrected_ExtLoad_mot_path = ExtLoad_dir / f"{base_basename}{EXTLOAD_CORRECTED_SUFFIX}.mot"
 
+    # time 컬럼을 trial 절대 시간으로 맞춰 저장
+    signal_df_out = signal_df.copy()
+    signal_df_out["time"] = np.round(signal_df_out["time"] + t_start, 10)
+    signal_df_out.to_csv(signal_csv, index=False)
 
-    signal_df.to_csv(signal_csv, index=False)
-    summary_df.to_csv(summary_csv, index=False)
+    summary_df_out = summary_df.copy()
+    summary_df_out["t1"] = summary_df_out["t1"] + np.where(summary_df_out["part"] == 1, t_start, t_start + part2_offset)
+    summary_df_out["t2"] = summary_df_out["t2"] + np.where(summary_df_out["part"] == 1, t_start, t_start + part2_offset)
+    summary_df_out.to_csv(summary_csv, index=False)
     write_opensim_storage(original_ExtLoad_mot_path, original_mot, mot_meta)
     write_opensim_storage(corrected_ExtLoad_mot_path, corrected_mot, mot_meta)
 

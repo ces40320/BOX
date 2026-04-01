@@ -115,15 +115,19 @@ class TimeSeriesStorage:
         df: pd.DataFrame,
         meta: dict,
         float_fmt: str = "%.9f",
+        update_header_path: bool = False,
     ) -> None:
         """
         meta["format"] 또는 path 확장자에 맞춰 해당 포맷으로 저장합니다.
+        update_header_path: .mot(ExtLoad) 저장 시 True 시 첫 행을 출력 절대경로로 갱신. .trc는 항상 갱신.
         """
         path = Path(path)
         fmt = meta.get("format") or _detect_format(path)
         df_out = _denormalize_time_for_meta(meta, df)
         if fmt == "endheader":
-            OpenSimStorage.write(path, df_out, meta, float_fmt=float_fmt)
+            OpenSimStorage.write(
+                path, df_out, meta, float_fmt=float_fmt, update_header_path=update_header_path
+            )
         elif fmt == "trc":
             TrcStorage.write(path, df_out, meta, float_fmt=float_fmt)
         else:
@@ -199,6 +203,20 @@ class OpenSimStorage:
         return df, meta
 
     @staticmethod
+    def update_header_name_line(header_lines: list, output_path: Path) -> list:
+        """
+        endheader 형식의 첫 번째 행(name/파일경로)을 출력 파일의 절대경로로 갱신합니다.
+        TRC·ExtLoad .mot에만 사용하고, IK/SO/JR/BK 결과(.sto, .mot)에는 사용하지 않습니다.
+        """
+        if not header_lines:
+            return header_lines
+        new_lines = list(header_lines)
+        new_lines[0] = str(Path(output_path).resolve()) + (
+            "\n" if new_lines[0].endswith("\n") else ""
+        )
+        return new_lines
+
+    @staticmethod
     def update_header_counts(
         header_lines: list,
         nrows: int,
@@ -236,13 +254,20 @@ class OpenSimStorage:
         df: pd.DataFrame,
         meta: dict,
         float_fmt: str = "%.9f",
+        update_header_path: bool = False,
     ) -> None:
-        """헤더(datarows/nRows, datacolumns/nColumns, range)를 갱신한 뒤 저장합니다."""
+        """
+        update_header_path=True일 때만 첫 행(name)을 출력 절대경로로 갱신합니다.
+        ExtLoad .mot 저장 시 True, IK/SO/JR/BK 결과(.sto, .mot) 저장 시 False(기본).
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
+        header_lines = list(meta["header_lines"])
+        if update_header_path:
+            header_lines = cls.update_header_name_line(header_lines, path)
         header_lines = cls.update_header_counts(
-            meta["header_lines"],
+            header_lines,
             nrows=len(df),
             ncols=len(df.columns),
             tmin=float(df["time"].iloc[0]),
@@ -343,6 +368,12 @@ class TrcStorage:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         header_lines = list(meta.get("header_lines", []))
+        # 첫 행(PathFileType ... \t path): 경로를 출력 절대경로로 갱신
+        if header_lines and header_lines[0].strip().lower().startswith("pathfiletype"):
+            parts = header_lines[0].rstrip("\n").split("\t")
+            if len(parts) >= 2:
+                parts[-1] = str(path.resolve())
+                header_lines[0] = "\t".join(parts) + "\n"
         # NumFrames 갱신: DataRate 다음 줄이 "1000 1000 158 42 ..." 형태
         for i, line in enumerate(header_lines):
             parts = re.split(r"\s+", line.strip())

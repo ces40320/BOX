@@ -9,6 +9,11 @@
     CONFIG["sub_name"] = "SUB2"
     path_class = get_path_class(CONFIG)
     path_instance = get_path_from_config(CONFIG)
+
+YAML 설정 파일 사용:
+    from c_Run_Tools import load_config_from_yaml, get_path_from_config
+    cfg = load_config_from_yaml("configs/pipeline_config.yaml")
+    path_instance = get_path_from_config(cfg)
 """
 import os
 
@@ -37,11 +42,13 @@ class _ConfigDict(dict):
         return super().__getitem__(key)
 
     def __setitem__(self, key, value):
+        """kg_bpm을 조합해 반영. kg, bpm이 단일 값이면 리스트로 확장."""
         if key == "kg_bpm":
             super().__setitem__("_kg_bpm_explicit", True)
         super().__setitem__(key, value)
 
     def get(self, key, default=None):
+        """kg_bpm을 조합해 반환. kg, bpm이 단일 값이면 리스트로 확장."""
         if key == "kg_bpm":
             if super().get("_kg_bpm_explicit"):
                 return super().get("kg_bpm", default)
@@ -127,6 +134,24 @@ def update_config(**kwargs):
     CONFIG.update(kwargs)
 
 
+def load_config_from_yaml(path):
+    """
+    YAML 파일에서 CONFIG + 실행 옵션을 읽어 _ConfigDict로 반환.
+
+    반환된 dict는 get_path_from_config()에 그대로 넘기면 되고,
+    'kg_bpm', 'trial_range', 'task_range', 'run', 'print_time' 등도 포함된다.
+    """
+    try:
+        import yaml
+    except ImportError:
+        raise ImportError("YAML 로드에 PyYAML이 필요합니다: pip install pyyaml")
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not data:
+        data = {}
+    return _ConfigDict(data)
+
+
 # 패키지에서 사용할 때 경로 기준 디렉터리 (c_Run Tools)
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -136,4 +161,5 @@ __all__ = [
     "get_path_class",
     "get_path_from_config",
     "update_config",
+    "load_config_from_yaml",
 ]
