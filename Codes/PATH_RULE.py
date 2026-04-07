@@ -4,6 +4,7 @@ import shutil
 import glob
 
 import SUB_Info as _sub_info
+import config_methods as _cfg
 
 # ===== 초기 설정 --> 나중에 .yaml로 config 불러올 예정 =====
 prototype = None        # If you want to output NON-official results, set any string here.
@@ -49,39 +50,134 @@ RESULT_SUB_li = [
 ]
 for _sub_name in RESULT_SUB_li:
     os.makedirs(os.path.join(OPENSIM_DIR, _sub_name), exist_ok=True)
+    _trcmot = os.path.join(OPENSIM_DIR, _sub_name, "TrcMot")
+    os.makedirs(_trcmot, exist_ok=True)
+
+
+# ── 피험자별 경로 헬퍼 함수 ───────────────────────────────────
+
+def get_c3d_dir(namecode:str):
+    """피험자의 C3D 파일 디렉토리"""
+    return os.path.join(DATA_DIR, namecode, "Labeled")
+
+
+def get_rigid_dir(namecode:str):
+    """피험자의 RigidBody CSV 디렉토리"""
+    return os.path.join(DATA_DIR, namecode, "RigidBody")
+
+
+def get_trcmot_dir(namecode:str):
+    """피험자의 TrcMot 출력 디렉토리 (없으면 생성)"""
+    subject_info = _sub_info.subjects[namecode]
+    sub_label = f"SUB{subject_info['SUB_number']}"  # SUB1, SUB2, ...
+    protocol = subject_info["protocol"]
+    dir_trcmot = os.path.join(OPENSIM_DIR, protocol, sub_label, "TrcMot")
+    os.makedirs(dir_trcmot, exist_ok=True)
+    return dir_trcmot
+
+def get_APP_dir(namecode:str, app:str) -> str:
+    """특정 APP의 결과 디렉토리 경로 반환.
     
-    TRCMOT_DIR = os.path.join(OPENSIM_DIR, _sub_name, "TrcMot")
-    os.makedirs(TRCMOT_DIR, exist_ok=True)
+    output: type(str)
+        e.g. "Symmetric/SUB1/APP1"
+        e.g. "Asymmetric_Triangle/SUB2/APP2"
+    """
+    subject_info = _sub_info.subjects[namecode]
+    sub_label = f"SUB{subject_info['SUB_number']}"
+    protocol = subject_info["protocol"]
+    app_list = _cfg.PROTOCOL_Candidates[protocol]["APPs"]
+
+    if app not in app_list:
+        raise ValueError(f"Invalid APP {app!r} for {protocol!r} in {namecode!r}")
     
-
-# for _sub_name in RESULT_SUB_li:
-#     TRC_PATH_li = [
-#         f"{_sub_name}_{kg_bpm}_{cycle}_{triangle}.trc"
-#         for kg_bpm in _sub_info.subjects[_sub_name]["conditions"].keys()
-#         for cycle in range(1, _sub_info.subjects[_sub_name]["conditions"][kg_bpm]["cycles"] + 1)
-#         for triangle in ["AB", "BC", "CA"]
-#     ]
-#     ExtLoad_PATH_li = [
-#         f"{_sub_name}_{kg_bpm}_{cycle}_{triangle}_ExtLoad{app}.mot"
-#         for kg_bpm in _sub_info.subjects[_sub_name]["conditions"].keys()
-#         for cycle in range(1, _sub_info.subjects[_sub_name]["conditions"][kg_bpm]["cycles"] + 1)
-#         for triangle in ["AB", "BC", "CA"]
-#         for app in ["APP1", "APP2", "APP3", "APP4"]
-#     ]
+    dir_app = os.path.join(OPENSIM_DIR, protocol, sub_label, app)
+    os.makedirs(dir_app, exist_ok=True)
+    return dir_app
 
 
+def get_all_APP_dirs(namecode:str) -> dict: 
+    """해당 피험자의 모든 APP 디렉토리 경로를 dict로 반환.
+    
+    output: type(dict) of str
+        e.g. {"APP1": "Symmetric/SUB1/APP1", "APP2": "Symmetric/SUB1/APP2", ...}
+        e.g. {"APP1": "Asymmetric_Triangle/SUB2/APP1", "APP2": "Asymmetric_Triangle/SUB2/APP2", ...}
+    """
+    subject_info = _sub_info.subjects[namecode]
+    sub_label = f"SUB{subject_info['SUB_number']}"
+    protocol = subject_info["protocol"]
+    app_list = _cfg.PROTOCOL_Candidates[protocol]["APPs"]
 
-Current_Trc_PATH_li = [
-    glob.glob(os.path.join(TRCMOT_DIR, "*.trc"))
-]
-
-Current_ExtLoad_PATH_li = [
-    glob.glob(os.path.join(TRCMOT_DIR, "*.mot"))
-]
+    return {
+        app: os.path.join(OPENSIM_DIR, protocol, sub_label, app)
+        for app in app_list
+    }
 
 
+def get_kgbpm_dir(namecode:str, app:str, kg_bpm:str) -> str:
+    """피험자의 kg_bpm 결과 디렉토리 생성 또는 특정 kg_bpm 디렉토리 반환.
+    
+    output: type(str)
+        e.g. "Symmetric/SUB1/APP1/15kg_10bpm_trial1"
+        e.g. "Asymmetric_Triangle/SUB2/APP2/15kg_16bpm"
+    """
+    subject_info = _sub_info.subjects[namecode]
+    sub_label = f"SUB{subject_info['SUB_number']}"  # SUB1, SUB2, ...
+    protocol = subject_info["protocol"]
+    dir_kgbpm = os.path.join(OPENSIM_DIR, protocol, sub_label, app, kg_bpm)
+    os.makedirs(dir_kgbpm, exist_ok=True)
+    return dir_kgbpm
 
 
+# ── 결과 파일명 생성 헬퍼 ─────────────────────────────────────
+
+def set_Markers_TRC_names_list(namecode):
+    """피험자의 마커 TRC 파일명 리스트 생성.
+
+    프로토콜 세그먼트 스타일에 따라 이름 생성:
+      Symmetric  → SUB1_15kg_10bpm_trial1_1U.trc, ...
+      ABC 스타일 → SUB2_15kg_10bpm_1AB.trc, ...
+      
+    output: type(list) of str
+        e.g. ["SUB1_15kg_10bpm_trial1_1U.trc", "SUB1_15kg_10bpm_trial1_1D.trc", "SUB1_15kg_10bpm_trial1_2U.trc", "SUB1_15kg_10bpm_trial1_2D.trc", ...]
+    """
+    subject_info = _sub_info.subjects[namecode]
+    sub_label = f"SUB{subject_info['SUB_number']}"  # SUB1, SUB2, ...
+    protocol = subject_info["protocol"]
+    segment_style = _cfg.PROTOCOL_Candidates[protocol]["segment_style"]
+
+    filenames = []
+    for kg_bpm, condition_val in subject_info["conditions"].items():
+        segment_label_list = _cfg.segment_labels(condition_val["cycles"], segment_style)
+        for segment_label in segment_label_list:
+            filenames.append(f"{sub_label}_{kg_bpm}_{segment_label}.trc")
+    return filenames
+
+
+def set_ExtLoad_MOT_names_list(namecode):
+    """피험자의 ExtLoad MOT 파일명 리스트 생성.
+
+    각 세그먼트 × 각 APP 조합:
+      SUB1_15kg_10bpm_trial1_1U_ExtLoadAPP1.mot, ...
+      SUB2_15kg_10bpm_1AB_ExtLoadAPP1.mot, ...
+      
+    output: type(list) of str
+        e.g. ["SUB1_15kg_10bpm_trial1_1U_ExtLoadAPP1.mot", "SUB1_15kg_10bpm_trial1_1D_ExtLoadAPP1.mot", ...]
+        e.g. ["SUB2_15kg_10bpm_1AB_ExtLoadAPP1.mot", "SUB2_15kg_10bpm_1AB_ExtLoadAPP2.mot", ...]
+    """
+    subject_info = _sub_info.subjects[namecode]
+    sub_label = f"SUB{subject_info['SUB_number']}"  # SUB1, SUB2, ...
+    protocol = subject_info["protocol"]
+    protocol_config = _cfg.PROTOCOL_Candidates[protocol]
+    segment_style = protocol_config["segment_style"]
+    app_list = protocol_config["APPs"]
+
+    filenames = []
+    for kg_bpm, condition_val in subject_info["conditions"].items():
+        segment_label_list = _cfg.segment_labels(condition_val["cycles"], segment_style)
+        for segment_label in segment_label_list:
+            for app in app_list:
+                filenames.append(f"{sub_label}_{kg_bpm}_{segment_label}_ExtLoad{app}.mot")
+    return filenames
 
 
 def mirror_to_cowork(src_path): 
