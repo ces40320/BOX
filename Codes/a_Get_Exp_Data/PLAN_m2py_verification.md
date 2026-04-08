@@ -433,7 +433,7 @@ Codes/
 ├── a_Get_Exp_Data/
 │   ├── PLAN_m2py_verification.md  # 이 문서
 │   ├── lifting_io.py              # 데이터 I/O 함수 (수정 대상)
-│   ├── config_exp_settings.py          # 장비 상수, 필터, threshold (신규, config.py 대체)
+│   ├── config_exp_settings.py     # 장비 상수, 필터, threshold (신규, config.py 대체)
 │   ├── segment_symmetric.py       # Symmetric 프로토콜 세그먼트 분할 (신규)
 │   ├── segment_asymmetric.py      # Asymmetric 프로토콜 세그먼트 분할 (기존 segment_new_protocol.py 기반)
 │   └── run_get_exp_data.py        # 통합 진입점 (신규)
@@ -456,7 +456,152 @@ Codes/
 
 ---
 
-## 9. 검증 체크리스트
+## 9. 결과 폴더 및 파일 구조 계획
+```text
+OpenSim_Process
+└─ _Main_/
+  ├─ Symmetric/
+  │  └─ SUB1/
+  │    ├─ Model_osim/
+  │    │  ├─ SUB1_Scaled.osim
+  │    │  ├─ SUB1_Scaled_HeavyHand.osim
+  │    │  ├─ SUB1_Scaled_WeldBox.osim
+  │    │  └─ SUB1_Scaled_SplitBox.osim
+  │    ├─ 7kg_10bpm_trial1/
+  │    │  ├─ Up/
+  │    │  │  ├─ Markers/
+  │    │  │  │  └─ SUB1_7kg_10bpm_trial1_U1.trc
+  │    │  │  ├─ ExtLoad/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_ExtLoad_MeasuredEHF.mot
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_ExtLoad_HeavyHand.mot
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_ExtLoad_AddBox.mot
+  │    │  │  │  ├─ SETUP_ExtLoad_7kg_10bpm_trial1_U1_MeasuredEHF.xml
+  │    │  │  │  ├─ SETUP_ExtLoad_7kg_10bpm_trial1_U1_HeavyHand.xml
+  │    │  │  │  └─ SETUP_ExtLoad_7kg_10bpm_trial1_U1_AddBox.xml
+  │    │  │  ├─ IK/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_IK.mot
+  │    │  │  │  └─ SETUP_IK_7kg_10bpm_trial1_U1.xml
+  │    │  │  ├─ IK_AddBox/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_AddBox_IK.mot
+  │    │  │  │  └─ SETUP_IK_7kg_10bpm_trial1_U1_AddBox.xml
+  │    │  │  ├─ BK/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_BodyKinematics_pos_global.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_BodyKinematics_vel_global.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_BodyKinematics_acc_global.sto
+  │    │  │  │  └─ SETUP_BK_7kg_10bpm_trial1_U1.xml
+  │    │  │  ├─ SO_MeasuredEHF/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_MeasuredEHF_StaticOptimization_activation.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_MeasuredEHF_StaticOptimization_force.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_MeasuredEHF_StaticOptimization_control.xml
+  │    │  │  │  └─ SETUP_SO_7kg_10bpm_trial1_U1_MeasuredEHF.xml
+  │    │  │  ├─ SO_HeavyHand/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_HeavyHand_StaticOptimization_activation.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_HeavyHand_StaticOptimization_force.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_HeavyHand_StaticOptimization_control.xml
+  │    │  │  │  └─ SETUP_SO_7kg_10bpm_trial1_U1_HeavyHand.xml
+  │    │  │  ├─ SO_AddBox/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_AddBox_StaticOptimization_activation.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_AddBox_StaticOptimization_force.sto
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_AddBox_StaticOptimization_control.xml
+  │    │  │  │  └─ SETUP_SO_7kg_10bpm_trial1_U1_AddBox.xml
+  │    │  │  ├─ JR_MeasuredEHF/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_MeasuredEHF_JointReaction_ReactionLoads.sto
+  │    │  │  │  └─ SETUP_JR_7kg_10bpm_trial1_U1_MeasuredEHF.xml
+  │    │  │  ├─ JR_HeavyHand/
+  │    │  │  │  ├─ SUB1_7kg_10bpm_trial1_U1_HeavyHand_JointReaction_ReactionLoads.sto
+  │    │  │  │  └─ SETUP_JR_7kg_10bpm_trial1_U1_HeavyHand.xml
+  │    │  │  └─ JR_AddBox/
+  │    │  │     ├─ SUB1_7kg_10bpm_trial1_U1_AddBox_JointReaction_ReactionLoads.sto
+  │    │  │     ├─ SUB1_7kg_10bpm_trial1_U1_AddBox_JointReaction_ReactionLoads_ground.sto
+  │    │  │     └─ SETUP_JR_7kg_10bpm_trial1_U1_AddBox_ground.xml
+  │    │  │     └─ SETUP_JR_7kg_10bpm_trial1_U1_AddBox.xml
+  │    │  └─ Down/ (하위 생략)
+  │    ├─ 7kg_10bpm_trial2/ (하위 생략)
+  │    ├─ 15kg_10bpm_trial1/ (하위 생략)
+  │    ├─ 15kg_10bpm_trial2/ (하위 생략)
+  │    ├─ 7kg_16bpm_trial1/ (하위 생략)
+  │    ├─ 7kg_16bpm_trial2/ (하위 생략)
+  │    ├─ 15kg_16bpm_trial1/ (하위 생략)
+  │    └─ 15kg_16bpm_trial2/ (하위 생략)
+  └─ Asymmetric
+    ├─ SUB2/
+    │  ├─ Model_osim/
+    │  │  ├─ SUB2_Scaled.osim
+    │  │  ├─ SUB2_Scaled_HeavyHand.osim
+    │  │  ├─ SUB2_Scaled_WeldBox.osim  (미정)
+    │  │  └─ SUB2_Scaled_SplitBox.osim (미정)
+    │  ├─ 7kg_10bpm/
+    │  │  ├─ AB/
+    │  │  │  ├─ Markers/
+    │  │  │  │  └─ SUB2_7kg_10bpm_AB1.trc
+    │  │  │  ├─ ExtLoad/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_ExtLoad_MeasuredEHF.mot
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_ExtLoad_HeavyHand.mot
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_ExtLoad_AddBox.mot      (미정)
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_ExtLoad_PreRiCTO.mot
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_ExtLoad_PostRiCTO.mot
+    │  │  │  │  ├─ SETUP_ExtLoad_7kg_10bpm_AB1_MeasuredEHF.xml
+    │  │  │  │  ├─ SETUP_ExtLoad_7kg_10bpm_AB1_HeavyHand.xml
+    │  │  │  │  ├─ SETUP_ExtLoad_7kg_10bpm_AB1_AddBox.xml     (미정)
+    │  │  │  │  ├─ SETUP_ExtLoad_7kg_10bpm_AB1_PreRiCTO.xml
+    │  │  │  │  └─ SETUP_ExtLoad_7kg_10bpm_AB1_PostRiCTO.xml
+    │  │  │  ├─ IK/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_IK.mot
+    │  │  │  │  └─ SETUP_IK_7kg_10bpm_AB1.xml
+    │  │  │  ├─ BK/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_BodyKinematics_pos_global.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_BodyKinematics_vel_global.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_BodyKinematics_acc_global.sto
+    │  │  │  │  └─ SETUP_BK_7kg_10bpm_AB1.xml
+    │  │  │  ├─ SO_MeasuredEHF/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_MeasuredEHF_StaticOptimization_activation.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_MeasuredEHF_StaticOptimization_force.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_MeasuredEHF_StaticOptimization_control.xml
+    │  │  │  │  └─ SETUP_SO_7kg_10bpm_AB1_MeasuredEHF.xml
+    │  │  │  ├─ SO_HeavyHand/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_HeavyHand_StaticOptimization_activation.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_HeavyHand_StaticOptimization_force.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_HeavyHand_StaticOptimization_control.xml
+    │  │  │  │  └─ SETUP_SO_7kg_10bpm_AB1_HeavyHand.xml
+    │  │  │  ├─ SO_PreRiCTO/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_PreRiCTO_StaticOptimization_activation.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_PreRiCTO_StaticOptimization_force.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_PreRiCTO_StaticOptimization_control.xml
+    │  │  │  │  └─ SETUP_SO_7kg_10bpm_AB1_PreRiCTO.xml
+    │  │  │  ├─ SO_PostRiCTO/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_PostRiCTO_StaticOptimization_activation.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_PostRiCTO_StaticOptimization_force.sto
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_PostRiCTO_StaticOptimization_control.xml
+    │  │  │  │  └─ SETUP_SO_7kg_10bpm_AB1_PostRiCTO.xml
+    │  │  │  ├─ JR_MeasuredEHF/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_MeasuredEHF_JointReaction_ReactionLoads.sto
+    │  │  │  │  └─ SETUP_JR_7kg_10bpm_AB1_MeasuredEHF.xml
+    │  │  │  ├─ JR_HeavyHand/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_HeavyHand_JointReaction_ReactionLoads.sto
+    │  │  │  │  └─ SETUP_JR_7kg_10bpm_AB1_HeavyHand.xml
+    │  │  │  ├─ JR_PreRiCTO/
+    │  │  │  │  ├─ SUB2_7kg_10bpm_AB1_PreRiCTO_JointReaction_ReactionLoads.sto
+    │  │  │  │  └─ SETUP_JR_7kg_10bpm_AB1_PreRiCTO.xml
+    │  │  │  └─ JR_PostRiCTO/
+    │  │  │     ├─ SUB2_7kg_10bpm_AB1_PostRiCTO_JointReaction_ReactionLoads.sto
+    │  │  │     └─ SETUP_JR_7kg_10bpm_AB1_PostRiCTO.xml
+    │  │  ├─ BC/ (하위 생략)
+    │  │  └─ CA/ (하위 생략)
+    │  ├─ 15kg_10bpm/ (하위 생략)
+    │  ├─ 7kg_16bpm/ (하위 생략)
+    │  └─ 15kg_16bpm/ (하위 생략)
+    └─ SUB3/ (하위 생략)
+      ├─ Model_osim/ (하위 생략)
+      ├─ 7kg_10bpm/ (하위 생략)
+      ├─ 10kg_10bpm/ (하위 생략)
+      ├─ 7kg_16bpm/ (하위 생략)
+      └─ 10kg_16bpm/ (하위 생략)
+
+```
+
+---
+
+## 10. 검증 체크리스트
 
 각 수정 후 아래 항목을 확인:
 
