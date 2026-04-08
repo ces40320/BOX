@@ -23,10 +23,8 @@ import argparse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import SUB_Info as _sub_info
 import PATH_RULE as _path
-import config_methods as _cfg
-import config_exp_settings as _lcfg
+import config_exp_settings as _lcfg           # noqa: F401  (파이프라인 구현 시 사용)
 
 
 # ── 파일 탐색 ────────────────────────────────────────────────────
@@ -77,8 +75,7 @@ def find_rigid_csv_for_condition(rigid_dir, condition_key):
 
 # ── 프로토콜별 파이프라인 (구현 대기) ────────────────────────────
 
-def process_condition_findpeaks(namecode, condition_key, condition_val,
-                                c3d_path, rigid_csv_path, protocol_cfg):
+def process_condition_findpeaks(rp, cp, c3d_path, rigid_csv_path):
     """findpeaks 기반 세그먼트 분할 → TRC/MOT 출력.
 
     Symmetric / Asymmetric_Pilot 프로토콜에서 사용.
@@ -96,6 +93,10 @@ def process_condition_findpeaks(namecode, condition_key, condition_val,
        c. APP2 MOT: 지면반력만 (로드셀 → 0)
        d. APP3 MOT: 손가락 마커 COP (LFN2, RFN2)
        e. APP4 MOT: (확장용)
+    Parameters
+    ----------
+    rp : _path.ResultPaths
+    cp : _path.ConditionPaths
     """
     # TODO: lifting_io.py, segment_symmetric.py 구현 후 연결
     raise NotImplementedError(
@@ -104,24 +105,13 @@ def process_condition_findpeaks(namecode, condition_key, condition_val,
     )
 
 
-def process_condition_bpm_window(namecode, condition_key, condition_val,
-                                 c3d_path, rigid_csv_path, protocol_cfg):
+def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
     """BPM 기반 고정 윈도우 세그먼트 분할 → TRC/MOT 출력.
 
-    Asymmetric_Triangle 프로토콜에서 사용.
-
-    파이프라인 흐름
-    ---------------
-    1. C3D 읽기 → 마커(100Hz) + 외력(1000Hz)
-    2. RigidBody CSV 읽기 → 박스 회전/위치 (1000Hz)
-    3. 마커 Butterworth 필터링 (10Hz, 4th)
-    4. 양손 |fy| 합으로 접촉 구간 검출 → 동기화 끝 시점
-    5. 동기화 끝 시점 + BPM_DURATION으로 세그먼트 윈도우 결정
-    6. 각 세그먼트에 대해:
-       a. TRC 파일 출력
-       b. APP1 MOT: 로드셀 + 지면반력
-       c. APP2 MOT: 지면반력만
-       d. APP2_preRiCTO / APP2_postRiCTO: (확장용)
+    Parameters
+    ----------
+    rp : _path.ResultPaths
+    cp : _path.ConditionPaths
     """
     # TODO: lifting_io.py, segment_asymmetric.py 구현 후 연결
     raise NotImplementedError(
@@ -140,65 +130,55 @@ _METHOD_DISPATCH = {
 
 def process_subject(namecode, dry_run=False):
     """한 명의 피험자에 대해 전체 파이프라인 수행."""
-    subject_info = _sub_info.subjects[namecode]
-    protocol = subject_info["protocol"]
-    protocol_cfg = _cfg.PROTOCOL_Candidates[protocol]
-    sub_label = f"SUB{subject_info['SUB_number']}"
-
-    c3d_dir = _path.get_c3d_dir(namecode)
-    rigid_dir = _path.get_rigidbody_dir(namecode)
-    sub_dir = _path.get_sub_dir(namecode)
-
-    segment_method = protocol_cfg["segmentation"]["method"]
+    rp = _path.ResultPaths(namecode)
 
     print(f"\n{'='*60}")
-    print(f"[{namecode}]  {sub_label}  protocol={protocol}  method={segment_method}")
-    print(f"  C3D dir : {c3d_dir}")
-    print(f"  Rigid dir: {rigid_dir}")
-    print(f"  Output  : {sub_dir}")
-    print(f"  APPs    : {protocol_cfg['APPs']}")
+    print(f"[{namecode}]  {rp.sub_label}  protocol={rp.protocol}  "
+          f"method={rp.segmentation['method']}")
+    print(f"  C3D dir : {rp.c3d_dir}")
+    print(f"  Rigid dir: {rp.rigid_dir}")
+    print(f"  Output  : {rp.sub_dir}")
+    print(f"  APPs    : {rp.apps}")
     print(f"{'='*60}")
 
-    pipeline_fn = _METHOD_DISPATCH.get(segment_method)
+    pipeline_fn = _METHOD_DISPATCH.get(rp.segmentation["method"])
     if pipeline_fn is None:
-        print(f"  [ERROR] Unknown segment method: {segment_method!r}")
+        print(f"  [ERROR] Unknown segment method: "
+              f"{rp.segmentation['method']!r}")
         return
 
     conditions_sorted = sorted(
-        subject_info["conditions"].items(),
+        rp.conditions.items(),
         key=lambda kv: kv[1]["order"],
     )
 
-    for condition_key, condition_val in conditions_sorted:
-        c3d_path = find_c3d_for_condition(c3d_dir, condition_key)
-        rigid_csv_path = find_rigid_csv_for_condition(rigid_dir, condition_key)
+    for cond_key, cond_val in conditions_sorted:
+        c3d_path = find_c3d_for_condition(rp.c3d_dir, cond_key)
+        rigid_csv_path = find_rigid_csv_for_condition(rp.rigid_dir, cond_key)
 
-        c3d_status = "OK" if c3d_path else "MISSING"
-        rigid_status = "OK" if rigid_csv_path else "MISSING"
-        print(f"\n  [{condition_key}]  C3D={c3d_status}  Rigid={rigid_status}"
-              f"  cycles={condition_val['cycles']}")
+        c3d_ok   = "OK" if c3d_path else "MISSING"
+        rigid_ok = "OK" if rigid_csv_path else "MISSING"
+        print(f"\n  [{cond_key}]  C3D={c3d_ok}  Rigid={rigid_ok}"
+              f"  cycles={cond_val['cycles']}")
         if c3d_path:
             print(f"    C3D  : {os.path.basename(c3d_path)}")
         if rigid_csv_path:
             print(f"    Rigid: {os.path.basename(rigid_csv_path)}")
-        if condition_val.get("error_log"):
-            print(f"    error_log: {condition_val['error_log']}")
+        if cond_val.get("error_log"):
+            print(f"    error_log: {cond_val['error_log']}")
 
         if dry_run:
             print("    [DRY-RUN] Skipping processing.")
             continue
-
         if not c3d_path:
-            print(f"    [SKIP] No C3D file found for '{condition_key}'")
+            print(f"    [SKIP] No C3D file found for '{cond_key}'")
             continue
         if not rigid_csv_path:
-            print(f"    [SKIP] No RigidBody CSV found for '{condition_key}'")
+            print(f"    [SKIP] No RigidBody CSV found for '{cond_key}'")
             continue
 
-        pipeline_fn(
-            namecode, condition_key, condition_val,
-            c3d_path, rigid_csv_path, protocol_cfg,
-        )
+        cp = rp.for_condition(cond_key)
+        pipeline_fn(rp, cp, c3d_path, rigid_csv_path)
 
 
 # ── CLI 엔트리포인트 ─────────────────────────────────────────────
@@ -217,12 +197,12 @@ def main():
     )
     args = parser.parse_args()
 
-    available = list(_sub_info.subjects.keys())
+    available = _path.DATA_SUB_NAMECODE_li
 
     if args.subjects:
         namecodes = args.subjects
         for nc in namecodes:
-            if nc not in _sub_info.subjects:
+            if nc not in available:
                 parser.error(
                     f"Unknown namecode: {nc!r}\n  Available: {available}"
                 )
