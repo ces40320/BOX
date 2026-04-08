@@ -11,25 +11,26 @@ PROTOCOL_li = [
 
 PROTOCOL_Candidates = {
     "Symmetric": {
-        "APPs": ["APP1", "APP2", "APP3", "APP4"],
+        "APPs": ["MeasuredEHF", "HeavyHand", "AddBox"],
         "segment_style": "UpDown",
-        "segment": {
+        "segmentation": {
             "method": "findpeaks",
             "pair_threshold": 0.5, # 대칭 프로토콜 세그먼트 분할 임계값 (meter)
         },
     },
     "Asymmetric_Pilot": {
-        "APPs": ["APP1", "APP2"],
+        "APPs": ["MeasuredEHF", "HeavyHand"],
         "segment_style": "UpDown",
-        "segment": {
+        "segmentation": {
             "method": "findpeaks",
             "pair_threshold": 0.005, # 비대칭 프로토콜 세그먼트 분할 임계값 (meter)
         },
     },
-    "Asymmetric_Triangle": {
-        "APPs": ["APP1", "APP2", "APP2_preRiCTO", "APP2_postRiCTO"],
+    "Asymmetric": {
+        "APPs": ["MeasuredEHF", "HeavyHand", "preRiCTO", "postRiCTO"],
+        "result_root": "Asymmetric",
         "segment_style": "ABC",
-        "segment": {
+        "segmentation": {
             "method": "bpm_window",
             "BPM_DURATION": {10: 6.0, 16: 3.75},    # 10bpm → 6.0초, 16bpm → 3.75초
             "CONTACT_THRESHOLD_N": 5.0,             # N — 양손 |fy| 합이 이 이상이면 접촉
@@ -40,32 +41,58 @@ PROTOCOL_Candidates = {
     },
 }
 
-_TRIANGLE_PHASES = ["AB", "BC", "CA"]
+_PHASE_MAP = {
+    "UpDown": [("Up", "U"), ("Down", "D")],
+    "ABC":    [("AB", "AB"), ("BC", "BC"), ("CA", "CA")],
+}
 
 
-def segment_labels(n_cycles:int, style:str) -> list[str]:
-    """프로토콜 세그먼트 스타일에 맞는 레이블 목록 생성.
+def phase_info(style: str) -> list[tuple[str, str]]:
+    """세그먼트 스타일에 따른 (디렉토리명, 라벨접두사) 튜플 목록.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        ``"UpDown"`` → ``[("Up", "U"), ("Down", "D")]``
+        ``"ABC"``    → ``[("AB", "AB"), ("BC", "BC"), ("CA", "CA")]``
+    """
+    if style not in _PHASE_MAP:
+        raise ValueError(f"Unknown segment_style: {style!r}")
+    return list(_PHASE_MAP[style])
+
+
+def segment_labels(n_cycles: int, style: str) -> list[str]:
+    """모든 위상·사이클에 대한 세그먼트 레이블 (사이클 순 인터리브).
 
     Parameters
     ----------
     n_cycles : int
         해당 condition의 lifting cycle 수.
     style : str
-        ``"UpDown"``  → ``["1U", "1D", "2U", "2D", ...]``
-        ``"ABC"`` → ``["1AB", "1BC", "1CA", "2AB", "2BC", "2CA", ...]``
+        ``"UpDown"`` → ``["U1", "D1", "U2", "D2", ...]``
+        ``"ABC"``    → ``["AB1", "BC1", "CA1", "AB2", "BC2", "CA2", ...]``
     """
-    if style == "UpDown":
-        labels = []
-        for i in range(1, n_cycles + 1):
-            labels.append(f"{i}U")
-            labels.append(f"{i}D")
-        return labels
-    if style == "ABC":
-        labels = []
-        for i in range(1, n_cycles + 1):
-            for phase in _TRIANGLE_PHASES:
-                labels.append(f"{i}{phase}")
-        return labels
-    raise ValueError(f"Unknown segment_style: {style!r}")
+    phases = phase_info(style)
+    labels = []
+    for i in range(1, n_cycles + 1):
+        for _, prefix in phases:
+            labels.append(f"{prefix}{i}")
+    return labels
+
+
+def phase_segment_labels(n_cycles: int, style: str) -> dict[str, list[str]]:
+    """위상별로 그룹화된 세그먼트 레이블 딕셔너리.
+
+    Returns
+    -------
+    dict[str, list[str]]
+        ``"UpDown"`` → ``{"Up": ["U1","U2",...], "Down": ["D1","D2",...]}``
+        ``"ABC"``    → ``{"AB": ["AB1","AB2",...], "BC": [...], "CA": [...]}``
+    """
+    phases = phase_info(style)
+    return {
+        dir_name: [f"{prefix}{i}" for i in range(1, n_cycles + 1)]
+        for dir_name, prefix in phases
+    }
 
 
