@@ -11,7 +11,7 @@ Usage
 설정 파일 의존 관계
 -------------------
     SUB_Info.py        → 피험자 메타데이터 (protocol, conditions, body_mass 등)
-    PATH_RULE.py       → 경로 관리 (get_c3d_dir, get_rigid_dir, get_trcmot_dir 등)
+    PATH_RULE.py       → 경로 관리 (get_c3d_dir, get_sub_dir, get_result_dir 등)
     config_methods.py  → 프로토콜별 APP 목록, 세그먼트 분할 방식/파라미터
     lifting_config.py  → 장비 상수 (로드셀 부호, 오프셋, 필터, threshold)
 """
@@ -78,8 +78,7 @@ def find_rigid_csv_for_condition(rigid_dir, condition_key):
 # ── 프로토콜별 파이프라인 (구현 대기) ────────────────────────────
 
 def process_condition_findpeaks(namecode, condition_key, condition_val,
-                                c3d_path, rigid_csv_path,
-                                trcmot_dir, app_dirs, protocol_cfg):
+                                c3d_path, rigid_csv_path, protocol_cfg):
     """findpeaks 기반 세그먼트 분할 → TRC/MOT 출력.
 
     Symmetric / Asymmetric_Pilot 프로토콜에서 사용.
@@ -106,8 +105,7 @@ def process_condition_findpeaks(namecode, condition_key, condition_val,
 
 
 def process_condition_bpm_window(namecode, condition_key, condition_val,
-                                 c3d_path, rigid_csv_path,
-                                 trcmot_dir, app_dirs, protocol_cfg):
+                                 c3d_path, rigid_csv_path, protocol_cfg):
     """BPM 기반 고정 윈도우 세그먼트 분할 → TRC/MOT 출력.
 
     Asymmetric_Triangle 프로토콜에서 사용.
@@ -148,18 +146,17 @@ def process_subject(namecode, dry_run=False):
     sub_label = f"SUB{subject_info['SUB_number']}"
 
     c3d_dir = _path.get_c3d_dir(namecode)
-    rigid_dir = _path.get_rigid_dir(namecode)
-    trcmot_dir = _path.get_trcmot_dir(namecode)
-    app_dirs = _path.get_all_APP_dirs(namecode)
+    rigid_dir = _path.get_rigidbody_dir(namecode)
+    sub_dir = _path.get_sub_dir(namecode)
 
-    segment_method = protocol_cfg["segment"]["method"]
+    segment_method = protocol_cfg["segmentation"]["method"]
 
     print(f"\n{'='*60}")
     print(f"[{namecode}]  {sub_label}  protocol={protocol}  method={segment_method}")
-    print(f"  C3D dir   : {c3d_dir}")
-    print(f"  Rigid dir : {rigid_dir}")
-    print(f"  TrcMot dir: {trcmot_dir}")
-    print(f"  APPs      : {protocol_cfg['APPs']}")
+    print(f"  C3D dir : {c3d_dir}")
+    print(f"  Rigid dir: {rigid_dir}")
+    print(f"  Output  : {sub_dir}")
+    print(f"  APPs    : {protocol_cfg['APPs']}")
     print(f"{'='*60}")
 
     pipeline_fn = _METHOD_DISPATCH.get(segment_method)
@@ -198,13 +195,9 @@ def process_subject(namecode, dry_run=False):
             print(f"    [SKIP] No RigidBody CSV found for '{condition_key}'")
             continue
 
-        for app in protocol_cfg["APPs"]:
-            _path.get_kgbpm_dir(namecode, app, condition_key)
-
         pipeline_fn(
             namecode, condition_key, condition_val,
-            c3d_path, rigid_csv_path,
-            trcmot_dir, app_dirs, protocol_cfg,
+            c3d_path, rigid_csv_path, protocol_cfg,
         )
 
 
