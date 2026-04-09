@@ -340,6 +340,66 @@ def write_mot(
             f.write("\t".join(f"{v:.8f}" for v in row) + "\n")
 
 
+def flatten_extload_for_opensim_mot(ext: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    """
+    Expand ``f{i}``/``p{i}``/``m{i}`` (each ``(n, 3)``) into unique scalar MOT columns so
+    headers are readable and match OpenSim ``ExternalLoads`` identifier prefixes
+    (e.g. ``ground_force1_v`` → ``ground_force1_vx`` …).
+
+    Skips ``"time"``. Plates 1–2 use ``ground_force*`` / ``ground_torque*``; 3–4 use
+    ``hand_force*`` / ``hand_torque*``. Missing ``f``/``p``/``m`` keys are zeros.
+    """
+    if "time" in ext:
+        n = int(len(ext["time"]))
+    else:
+        n = None
+        for k in ("f1", "f2", "f3", "f4"):
+            v = ext.get(k)
+            if isinstance(v, np.ndarray) and v.ndim >= 1 and v.shape[0] > 0:
+                n = int(v.shape[0])
+                break
+        if n is None:
+            raise ValueError("flatten_extload_for_opensim_mot: need 'time' or f1..f4 to infer length")
+
+    def _vec3(key: str) -> np.ndarray:
+        v = ext.get(key)
+        if v is None:
+            return np.zeros((n, 3), dtype=float)
+        a = np.asarray(v, dtype=float)
+        if a.ndim == 1 and a.size == n * 3:
+            a = a.reshape(n, 3)
+        if a.shape != (n, 3):
+            raise ValueError(f"{key!r}: expected shape ({n}, 3), got {a.shape}")
+        return a
+
+    out: Dict[str, np.ndarray] = {}
+
+    def _add_plate(plate: int, force_prefix: str, torque_prefix: str) -> None:
+        f_ = _vec3(f"f{plate}")
+        p_ = _vec3(f"p{plate}")
+        m_ = _vec3(f"m{plate}")
+        for i, ax in enumerate(("x", "y", "z")):
+            out[f"{force_prefix}_v{ax}"] = f_[:, i].copy()
+        for i, ax in enumerate(("x", "y", "z")):
+            out[f"{force_prefix}_p{ax}"] = p_[:, i].copy()
+        for i, ax in enumerate(("x", "y", "z")):
+            out[f"{torque_prefix}_{ax}"] = m_[:, i].copy()
+
+    for plate in (1, 2):
+        _add_plate(plate, f"ground_force{plate}", f"ground_torque{plate}")
+    for plate in (3, 4):
+        _add_plate(plate, f"hand_force{plate}", f"hand_torque{plate}")
+
+    return out
+
+
+def write_extload_mot(output_path: str, ext: Dict[str, np.ndarray]) -> None:
+    """Write ExtLoad MOT: ``time`` from ``ext``, scalar columns from :func:`flatten_extload_for_opensim_mot`."""
+    if "time" not in ext:
+        raise KeyError("write_extload_mot: ext must include 'time'")
+    write_mot(output_path, ext["time"], flatten_extload_for_opensim_mot(ext))
+
+
 def _extract_fp(forces: Dict[str, np.ndarray], idx: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     return (
         _nan_to_zero(forces.get(f"f{idx}", np.zeros((len(forces["time"]), 3), dtype=float))),
