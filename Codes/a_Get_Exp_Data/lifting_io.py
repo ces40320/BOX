@@ -7,7 +7,6 @@ protocol-specific segmentation modules can stay focused on window selection.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import csv
@@ -349,15 +348,14 @@ def _extract_fp(forces: Dict[str, np.ndarray], idx: int) -> Tuple[np.ndarray, np
     )
 
 
-def assemble_app1(
+def transform_ExtLoad_MeasuredEHF(
     forces: Dict[str, np.ndarray],
     rigid: Dict[str, np.ndarray],
     cfg,
 ) -> Dict[str, np.ndarray]:
     """
-    Assemble APP1 channels:
-    - hand load-cell force/moment/cop transformed to global
-    - ground reaction force channels kept as force-platform global data
+    MeasuredEHF ExtLoad: hand load-cell force/moment/COP in global frame;
+    ground reaction channels unchanged from force platform.
     """
     n = len(forces["time"])
     rigid_m = _match_rigid_length(rigid, n)
@@ -437,8 +435,8 @@ def assemble_app1(
     }
 
 
-def assemble_app2(forces: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-    """APP2 uses ground reaction only, with hand channels zeroed."""
+def transform_ExtLoad_HeavyHand(forces: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    """HeavyHand ExtLoad: ground reaction only; hand force/moment/COP zeroed."""
     n = len(forces["time"])
     z = np.zeros((n, 3), dtype=float)
     f1, p1, m1 = _extract_fp(forces, 1)
@@ -460,18 +458,19 @@ def assemble_app2(forces: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
     }
 
 
-def assemble_app3(
+def transform_ExtLoad_AddBox(
     forces: Dict[str, np.ndarray],
     markers: Dict[str, np.ndarray],
     cfg,
 ) -> Dict[str, np.ndarray]:
     """
-    APP3 sets hand COP from finger markers while keeping hand force/moment zero.
+    AddBox ExtLoad: hand COP from finger markers (interpolated to force rate);
+    hand force/moment zero (same base as HeavyHand).
     """
-    out = assemble_app2(forces)
+    out = transform_ExtLoad_HeavyHand(forces)
     if cfg.LEFT_FINGER_MARKER not in markers or cfg.RIGHT_FINGER_MARKER not in markers:
         raise KeyError(
-            "APP3 requires finger markers "
+            "AddBox ExtLoad requires finger markers "
             f"{cfg.LEFT_FINGER_MARKER!r}/{cfg.RIGHT_FINGER_MARKER!r}."
         )
 
