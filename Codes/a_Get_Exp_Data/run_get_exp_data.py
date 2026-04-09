@@ -88,7 +88,7 @@ def process_condition_findpeaks(rp, cp, c3d_path, rigid_csv_path):
     4. 박스 마커(LTA_BOX, RTA_BOX) Y좌표 평균 → findpeaks로 Up/Down 이벤트 검출
     5. 세그먼트 분할 (grip ~ deposit 구간)
     6. 각 세그먼트에 대해:
-       a. TRC 파일 출력 (마커 → mm)
+       a. TRC 파일 출력 (마커 → m, `write_trc` Units=m)
        b. APP1 MOT: 로드셀 force/moment/COP 회전변환 + 지면반력
        c. APP2 MOT: 지면반력만 (로드셀 → 0)
        d. APP3 MOT: 손가락 마커 COP (LFN2, RFN2)

@@ -63,7 +63,7 @@ RigidBody CSV ─┘
   - `read_c3d_markers()` → `adapter.getMarkersTable(tables)` → `_osim_table_to_dict()`
   - `read_c3d_force_platforms()` → `adapter.getForcesTable(tables)` → f/p/m 배열로 매핑
 - [x] `ezc3d` import 및 관련 함수 제거 완료 (현재 코드에 ezc3d 참조 없음)
-- [x] 단위 변환: `write_trc()`에서 `xyz_mm = markers_m[label][i] * 1000.0` → m→mm 변환 유지
+- [x] `write_trc()` 좌표는 입력(m) 그대로 기록, TRC 헤더 `Units=m` (2026-04-09: 기존 mm 출력에서 변경)
 
 ---
 

@@ -280,7 +280,7 @@ def write_trc(
     time_s: np.ndarray,
     markers_m: Dict[str, np.ndarray],
 ) -> None:
-    """Write OpenSim-compatible TRC. Coordinates are saved in mm."""
+    """Write OpenSim-compatible TRC. Coordinates are in meters (header ``Units`` = ``m``)."""
     labels = [k for k in markers_m.keys() if k != "time"]
     n_frames = len(time_s)
     data_rate = 1.0 / np.mean(np.diff(time_s)) if n_frames > 1 else 100.0
@@ -292,7 +292,7 @@ def write_trc(
             "DataRate\tCameraRate\tNumFrames\tNumMarkers\tUnits\tOrigDataRate\tOrigDataStartFrame\tOrigNumFrames\n"
         )
         f.write(
-            f"{data_rate:.6f}\t{data_rate:.6f}\t{n_frames}\t{len(labels)}\tmm\t{data_rate:.6f}\t1\t{n_frames}\n"
+            f"{data_rate:.6f}\t{data_rate:.6f}\t{n_frames}\t{len(labels)}\tm\t{data_rate:.6f}\t1\t{n_frames}\n"
         )
 
         f.write("Frame#\tTime")
@@ -314,8 +314,8 @@ def write_trc(
         for i in range(n_frames):
             f.write(f"{i+1}\t{time_s[i]:.8f}")
             for label in labels:
-                xyz_mm = markers_m[label][i] * 1000.0
-                f.write(f"\t{xyz_mm[0]:.5f}\t{xyz_mm[1]:.5f}\t{xyz_mm[2]:.5f}")
+                xyz = markers_m[label][i]
+                f.write(f"\t{xyz[0]:.6f}\t{xyz[1]:.6f}\t{xyz[2]:.6f}")
             f.write("\n")
 
 
