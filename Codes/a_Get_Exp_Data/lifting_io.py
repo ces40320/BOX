@@ -408,6 +408,21 @@ def _extract_fp(forces: Dict[str, np.ndarray], idx: int) -> Tuple[np.ndarray, np
     )
 
 
+def _grf_cop_y_zeroed(p: np.ndarray) -> np.ndarray:
+    """Ground reaction COP: Y coordinate set to 0 (MATLAB ``axis_zero`` on COP_y)."""
+    out = np.asarray(p, dtype=float).copy()
+    out[:, 1] = 0.0
+    return out
+
+
+def _grf_moment_xz_zeroed(m: np.ndarray) -> np.ndarray:
+    """Ground reaction moment: X and Z set to 0; Y (My) kept (MATLAB ``axis_zero`` on Mx/Mz)."""
+    out = np.asarray(m, dtype=float).copy()
+    out[:, 0] = 0.0
+    out[:, 2] = 0.0
+    return out
+
+
 def transform_ExtLoad_MeasuredEHF(
     forces: Dict[str, np.ndarray],
     rigid: Dict[str, np.ndarray],
@@ -415,13 +430,17 @@ def transform_ExtLoad_MeasuredEHF(
 ) -> Dict[str, np.ndarray]:
     """
     MeasuredEHF ExtLoad: hand load-cell force/moment/COP in global frame;
-    ground reaction channels unchanged from force platform.
+    ground GRF from C3D; FP1/FP2: COP **Y** and moment **X/Z** forced to 0 (hands unchanged).
     """
     n = len(forces["time"])
     rigid_m = _match_rigid_length(rigid, n)
 
     f1, p1, m1 = _extract_fp(forces, 1)  # ground left
     f2, p2, m2 = _extract_fp(forces, 2)  # ground right
+    p1 = _grf_cop_y_zeroed(p1)
+    p2 = _grf_cop_y_zeroed(p2)
+    m1 = _grf_moment_xz_zeroed(m1)
+    m2 = _grf_moment_xz_zeroed(m2)
     f3_raw, p3_raw, m3_raw = _extract_fp(forces, 3)  # hand left
     f4_raw, p4_raw, m4_raw = _extract_fp(forces, 4)  # hand right
 
@@ -496,11 +515,15 @@ def transform_ExtLoad_MeasuredEHF(
 
 
 def transform_ExtLoad_HeavyHand(forces: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-    """HeavyHand ExtLoad: ground reaction only; hand force/moment/COP zeroed."""
+    """HeavyHand ExtLoad: ground only; hand zeroed. Ground COP Y → 0; ground Mx/Mz → 0."""
     n = len(forces["time"])
     z = np.zeros((n, 3), dtype=float)
     f1, p1, m1 = _extract_fp(forces, 1)
     f2, p2, m2 = _extract_fp(forces, 2)
+    p1 = _grf_cop_y_zeroed(p1)
+    p2 = _grf_cop_y_zeroed(p2)
+    m1 = _grf_moment_xz_zeroed(m1)
+    m2 = _grf_moment_xz_zeroed(m2)
     return {
         "time": forces["time"],
         "f1": f1,
