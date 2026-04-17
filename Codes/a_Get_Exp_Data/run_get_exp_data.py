@@ -225,7 +225,7 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
     rigid_csv_path : str
     """
     seg_cfg = rp.segmentation
-    if seg_cfg.get("method") != "bpm_window":
+    if seg_cfg.get("method") != "manual_window":
         raise ValueError(
             f"manual_window는 method='bpm_window'에서 호출되어야 합니다. "
             f"(received: {seg_cfg.get('method')!r})"
