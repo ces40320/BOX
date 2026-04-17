@@ -89,13 +89,24 @@ def _osim_table_to_dict(table) -> Dict[str, np.ndarray]:
     n_cols = len(labels)
     data = np.zeros((n_rows, n_cols, 3), dtype=float)
 
+    def _row_vec3(row, col_idx):
+        # OpenSim 4.5+: RowVectorViewVec3 uses __getitem__; older API had .get().
+        if hasattr(row, "get"):
+            return row.get(col_idx)
+        return row[int(col_idx)]
+
+    def _vec3_comp(vec3, c: int) -> float:
+        if hasattr(vec3, "get"):
+            return float(vec3.get(int(c)))
+        return float(vec3[int(c)])
+
     for row_idx in range(n_rows):
         row = table.getRowAtIndex(row_idx)
         for col_idx in range(n_cols):
-            vec3 = row.get(col_idx)
-            data[row_idx, col_idx, 0] = float(vec3.get(0))
-            data[row_idx, col_idx, 1] = float(vec3.get(1))
-            data[row_idx, col_idx, 2] = float(vec3.get(2))
+            vec3 = _row_vec3(row, col_idx)
+            data[row_idx, col_idx, 0] = _vec3_comp(vec3, 0)
+            data[row_idx, col_idx, 1] = _vec3_comp(vec3, 1)
+            data[row_idx, col_idx, 2] = _vec3_comp(vec3, 2)
 
     time = np.array([float(v) for v in table.getIndependentColumn()], dtype=float)
     out = {"time": time}
