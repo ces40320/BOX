@@ -189,7 +189,7 @@ class ResultPaths:
 
     def seg_to_phase(self, seg_label: str) -> str:
         """``"AB2"`` → ``"AB"``,  ``"U3"`` → ``"Up"``"""
-        for dir_name, prefix in _cfg.phase_info(self.style):
+        for dir_name, prefix in _cfg.section_info(self.style):
             if seg_label.startswith(prefix) and seg_label[len(prefix):].isdigit():
                 return dir_name
         raise ValueError(f"Cannot map {seg_label!r} for style {self.style!r}")
@@ -202,7 +202,7 @@ class ResultPaths:
 
     def build_condition_tree(self, cond: str) -> None:
         """condition 하위 전체 phase × analysis 디렉토리 일괄 생성."""
-        for ph, _ in _cfg.phase_info(self.style):
+        for ph, _ in _cfg.section_info(self.style):
             self.markers_dir(cond, ph)
             self.extload_dir(cond, ph)
             self.ik_dir(cond, ph)
@@ -216,14 +216,14 @@ class ResultPaths:
     def list_trc_names(self) -> list[str]:
         out = []
         for c, cv in self.conditions.items():
-            for s in _cfg.segment_labels(cv["cycles"], self.style):
+            for s in _cfg.section_labels(cv["cycles"], self.style):
                 out.append(self.trc_name(c, s))
         return out
 
     def list_extload_names(self) -> list[str]:
         out = []
         for c, cv in self.conditions.items():
-            for s in _cfg.segment_labels(cv["cycles"], self.style):
+            for s in _cfg.section_labels(cv["cycles"], self.style):
                 for a in self.apps:
                     out.append(self.extload_name(c, s, a))
         return out
@@ -283,7 +283,7 @@ class ConditionPaths:
 
     def all_segments(self) -> list[str]:
         """``["AB1","BC1","CA1","AB2","BC2","CA2",…]``"""
-        return _cfg.segment_labels(self.n_cycles, self._p.style)
+        return _cfg.section_labels(self.n_cycles, self._p.style)
 
     def seg_to_phase(self, seg: str) -> str:
         return self._p.seg_to_phase(seg)

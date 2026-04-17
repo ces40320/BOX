@@ -47,7 +47,7 @@ _PHASE_MAP = {
 }
 
 
-def phase_info(style: str) -> list[tuple[str, str]]:
+def section_info(style: str) -> list[tuple[str, str]]:
     """세그먼트 스타일에 따른 (디렉토리명, 라벨접두사) 튜플 목록.
 
     Returns
@@ -61,7 +61,7 @@ def phase_info(style: str) -> list[tuple[str, str]]:
     return list(_PHASE_MAP[style])
 
 
-def segment_labels(n_cycles: int, style: str) -> list[str]:
+def section_labels(n_cycles: int, style: str) -> list[str]:
     """모든 위상·사이클에 대한 세그먼트 레이블 (사이클 순 인터리브).
 
     Parameters
@@ -72,7 +72,7 @@ def segment_labels(n_cycles: int, style: str) -> list[str]:
         ``"UpDown"`` → ``["U1", "D1", "U2", "D2", ...]``
         ``"ABC"``    → ``["AB1", "BC1", "CA1", "AB2", "BC2", "CA2", ...]``
     """
-    phases = phase_info(style)
+    phases = section_info(style)
     labels = []
     for i in range(1, n_cycles + 1):
         for _, prefix in phases:
@@ -80,7 +80,7 @@ def segment_labels(n_cycles: int, style: str) -> list[str]:
     return labels
 
 
-def phase_segment_labels(n_cycles: int, style: str) -> dict[str, list[str]]:
+def section_segment_labels(n_cycles: int, style: str) -> dict[str, list[str]]:
     """위상별로 그룹화된 세그먼트 레이블 딕셔너리.
 
     Returns
@@ -89,7 +89,7 @@ def phase_segment_labels(n_cycles: int, style: str) -> dict[str, list[str]]:
         ``"UpDown"`` → ``{"Up": ["U1","U2",...], "Down": ["D1","D2",...]}``
         ``"ABC"``    → ``{"AB": ["AB1","AB2",...], "BC": [...], "CA": [...]}``
     """
-    phases = phase_info(style)
+    phases = section_info(style)
     return {
         dir_name: [f"{prefix}{i}" for i in range(1, n_cycles + 1)]
         for dir_name, prefix in phases
