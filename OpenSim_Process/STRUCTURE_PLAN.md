@@ -4,6 +4,21 @@
 
 > 아래 구조는 `PATH_RULE.py`의 `ResultPaths` 클래스 메서드들이 자동 생성하는 디렉토리/파일명 규칙과 일치함.
 
+> **Model variant ↔ condition kg 매칭 규칙 (b_Build_Model 산출물 기준)**
+>
+> `Codes/b_Build_Model/` 의 `add_hand_mass_model.py`, `add_box_weldjoint_model.py` 는
+> 피험자 `conditions` 키 prefix (`7kg`, `10kg`, `15kg`) 에서 박스 무게 후보 `w_kg` 를
+> 자동 추출하여 다음 osim 파일들을 **kg 별로 각각** 생성한다.
+>
+> - `SUB{n}_Scaled.osim`                          ← 베이스 (kg 무관)
+> - `SUB{n}_Scaled_HeavyHand_{w}kg.osim`          ← 각 손에 `w/2 kg` 추가
+> - `SUB{n}_Scaled_WeldBox_{w}kg.osim`            ← `ADDBOXtoOSIM(Constraint=True)`
+> - `SUB{n}_Scaled_SplitBox_{w}kg.osim`           ← `ADDBOXtoOSIM(Constraint=False)`
+>
+> 따라서 `<Condition>` (예: `7kg_10bpm`) 의 kg prefix 와 사용할 모델의 kg suffix 는
+> **반드시 일치**해야 한다. 즉 `7kg_10bpm` 하위 분석은 `..._HeavyHand_7kg.osim` /
+> `..._WeldBox_7kg.osim` / `..._SplitBox_7kg.osim` 만을 사용한다.
+
 ## Planned structure
 
 ```Mermaid
@@ -11,11 +26,14 @@ OpenSim_Process
 └─ _Main_/
   ├─ Symmetric/
   │  └─ SUB1/
-  │    ├─ Model_osim/
+  │    ├─ Model_osim/                              # SUB1 conditions = {7kg_*, 15kg_*}  ⇒ w_kg ∈ {7, 15}
   │    │  ├─ SUB1_Scaled.osim
-  │    │  ├─ SUB1_Scaled_HeavyHand.osim
-  │    │  ├─ SUB1_Scaled_WeldBox.osim
-  │    │  └─ SUB1_Scaled_SplitBox.osim
+  │    │  ├─ SUB1_Scaled_HeavyHand_7kg.osim
+  │    │  ├─ SUB1_Scaled_HeavyHand_15kg.osim
+  │    │  ├─ SUB1_Scaled_WeldBox_7kg.osim
+  │    │  ├─ SUB1_Scaled_WeldBox_15kg.osim
+  │    │  ├─ SUB1_Scaled_SplitBox_7kg.osim
+  │    │  └─ SUB1_Scaled_SplitBox_15kg.osim
   │    ├─ 7kg_10bpm_trial1/
   │    │  ├─ Up/
   │    │  │  ├─ Markers/
@@ -74,11 +92,14 @@ OpenSim_Process
   │    └─ 15kg_16bpm_trial2/ (하위 생략)
   └─ Asymmetric
     ├─ SUB2/
-    │  ├─ Model_osim/
+    │  ├─ Model_osim/                              # SUB2 conditions = {7kg_*, 15kg_*}  ⇒ w_kg ∈ {7, 15}
     │  │  ├─ SUB2_Scaled.osim
-    │  │  ├─ SUB2_Scaled_HeavyHand.osim
-    │  │  ├─ SUB2_Scaled_WeldBox.osim  (미정)
-    │  │  └─ SUB2_Scaled_SplitBox.osim (미정)
+    │  │  ├─ SUB2_Scaled_HeavyHand_7kg.osim
+    │  │  ├─ SUB2_Scaled_HeavyHand_15kg.osim
+    │  │  ├─ SUB2_Scaled_WeldBox_7kg.osim
+    │  │  ├─ SUB2_Scaled_WeldBox_15kg.osim
+    │  │  ├─ SUB2_Scaled_SplitBox_7kg.osim
+    │  │  └─ SUB2_Scaled_SplitBox_15kg.osim
     │  ├─ 7kg_10bpm/
     │  │  ├─ AB/
     │  │  │  ├─ Markers/
@@ -139,10 +160,42 @@ OpenSim_Process
     │  ├─ 15kg_10bpm/ (하위 생략)
     │  ├─ 7kg_16bpm/ (하위 생략)
     │  └─ 15kg_16bpm/ (하위 생략)
-    └─ SUB3/ (하위 생략)
-      ├─ Model_osim/ (하위 생략)
-      ├─ 7kg_10bpm/ (하위 생략)
-      ├─ 10kg_10bpm/ (하위 생략)
-      ├─ 7kg_16bpm/ (하위 생략)
-      └─ 10kg_16bpm/ (하위 생략)
+    └─ SUB3/                                       # SUB3 conditions = {7kg_*, 10kg_*}  ⇒ w_kg ∈ {7, 10}
+      ├─ Model_osim/
+      │  ├─ SUB3_Scaled.osim
+      │  ├─ SUB3_Scaled_HeavyHand_7kg.osim
+      │  ├─ SUB3_Scaled_HeavyHand_10kg.osim
+      │  ├─ SUB3_Scaled_WeldBox_7kg.osim
+      │  ├─ SUB3_Scaled_WeldBox_10kg.osim
+      │  ├─ SUB3_Scaled_SplitBox_7kg.osim
+      │  └─ SUB3_Scaled_SplitBox_10kg.osim
+      ├─ 7kg_10bpm/   (하위 생략, HeavyHand_7kg / WeldBox_7kg / SplitBox_7kg 모델 사용)
+      ├─ 10kg_10bpm/  (하위 생략, HeavyHand_10kg / WeldBox_10kg / SplitBox_10kg 모델 사용)
+      ├─ 7kg_16bpm/   (하위 생략)
+      └─ 10kg_16bpm/  (하위 생략)
 ```
+
+## Notes on kg-aware model resolution
+
+1. **Condition prefix → model variant**
+   `<Condition>` 의 첫 토큰이 `{w}kg` 형식이면, 해당 condition 의 모든 분석은
+   `Model_osim/SUB{n}_Scaled_<Variant>_{w}kg.osim` (Variant ∈ {HeavyHand, WeldBox, SplitBox})
+   에서 골라 사용한다. 베이스 모델(`SUB{n}_Scaled.osim`) 은 IK 등 박스/손 질량 보정이
+   불필요한 분석에만 사용한다.
+
+2. **App ↔ model variant 매핑 (현 시점 합의안)**
+
+   | App (folder suffix)  | 사용 모델 (`{w}` = condition kg)        | 비고                     |
+   |----------------------|-----------------------------------------|--------------------------|
+   | `MeasuredEHF`        | `SUB{n}_Scaled.osim`                    | EHF 외력만, 부가질량 없음 |
+   | `HeavyHand`          | `SUB{n}_Scaled_HeavyHand_{w}kg.osim`    | 손 추가질량              |
+   | `AddBox` *(미정)*    | `SUB{n}_Scaled_WeldBox_{w}kg.osim`  *or* `..._SplitBox_{w}kg.osim` | (ASSUMPTION) 단일 `AddBox` 앱이 두 variant 중 어느 것을 쓰는지, 또는 두 variant 를 별도 app 으로 분리할지 정책 필요 |
+   | `preRiCTO/postRiCTO` | `SUB{n}_Scaled.osim`                    | 베이스 모델 사용 — RiCTO 분기는 모델이 아니라 외력/세팅 단에서 처리 (상세 근거는 추후 보강) |
+
+3. **(ASSUMPTION)** 위 (2) 의 `AddBox` 항목은 `config_methods.PROTOCOL_Candidates` 의
+   `APPs` 목록과 모델 variant 의 1:1 매핑이 아직 명시되지 않았기 때문에 미정이다.
+   해소 옵션:
+    - (a) `APPs` 를 `WeldBox`, `SplitBox` 두 항목으로 분리 → 폴더가
+      `SO_WeldBox/`, `JR_WeldBox/`, `SO_SplitBox/`, `JR_SplitBox/` 로 분기됨.
+    - (b) `AddBox` 단일 앱 유지하되 정책 모듈에서 한 variant 만 선택.
+   결정 시 본 문서와 `Codes/c_Run_Tools/REFAC_RUN_TOOLS_PLAN.md` 양측 동시 갱신.
