@@ -378,6 +378,117 @@ _METHOD_DISPATCH = {
     "bpm_window":    process_condition_bpm_window,
 }
 
+_IMPLEMENTED_APPS = {"MeasuredEHF", "HeavyHand", "AddBox"}
+
+
+# ── dry-run 계획 리포트 ─────────────────────────────────────────
+
+def _list_matches(directory, condition_key, ext):
+    """condition_key 포함 + *ext* 확장자인 후보 파일 전체 목록을 반환."""
+    if not os.path.isdir(directory):
+        return []
+    cands = sorted(glob.glob(os.path.join(directory, f"*{ext}")))
+    return [p for p in cands if condition_key in os.path.basename(p)]
+
+
+def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
+    """--dry-run 에서 condition 하나에 대한 상세 계획을 출력.
+
+    - 매칭된 C3D/CSV 후보 전체 목록 (선택된 항목 표시)
+    - 세그먼트 설정 검증 (BPM 추출/매핑, APP 구현 여부)
+    - 예상 생성 파일 수·경로 예시 (TRC + APP별 MOT)
+    - 세그먼트 라벨 목록
+    """
+    print(f"    ── dry-run plan ──")
+
+    # 1) 입력 파일 후보
+    c3d_cands = _list_matches(rp.c3d_dir, cp.cond, ".c3d")
+    rigid_cands = _list_matches(rp.rigid_dir, cp.cond, ".csv")
+
+    print(f"    C3D candidates ({len(c3d_cands)}) in {rp.c3d_dir}:")
+    if not c3d_cands:
+        print(f"      (none)")
+    for p in c3d_cands:
+        mark = "  <- selected" if p == c3d_path else ""
+        print(f"      {os.path.basename(p)}{mark}")
+
+    print(f"    Rigid candidates ({len(rigid_cands)}) in {rp.rigid_dir}:")
+    if not rigid_cands:
+        print(f"      (none)")
+    for p in rigid_cands:
+        mark = "  <- selected" if p == rigid_csv_path else ""
+        print(f"      {os.path.basename(p)}{mark}")
+
+    # 2) 세그먼트 설정 검증
+    seg_cfg = rp.segmentation
+    method = seg_cfg.get("method")
+    issues = []
+    if method == "manual_window" or method == "bpm_window":
+        try:
+            bpm = _extract_bpm_from_condition(cp.cond)
+            print(f"    BPM extracted: {bpm}")
+            if "BPM_DURATION" in seg_cfg:
+                if bpm not in seg_cfg["BPM_DURATION"]:
+                    issues.append(
+                        f"BPM {bpm} not in BPM_DURATION map "
+                        f"{sorted(seg_cfg['BPM_DURATION'].keys())}"
+                    )
+                else:
+                    print(f"    Window duration: "
+                          f"{seg_cfg['BPM_DURATION'][bpm]}s")
+        except ValueError as exc:
+            issues.append(str(exc))
+
+    # 3) APP 구현 여부
+    apps_ok = [a for a in rp.apps if a in _IMPLEMENTED_APPS]
+    apps_missing = [a for a in rp.apps if a not in _IMPLEMENTED_APPS]
+    if apps_missing:
+        issues.append(
+            f"APPs not implemented (MOT will be skipped): {apps_missing}"
+        )
+
+    # 4) 예상 생성 파일
+    segments = cp.all_segments()
+    phase_segs = cp.phase_segments()
+    n_trc = len(segments)
+    n_mot = n_trc * len(apps_ok)
+
+    print(f"    Planned outputs: {n_trc} TRC + {n_mot} MOT "
+          f"({len(apps_ok)}/{len(rp.apps)} APPs implemented)")
+    for phase, labels in phase_segs.items():
+        print(f"      phase {phase}: {labels}")
+
+    if segments:
+        ex = segments[0]
+        print(f"    Example paths for seg={ex!r}:")
+        print(f"      TRC : {cp.trc_path(ex)}")
+        for app in apps_ok:
+            print(f"      MOT : {cp.extload_path(ex, app)}")
+        for app in apps_missing:
+            print(f"      MOT : [SKIP]  {app}  (not implemented)")
+
+    # 5) 요약: 이슈/에러
+    errors = []
+    if not c3d_path:
+        errors.append("No C3D file matched")
+    if not rigid_csv_path:
+        errors.append("No RigidBody CSV matched")
+    if len(c3d_cands) > 1:
+        issues.append(f"{len(c3d_cands)} C3D candidates matched "
+                      f"(first selected)")
+    if len(rigid_cands) > 1:
+        issues.append(f"{len(rigid_cands)} Rigid candidates matched "
+                      f"(first selected)")
+
+    if errors:
+        for e in errors:
+            print(f"    [ERROR] {e}")
+    if issues:
+        for w in issues:
+            print(f"    [WARN] {w}")
+    if not errors and not issues:
+        print(f"    [OK] All inputs matched, config valid.")
+
 
 # ── 피험자 단위 처리 ─────────────────────────────────────────────
 
@@ -406,6 +517,7 @@ def process_subject(namecode, dry_run=False):
     )
 
     for cond_key, cond_val in conditions_sorted:
+        cp = rp.for_condition(cond_key)
         c3d_path = find_c3d_for_condition(rp.c3d_dir, cond_key)
         rigid_csv_path = find_rigid_csv_for_condition(rp.rigid_dir, cond_key)
 
@@ -421,7 +533,7 @@ def process_subject(namecode, dry_run=False):
             print(f"    error_log: {cond_val['error_log']}")
 
         if dry_run:
-            print("    [DRY-RUN] Skipping processing.")
+            _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path)
             continue
         if not c3d_path:
             print(f"    [SKIP] No C3D file found for '{cond_key}'")
@@ -430,7 +542,6 @@ def process_subject(namecode, dry_run=False):
             print(f"    [SKIP] No RigidBody CSV found for '{cond_key}'")
             continue
 
-        cp = rp.for_condition(cond_key)
         pipeline_fn(rp, cp, c3d_path, rigid_csv_path)
 
 
