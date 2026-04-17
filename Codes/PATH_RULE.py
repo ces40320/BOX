@@ -9,8 +9,8 @@ import config_methods as _cfg
 #  모듈 수준 — 피험자에 의존하지 않는 상수·경로·유틸
 # ═══════════════════════════════════════════════════════════════
 
-prototype = None                                # None → "_Main_", 문자열 → 프로토타입
-COWORK_ROOT_DIR = r"E:\Dropbox\SEL\BOX"
+prototype = None                                # None → "_Main_", 문자열 → 프로토타입. # TODO: 추후 config 파일로 이주 필요
+COWORK_ROOT_DIR = r"E:\Dropbox\SEL\BOX"         # TODO: 추후 config 파일로 이주 필요
 
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(CODE_DIR)

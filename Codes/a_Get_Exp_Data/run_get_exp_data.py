@@ -9,7 +9,7 @@ Usage
     python run_get_exp_data.py --dry-run                       # 파일 탐색만, 실제 처리 안 함
     python run_get_exp_data.py 260306_KTH --dry-run            # 특정 피험자 + 탐색만
 
-세그먼트 분할 방식
+세그먼트 분할 방식 -> 구현 후 이주 개별 py파일로 예정
 ------------------
     protocol        method          pipeline 함수
     -------------   ------------    -----------------------------------
@@ -114,10 +114,10 @@ def process_condition_findpeaks(rp, cp, c3d_path, rigid_csv_path):
     rp : _path.ResultPaths
     cp : _path.ConditionPaths
     """
-    # TODO: lifting_io.py, segment_symmetric.py 구현 후 연결
+    # TODO: split_lifting_trial2section_findpeaks.py 구현 후 이주
     raise NotImplementedError(
         "findpeaks pipeline not yet implemented. "
-        "Requires: lifting_io.py, segment_symmetric.py"
+        "Requires: lifting_io.py, split_lifting_trial2section_findpeaks.py"
     )
 
 
@@ -205,7 +205,7 @@ def _build_extload_for_app(app, forces, markers, rigid):
 
 # ── 매뉴얼 윈도우 분할 파이프라인 ─────────────────────────────────
 
-def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
+def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):      # TODO: split_lifting_trial2section_manual_window.py 구현 후 이주
     """수동(고정 윈도우) 세그먼트 분할 → TRC/MOT 출력.
 
     findpeaks 같은 marker peak 검출 대신, 양손 외력 threshold로 접촉
@@ -377,20 +377,20 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
     rp : _path.ResultPaths
     cp : _path.ConditionPaths
     """
-    # TODO: lifting_io.py, segment_asymmetric.py 구현 후 연결
+    # TODO: split_lifting_trial2section_bpm_window.py 구현 후 이주
     raise NotImplementedError(
         "bpm_window pipeline not yet implemented. "
-        "Requires: lifting_io.py, segment_asymmetric.py"
+        "Requires: lifting_io.py, split_lifting_trial2section_bpm_window.py"
     )
 
 
-_METHOD_DISPATCH = {
+_METHOD_DISPATCH = {                                        # TODO: config 파일로 이주 필요? 아니면 그냥 두어도 괜찮을 듯
     "findpeaks":     process_condition_findpeaks,
     "manual_window": process_condition_manual_window,
     "bpm_window":    process_condition_bpm_window,
 }
 
-_IMPLEMENTED_APPS = {"MeasuredEHF", "HeavyHand", "AddBox"}
+_IMPLEMENTED_APPS = {"MeasuredEHF", "HeavyHand", "AddBox"}  # TODO: config 파일로 이주 필요? 아니면 그냥 두어도 괜찮을 듯
 
 
 # ── dry-run 계획 리포트 ─────────────────────────────────────────

@@ -31,7 +31,7 @@ PROTOCOL_Candidates = {
         "result_root": "Asymmetric",
         "segment_style": "ABC",
         "segmentation": {
-            "method": "manual_window",
+            "method": "manual_window",              # TODO: split_lifting_trial2section_bpm_window.py 구현 후 "bpm_window" 로 변경 필요
             "BPM_DURATION": {10: 6.0, 16: 3.75},    # 10bpm → 6.0초, 16bpm → 3.75초
             "CONTACT_THRESHOLD_N": 5.0,             # N — 양손 |fy| 합이 이 이상이면 접촉
             "CONTACT_MIN_DUR_SEC": 0.5,             # s — 최소 접촉 지속시간
