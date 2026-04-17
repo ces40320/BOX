@@ -187,6 +187,12 @@ def _slice_extload_by_time(ext, t_start, t_end):
     return out
 
 
+def _normalize_errorlog_scetions(error_log):
+    """Normalize error_log entries to uppercase section labels.
+    Role: 7ab -> 7AB, 12bc -> 12BC, etc."""
+    return {str(x).strip().upper() for x in (error_log or []) if str(x).strip()}
+
+
 def _build_extload_for_app(app, forces, markers, rigid):
     """APP 이름에 대응되는 ExtLoad dict 생성. 미구현 APP는 None."""
     if app == "MeasuredEHF":
@@ -242,6 +248,7 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
     cycle_offset = float(seg_cfg["CYCLE_OFFSET_SEC"])
     contact_th_n = float(seg_cfg["CONTACT_THRESHOLD_N"])
     contact_min_dur = float(seg_cfg["CONTACT_MIN_DUR_SEC"])
+    error_segments = _normalize_errorlog_scetions(cp.error_log)
 
     print(f"    [manual_window] BPM={bpm} window={seg_duration}s "
           f"offset={cycle_offset}s apps={rp.apps}")
@@ -321,7 +328,12 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
             section = section_order[lift_j]
             section_list = section_segs[section]
             if cyc_i - 1 >= len(section_list):
+                continue
             seg_label = section_list[cyc_i - 1]   # e.g. 1AB, 1BC, 1CA, 2AB …
+            seg_key = str(seg_label).strip().upper()
+
+            if seg_key in error_segments:
+                print(f"      [SKIP] {seg_label}  listed in error_log")
                 continue
 
             ps = float(cs) + cycle_offset + lift_j * seg_duration
