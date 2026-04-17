@@ -3,28 +3,45 @@
 
 Usage
 -----
-    python run_get_exp_data.py                        # 모든 피험자 처리
-    python run_get_exp_data.py 240124_PJH             # 특정 피험자만
-    python run_get_exp_data.py 240124_PJH 260306_KTH  # 여러 피험자
-    python run_get_exp_data.py --dry-run               # 파일 탐색만, 실제 처리 안 함
+    python run_get_exp_data.py                                 # 모든 피험자 처리
+    python run_get_exp_data.py 240124_PJH                      # 특정 피험자만
+    python run_get_exp_data.py 240124_PJH 260306_KTH           # 여러 피험자
+    python run_get_exp_data.py --dry-run                       # 파일 탐색만, 실제 처리 안 함
+    python run_get_exp_data.py 260306_KTH --dry-run            # 특정 피험자 + 탐색만
+
+세그먼트 분할 방식
+------------------
+    protocol        method          pipeline 함수
+    -------------   ------------    -----------------------------------
+    Symmetric       findpeaks       process_condition_findpeaks     (TODO)
+    Asymmetric_Pilot findpeaks      process_condition_findpeaks     (TODO)
+    Asymmetric      manual_window   process_condition_manual_window (구현)
+    Asymmetric      bpm_window      process_condition_bpm_window    (TODO)
 
 설정 파일 의존 관계
 -------------------
-    SUB_Info.py        → 피험자 메타데이터 (protocol, conditions, body_mass 등)
-    PATH_RULE.py       → 경로 관리 (get_c3d_dir, get_sub_dir, get_result_dir 등)
-    config_methods.py  → 프로토콜별 APP 목록, 세그먼트 분할 방식/파라미터
-    lifting_config.py  → 장비 상수 (로드셀 부호, 오프셋, 필터, threshold)
+    SUB_Info.py            → 피험자 메타데이터 (protocol, conditions, body_mass 등)
+    PATH_RULE.py           → 입출력 경로 관리 (ResultPaths / ConditionPaths 클래스,
+                             DATA_DIR, OPENSIM_DIR, DATA_SUB_NAMECODE_li 등)
+    config_methods.py      → 프로토콜별 APP 목록, segment_style, 세그먼트 분할 파라미터
+    config_exp_settings.py → 장비 상수 (로드셀 부호/오프셋, 필터 cutoff, threshold,
+                             좌표계 회전, 박스/손가락 마커 이름 등)
+    lifting_io.py          → C3D/CSV 읽기, 필터링, ExtLoad 조립, TRC/MOT 쓰기
 """
 
 import os
+import re
 import sys
 import glob
 import argparse
 
+import numpy as np
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import PATH_RULE as _path
-import config_exp_settings as _lcfg           # noqa: F401  (파이프라인 구현 시 사용)
+import config_exp_settings as _lcfg
+import lifting_io as _io
 
 
 # ── 파일 탐색 ────────────────────────────────────────────────────
@@ -105,6 +122,241 @@ def process_condition_findpeaks(rp, cp, c3d_path, rigid_csv_path):
     )
 
 
+# ── 매뉴얼 윈도우 분할 보조 함수 ───────────────────────────────
+
+def _extract_bpm_from_condition(condition_key):
+    """Condition key에서 BPM(분당 비트수) 정수를 추출.
+
+    Examples
+    --------
+    >>> _extract_bpm_from_condition("7kg_10bpm")
+    10
+    >>> _extract_bpm_from_condition("15kg_16bpm_trial2")
+    16
+    """
+    m = re.search(r"(\d+)\s*bpm", condition_key, flags=re.IGNORECASE)
+    if not m:
+        raise ValueError(
+            f"Condition key에서 BPM 추출 실패: {condition_key!r}"
+        )
+    return int(m.group(1))
+
+
+def _detect_contact_starts(force_time, hand3_fy, hand4_fy,
+                           threshold_n, min_dur_sec):
+    """양손 |Fy| 합이 threshold를 넘는 접촉 구간의 시작 시점 리스트.
+
+    `min_dur_sec` 이상 지속된 접촉만 채택.
+    """
+    hand_total = np.abs(hand3_fy) + np.abs(hand4_fy)
+    contact = hand_total > threshold_n
+
+    diffs = np.diff(contact.astype(int))
+    starts = np.where(diffs == 1)[0] + 1
+    ends = np.where(diffs == -1)[0] + 1
+
+    contact_starts = []
+    for s, e in zip(starts, ends):
+        dur = float(force_time[e] - force_time[s])
+        if dur >= min_dur_sec:
+            contact_starts.append(float(force_time[s]))
+    return contact_starts
+
+
+def _slice_markers_by_time(markers, t_start, t_end):
+    """markers dict을 [t_start, t_end] 구간으로 자르고 time을 0 기준 정규화."""
+    time_m = markers["time"]
+    mask = (time_m >= t_start) & (time_m <= t_end)
+    out = {"time": (time_m[mask] - t_start)}
+    for key, val in markers.items():
+        if key == "time":
+            continue
+        out[key] = val[mask]
+    return out
+
+
+def _slice_extload_by_time(ext, t_start, t_end):
+    """ExtLoad dict (time + f/p/m × 4 plates)을 구간 슬라이스 + time 0 정규화."""
+    time_f = ext["time"]
+    mask = (time_f >= t_start) & (time_f <= t_end)
+    out = {"time": (time_f[mask] - t_start)}
+    for key, val in ext.items():
+        if key == "time":
+            continue
+        out[key] = val[mask]
+    return out
+
+
+def _build_extload_for_app(app, forces, markers, rigid):
+    """APP 이름에 대응되는 ExtLoad dict 생성. 미구현 APP는 None."""
+    if app == "MeasuredEHF":
+        return _io.transform_ExtLoad_MeasuredEHF(forces, rigid, _lcfg)
+    if app == "HeavyHand":
+        return _io.transform_ExtLoad_HeavyHand(forces)
+    if app == "AddBox":
+        return _io.transform_ExtLoad_AddBox(forces, markers, _lcfg)
+    return None
+
+
+# ── 매뉴얼 윈도우 분할 파이프라인 ─────────────────────────────────
+
+def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
+    """수동(고정 윈도우) 세그먼트 분할 → TRC/MOT 출력.
+
+    findpeaks 같은 marker peak 검출 대신, 양손 외력 threshold로 접촉
+    시점만 잡고 BPM 기반 고정 윈도우(예: 10bpm → 6.0 s)로 cycle을
+    n_phases 등분(ABC → 3등분)한다.
+
+    파이프라인 흐름
+    ---------------
+    1. C3D 읽기 (마커 100 Hz, 외력 1000 Hz, ``rotations=None``).
+    2. RigidBody CSV 읽기.
+    3. 마커 Butterworth 저역 필터링.
+    4. 프로토콜 APP 별 ExtLoad 조립(``transform_ExtLoad_*``) → Butterworth.
+    5. 양손 |Fy| 합 threshold로 접촉 시작점 검출 → 3개씩 묶어 cycle 시작.
+    6. cycle별로 ``CYCLE_OFFSET_SEC + lift_j * BPM_DURATION`` 윈도우 생성.
+    7. 각 세그먼트를 ``cp.trc_path / cp.extload_path`` 경로에 저장.
+
+    Parameters
+    ----------
+    rp : _path.ResultPaths
+    cp : _path.ConditionPaths
+    c3d_path : str
+    rigid_csv_path : str
+    """
+    seg_cfg = rp.segmentation
+    if seg_cfg.get("method") != "bpm_window":
+        raise ValueError(
+            f"manual_window는 method='bpm_window'에서 호출되어야 합니다. "
+            f"(received: {seg_cfg.get('method')!r})"
+        )
+
+    bpm = _extract_bpm_from_condition(cp.cond)
+    bpm_duration_map = seg_cfg["BPM_DURATION"]
+    if bpm not in bpm_duration_map:
+        raise ValueError(
+            f"BPM {bpm} not in BPM_DURATION map: "
+            f"{sorted(bpm_duration_map.keys())}"
+        )
+    seg_duration = float(bpm_duration_map[bpm])
+    cycle_offset = float(seg_cfg["CYCLE_OFFSET_SEC"])
+    contact_th_n = float(seg_cfg["CONTACT_THRESHOLD_N"])
+    contact_min_dur = float(seg_cfg["CONTACT_MIN_DUR_SEC"])
+
+    print(f"    [manual_window] BPM={bpm} window={seg_duration}s "
+          f"offset={cycle_offset}s apps={rp.apps}")
+
+    # ── 1) 데이터 로드 (회전 없음 — Motive Y-up 가정) ──────────
+    markers = _io.read_c3d_markers(c3d_path, rotations=None)
+    forces = _io.read_c3d_force_platforms(c3d_path, rotations=None)
+    rigid = _io.read_rigid_body_csv(
+        rigid_csv_path, skiprow_num=_lcfg.RIGID_BODY_SKIPROWS,
+    )
+
+    marker_time = markers["time"]
+    force_time = forces["time"]
+    if len(marker_time) < 2 or len(force_time) < 2:
+        print("    [SKIP] insufficient frames in C3D.")
+        return
+    marker_rate = 1.0 / float(np.mean(np.diff(marker_time)))
+    force_rate = 1.0 / float(np.mean(np.diff(force_time)))
+
+    # ── 2) 마커 필터링 ─────────────────────────────────────────
+    for key in list(markers.keys()):
+        if key == "time":
+            continue
+        markers[key] = _io.butterworth_filter(
+            markers[key], fs_hz=marker_rate,
+            cutoff_hz=_lcfg.MARKER_FILTER_HZ, order=_lcfg.FILTER_ORDER,
+        )
+
+    # ── 3) APP별 ExtLoad 조립 + 필터링 ─────────────────────────
+    ext_by_app = {}
+    for app in rp.apps:
+        ext = _build_extload_for_app(app, forces, markers, rigid)
+        if ext is None:
+            print(f"    [WARN] APP {app!r} not implemented for "
+                  f"manual_window. Skipping ExtLoad.")
+            continue
+        for key in list(ext.keys()):
+            if key == "time":
+                continue
+            ext[key] = _io.butterworth_filter(
+                ext[key], fs_hz=force_rate,
+                cutoff_hz=_lcfg.FORCE_FILTER_HZ, order=_lcfg.FILTER_ORDER,
+            )
+        ext_by_app[app] = ext
+
+    # ── 4) 접촉 시작점 → cycle 시작점 ───────────────────────────
+    if "f3" not in forces or "f4" not in forces:
+        raise KeyError(
+            "manual_window requires hand load-cell plates 'f3', 'f4' in C3D."
+        )
+    f3_y = forces["f3"][:, 1]
+    f4_y = forces["f4"][:, 1]
+    contact_starts = _detect_contact_starts(
+        force_time, f3_y, f4_y,
+        threshold_n=contact_th_n, min_dur_sec=contact_min_dur,
+    )
+
+    # n_phases 개씩 묶어 cycle 시작 (ABC → 3개, UpDown → 2개)
+    phase_segs = cp.phase_segments()             # {"AB":[...], "BC":[...], ...}
+    phase_order = list(phase_segs.keys())
+    n_phases = len(phase_order)
+    cycle_starts = contact_starts[::n_phases]
+    print(f"    contacts={len(contact_starts)}  cycles={len(cycle_starts)} "
+          f"(n_phases={n_phases})")
+
+    # ── 5) 디렉토리 트리 생성 ──────────────────────────────────
+    cp.build_tree()
+
+    # ── 6) 세그먼트 분할 + 파일 출력 ───────────────────────────
+    t_min = float(force_time[0])
+    t_max = float(force_time[-1])
+
+    written = 0
+    for cyc_i, cs in enumerate(cycle_starts, start=1):
+        for lift_j in range(n_phases):
+            phase = phase_order[lift_j]
+            phase_list = phase_segs[phase]
+            if cyc_i - 1 >= len(phase_list):
+                continue
+            seg_label = phase_list[cyc_i - 1]   # e.g. AB1, BC1, CA1, AB2 …
+
+            ps = float(cs) + cycle_offset + lift_j * seg_duration
+            pe = ps + seg_duration
+
+            if ps < t_min or pe > t_max:
+                print(f"      [SKIP] {seg_label}  out-of-range "
+                      f"({ps:.2f}~{pe:.2f}s, data {t_min:.2f}~{t_max:.2f}s)")
+                continue
+
+            mark_seg = _slice_markers_by_time(markers, ps, pe)
+            if len(mark_seg["time"]) == 0:
+                print(f"      [SKIP] {seg_label}  empty marker slice")
+                continue
+            trc_path = cp.trc_path(seg_label)
+            _io.write_trc(
+                trc_path, mark_seg["time"],
+                {k: v for k, v in mark_seg.items() if k != "time"},
+            )
+
+            for app, ext in ext_by_app.items():
+                ext_seg = _slice_extload_by_time(ext, ps, pe)
+                if len(ext_seg["time"]) == 0:
+                    print(f"      [WARN] {seg_label} {app}: empty MOT slice")
+                    continue
+                _io.write_extload_mot(
+                    cp.extload_path(seg_label, app), ext_seg,
+                )
+
+            written += 1
+            print(f"      seg{written:03d}  {seg_label}  cyc{cyc_i}L{lift_j+1}  "
+                  f"{ps:.2f}~{pe:.2f}s")
+
+    print(f"    [Done] {written} segments → {cp.cond_dir}")
+
+
 def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
     """BPM 기반 고정 윈도우 세그먼트 분할 → TRC/MOT 출력.
 
@@ -121,8 +373,9 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
 
 
 _METHOD_DISPATCH = {
-    "findpeaks":  process_condition_findpeaks,
-    "bpm_window": process_condition_bpm_window,
+    "findpeaks":     process_condition_findpeaks,
+    "manual_window": process_condition_manual_window,
+    "bpm_window":    process_condition_bpm_window,
 }
 
 
