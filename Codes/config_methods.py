@@ -41,7 +41,7 @@ PROTOCOL_Candidates = {
     },
 }
 
-_PHASE_MAP = {
+_SECTION_MAP = {
     "UpDown": [("Up", "U"), ("Down", "D")],
     "ABC":    [("AB", "AB"), ("BC", "BC"), ("CA", "CA")],
 }
@@ -56,9 +56,9 @@ def section_info(style: str) -> list[tuple[str, str]]:
         ``"UpDown"`` → ``[("Up", "U"), ("Down", "D")]``
         ``"ABC"``    → ``[("AB", "AB"), ("BC", "BC"), ("CA", "CA")]``
     """
-    if style not in _PHASE_MAP:
+    if style not in _SECTION_MAP:
         raise ValueError(f"Unknown segment_style: {style!r}")
-    return list(_PHASE_MAP[style])
+    return list(_SECTION_MAP[style])
 
 
 def section_labels(n_cycles: int, style: str) -> list[str]:

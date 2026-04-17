@@ -366,7 +366,7 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
             print(f"      seg{written:03d}  {seg_label}  cyc{cyc_i}L{lift_j+1}  "
                   f"{ps:.2f}~{pe:.2f}s")
 
-    print(f"    [Done] {written} segments → {cp.cond_dir}")
+    print(f"    [Done] {written} sections → {cp.cond_dir}")
 
 
 def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
