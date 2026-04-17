@@ -300,10 +300,10 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
         threshold_n=contact_th_n, min_dur_sec=contact_min_dur,
     )
 
-    # n_phases 개씩 묶어 cycle 시작 (ABC → 3개, UpDown → 2개)
-    phase_segs = cp.phase_segments()             # {"AB":[...], "BC":[...], ...}
-    phase_order = list(phase_segs.keys())
-    n_phases = len(phase_order)
+    # n_sections 개씩 묶어 cycle 시작 (ABC → 3개, UpDown → 2개)
+    section_segs = cp.section_segments()         # {"AB":[...], "BC":[...], ...}
+    section_order = list(section_segs.keys())
+    n_phases = len(section_order)
     cycle_starts = contact_starts[::n_phases]
     print(f"    contacts={len(contact_starts)}  cycles={len(cycle_starts)} "
           f"(n_phases={n_phases})")
@@ -318,11 +318,11 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
     written = 0
     for cyc_i, cs in enumerate(cycle_starts, start=1):
         for lift_j in range(n_phases):
-            phase = phase_order[lift_j]
-            phase_list = phase_segs[phase]
-            if cyc_i - 1 >= len(phase_list):
+            section = section_order[lift_j]
+            section_list = section_segs[section]
+            if cyc_i - 1 >= len(section_list):
+            seg_label = section_list[cyc_i - 1]   # e.g. 1AB, 1BC, 1CA, 2AB …
                 continue
-            seg_label = phase_list[cyc_i - 1]   # e.g. AB1, BC1, CA1, AB2 …
 
             ps = float(cs) + cycle_offset + lift_j * seg_duration
             pe = ps + seg_duration
@@ -458,14 +458,14 @@ def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
 
     # 4) 예상 생성 파일
     segments = cp.all_segments()
-    phase_segs = cp.phase_segments()
+    section_segs = cp.section_segments()
     n_trc = len(segments)
     n_mot = n_trc * len(apps_ok)
 
     print(f"    Planned outputs: {n_trc} TRC + {n_mot} MOT "
           f"({len(apps_ok)}/{len(rp.apps)} APPs implemented)")
-    for phase, labels in phase_segs.items():
-        print(f"      phase {phase}: {labels}")
+    for section, labels in section_segs.items():
+        print(f"      section {section}: {labels}")
 
     if segments:
         ex = segments[0]

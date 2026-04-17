@@ -96,31 +96,31 @@ class ResultPaths:
     def condition_dir(self, cond: str) -> str:
         return _ensure_dir(self.sub_dir, cond)
 
-    def phase_dir(self, cond: str, phase: str) -> str:
-        return _ensure_dir(self.sub_dir, cond, phase)
+    def section_dir(self, cond: str, section: str) -> str:
+        return _ensure_dir(self.sub_dir, cond, section)
 
-    def result_dir(self, cond: str, phase: str, folder: str) -> str:
-        return _ensure_dir(self.sub_dir, cond, phase, folder)
+    def result_dir(self, cond: str, section: str, folder: str) -> str:
+        return _ensure_dir(self.sub_dir, cond, section, folder)
 
-    def markers_dir(self, cond: str, phase: str) -> str:
-        return self.result_dir(cond, phase, "Markers")
+    def markers_dir(self, cond: str, section: str) -> str:
+        return self.result_dir(cond, section, "Markers")
 
-    def extload_dir(self, cond: str, phase: str) -> str:
-        return self.result_dir(cond, phase, "ExtLoad")
+    def extload_dir(self, cond: str, section: str) -> str:
+        return self.result_dir(cond, section, "ExtLoad")
 
-    def ik_dir(self, cond: str, phase: str, suffix: str = "") -> str:
+    def ik_dir(self, cond: str, section: str, suffix: str = "") -> str:
         """e.g. ``…/Asymmetric/SUB2/7kg_10bpm/AB/IK`` (suffix 없음)
            e.g. ``…/Asymmetric/SUB2/7kg_10bpm/AB/IK_AddBox``"""
-        return self.result_dir(cond, phase, f"IK_{suffix}" if suffix else "IK")
+        return self.result_dir(cond, section, f"IK_{suffix}" if suffix else "IK")
 
-    def bk_dir(self, cond: str, phase: str) -> str:
-        return self.result_dir(cond, phase, "BK")
+    def bk_dir(self, cond: str, section: str) -> str:
+        return self.result_dir(cond, section, "BK")
 
-    def so_dir(self, cond: str, phase: str, app: str) -> str:
-        return self.result_dir(cond, phase, f"SO_{app}")
+    def so_dir(self, cond: str, section: str, app: str) -> str:
+        return self.result_dir(cond, section, f"SO_{app}")
 
-    def jr_dir(self, cond: str, phase: str, app: str) -> str:
-        return self.result_dir(cond, phase, f"JR_{app}")
+    def jr_dir(self, cond: str, section: str, app: str) -> str:
+        return self.result_dir(cond, section, f"JR_{app}")
 
     # ── 파일명 생성 ──────────────────────────────────────────
 
@@ -187,8 +187,11 @@ class ResultPaths:
 
     # ── 유틸리티 ──────────────────────────────────────────────
 
-    def seg_to_phase(self, seg_label: str) -> str:
-        """``"AB2"`` → ``"AB"``,  ``"U3"`` → ``"Up"``"""
+    def seg_to_section(self, seg_label: str) -> str:
+        """Map segment label to section name.
+
+        Uses current ``1AB``-style labels.
+        """
         for dir_name, prefix in _cfg.section_info(self.style):
             if seg_label.startswith(prefix) and seg_label[len(prefix):].isdigit():
                 return dir_name
@@ -196,20 +199,20 @@ class ResultPaths:
 
     def resolve(self, cond: str, seg: str, folder: str,
                 filename: str) -> str:
-        """seg → phase 자동 변환 후 절대경로 반환."""
+        """seg → section 자동 변환 후 절대경로 반환."""
         return os.path.join(
-            self.result_dir(cond, self.seg_to_phase(seg), folder), filename)
+            self.result_dir(cond, self.seg_to_section(seg), folder), filename)
 
     def build_condition_tree(self, cond: str) -> None:
-        """condition 하위 전체 phase × analysis 디렉토리 일괄 생성."""
-        for ph, _ in _cfg.section_info(self.style):
-            self.markers_dir(cond, ph)
-            self.extload_dir(cond, ph)
-            self.ik_dir(cond, ph)
-            self.bk_dir(cond, ph)
+        """condition 하위 전체 section × analysis 디렉토리 일괄 생성."""
+        for section, _ in _cfg.section_info(self.style):
+            self.markers_dir(cond, section)
+            self.extload_dir(cond, section)
+            self.ik_dir(cond, section)
+            self.bk_dir(cond, section)
             for app in self.apps:
-                self.so_dir(cond, ph, app)
-                self.jr_dir(cond, ph, app)
+                self.so_dir(cond, section, app)
+                self.jr_dir(cond, section, app)
 
     # ── 리스트 생성 ──────────────────────────────────────────
 
@@ -242,7 +245,7 @@ class ResultPaths:
 # ═══════════════════════════════════════════════════════════════
 #
 #  ResultPaths 에 위임(delegation) 하되, condition 파라미터를 고정.
-#  seg_label 만 넘기면 phase 자동 추출 → 디렉토리 + 파일명 결합.
+#  seg_label 만 넘기면 section 자동 추출 → 디렉토리 + 파일명 결합.
 #
 #  상속(IS-A) 대신 위임(HAS-A)을 택한 이유:
 #    ConditionPaths 는 ResultPaths 의 "특수화"가 아니라
@@ -255,7 +258,7 @@ class ConditionPaths:
     >>> cp = ResultPaths("260306_KTH").for_condition("7kg_10bpm")
     >>> cp.trc_path("1AB")
     '…/Asymmetric/SUB2/7kg_10bpm/AB/Markers/SUB2_7kg_10bpm_1AB.trc'
-    >>> for phase, segs in cp.phase_segments().items():
+    >>> for section, segs in cp.section_segments().items():
     ...     for seg in segs:
     ...         print(cp.extload_path(seg, "HeavyHand"))
     """
@@ -275,9 +278,9 @@ class ConditionPaths:
     @property
     def apps(self) -> list[str]: return self._p.apps
 
-    # ── 위상 / 세그먼트 조회 ──────────────────────────────────
+    # ── 섹션 / 세그먼트 조회 ──────────────────────────────────
 
-    def phase_segments(self) -> dict[str, list[str]]:
+    def section_segments(self) -> dict[str, list[str]]:
         """``{"AB": ["1AB","2AB",…], "BC": ["1BC",…], "CA": ["1CA",…]}``"""
         return _cfg.section_segment_labels(self.n_cycles, self._p.style)
 
@@ -285,90 +288,90 @@ class ConditionPaths:
         """``["1AB","1BC","1CA","2AB","2BC","2CA",…]``"""
         return _cfg.section_labels(self.n_cycles, self._p.style)
 
-    def seg_to_phase(self, seg: str) -> str:
-        return self._p.seg_to_phase(seg)
+    def seg_to_section(self, seg: str) -> str:
+        return self._p.seg_to_section(seg)
 
     # ── 디렉토리 (condition 생략) ─────────────────────────────
 
-    def phase_dir(self, phase: str) -> str:
+    def section_dir(self, section: str) -> str:
         """e.g. ``…/Asymmetric/SUB2/7kg_10bpm/AB``"""
-        return self._p.phase_dir(self.cond, phase)
+        return self._p.section_dir(self.cond, section)
 
-    def markers_dir(self, phase: str) -> str:
+    def markers_dir(self, section: str) -> str:
         """e.g. ``…/Asymmetric/SUB2/7kg_10bpm/AB/Markers``"""
-        return self._p.markers_dir(self.cond, phase)
+        return self._p.markers_dir(self.cond, section)
 
-    def extload_dir(self, phase: str) -> str:
+    def extload_dir(self, section: str) -> str:
         """e.g. ``…/Asymmetric/SUB2/7kg_10bpm/AB/ExtLoad``"""
-        return self._p.extload_dir(self.cond, phase)
+        return self._p.extload_dir(self.cond, section)
 
-    def ik_dir(self, phase: str, suffix: str = "") -> str:
-        return self._p.ik_dir(self.cond, phase, suffix)
+    def ik_dir(self, section: str, suffix: str = "") -> str:
+        return self._p.ik_dir(self.cond, section, suffix)
 
-    def bk_dir(self, phase: str) -> str:
-        return self._p.bk_dir(self.cond, phase)
+    def bk_dir(self, section: str) -> str:
+        return self._p.bk_dir(self.cond, section)
 
-    def so_dir(self, phase: str, app: str) -> str:
-        return self._p.so_dir(self.cond, phase, app)
+    def so_dir(self, section: str, app: str) -> str:
+        return self._p.so_dir(self.cond, section, app)
 
-    def jr_dir(self, phase: str, app: str) -> str:
-        return self._p.jr_dir(self.cond, phase, app)
+    def jr_dir(self, section: str, app: str) -> str:
+        return self._p.jr_dir(self.cond, section, app)
 
-    # ── 전체 경로 (seg → phase 자동 추출) ─────────────────────
+    # ── 전체 경로 (seg → section 자동 추출) ─────────────────────
 
     def trc_path(self, seg: str) -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.markers_dir(ph),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.markers_dir(section),
                             self._p.trc_name(self.cond, seg))
 
     def extload_path(self, seg: str, app: str) -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.extload_dir(ph),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.extload_dir(section),
                             self._p.extload_name(self.cond, seg, app))
 
     def setup_extload_path(self, seg: str, app: str) -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.extload_dir(ph),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.extload_dir(section),
                             self._p.setup_extload_name(self.cond, seg, app))
 
     def ik_path(self, seg: str, suffix: str = "") -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.ik_dir(ph, suffix),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.ik_dir(section, suffix),
                             self._p.ik_name(self.cond, seg, suffix))
 
     def setup_ik_path(self, seg: str, suffix: str = "") -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.ik_dir(ph, suffix),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.ik_dir(section, suffix),
                             self._p.setup_ik_name(self.cond, seg, suffix))
 
     def bk_path(self, seg: str, bk_type: str) -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.bk_dir(ph),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.bk_dir(section),
                             self._p.bk_name(self.cond, seg, bk_type))
 
     def setup_bk_path(self, seg: str) -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.bk_dir(ph),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.bk_dir(section),
                             self._p.setup_bk_name(self.cond, seg))
 
     def so_path(self, seg: str, app: str, so_type: str) -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.so_dir(ph, app),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.so_dir(section, app),
                             self._p.so_name(self.cond, seg, app, so_type))
 
     def setup_so_path(self, seg: str, app: str) -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.so_dir(ph, app),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.so_dir(section, app),
                             self._p.setup_so_name(self.cond, seg, app))
 
     def jr_path(self, seg: str, app: str, suffix: str = "") -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.jr_dir(ph, app),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.jr_dir(section, app),
                             self._p.jr_name(self.cond, seg, app, suffix))
 
     def setup_jr_path(self, seg: str, app: str, suffix: str = "") -> str:
-        ph = self.seg_to_phase(seg)
-        return os.path.join(self.jr_dir(ph, app),
+        section = self.seg_to_section(seg)
+        return os.path.join(self.jr_dir(section, app),
                             self._p.setup_jr_name(self.cond, seg, app, suffix))
 
     # ── 일괄 ─────────────────────────────────────────────────

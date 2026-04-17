@@ -62,7 +62,7 @@ def section_info(style: str) -> list[tuple[str, str]]:
 
 
 def section_labels(n_cycles: int, style: str) -> list[str]:
-    """모든 위상·사이클에 대한 세그먼트 레이블 (사이클 순 인터리브).
+    """모든 섹션·사이클에 대한 세그먼트 레이블 (사이클 순 인터리브).
 
     Parameters
     ----------
@@ -72,16 +72,16 @@ def section_labels(n_cycles: int, style: str) -> list[str]:
         ``"UpDown"`` → ``["1U", "1D", "2U", "2D", ...]``
         ``"ABC"``    → ``["1AB", "1BC", "1CA", "2AB", "2BC", "2CA", ...]``
     """
-    phases = section_info(style)
+    sections = section_info(style)
     labels = []
     for i in range(1, n_cycles + 1):
-        for _, prefix in phases:
+        for _, prefix in sections:
             labels.append(f"{i}{prefix}")
     return labels
 
 
 def section_segment_labels(n_cycles: int, style: str) -> dict[str, list[str]]:
-    """위상별로 그룹화된 세그먼트 레이블 딕셔너리.
+    """섹션별로 그룹화된 세그먼트 레이블 딕셔너리.
 
     Returns
     -------
@@ -89,10 +89,10 @@ def section_segment_labels(n_cycles: int, style: str) -> dict[str, list[str]]:
         ``"UpDown"`` → ``{"Up": ["1U","2U",...], "Down": ["1D","2D",...]}``
         ``"ABC"``    → ``{"AB": ["1AB","2AB",...], "BC": [...], "CA": [...]}``
     """
-    phases = section_info(style)
+    sections = section_info(style)
     return {
         dir_name: [f"{i}{prefix}" for i in range(1, n_cycles + 1)]
-        for dir_name, prefix in phases
+        for dir_name, prefix in sections
     }
 
 
