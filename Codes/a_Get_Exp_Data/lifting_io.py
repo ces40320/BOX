@@ -170,47 +170,54 @@ def read_c3d_force_platforms(
 def read_rigid_body_csv(
     csv_path: str,
     skiprow_num: int = 7,
+    debug: bool = False,
 ) -> Dict[str, np.ndarray]:
-    """Read rigid body CSV and return time/position/euler arrays."""
-    df = pd.read_csv(csv_path, skiprows=skiprow_num)
-    cols = {c.strip(): c for c in df.columns}
-
-    def _pick(*cands: str) -> str:
-        for c in cands:
-            if c in cols:
-                return cols[c]
-        for c in df.columns:
-            low = c.lower()
-            if any(cand.lower() in low for cand in cands):
-                return c
-        raise KeyError(f"Missing expected rigid column: {cands}")
-
-    t_col = _pick("Time", "Seconds")
-    x_col = _pick("Position X", "Pos X", "X")
-    y_col = _pick("Position Y", "Pos Y", "Y")
-    z_col = _pick("Position Z", "Pos Z", "Z")
-    rx_col = _pick("Rotation X", "Rot X")
-    ry_col = _pick("Rotation Y", "Rot Y")
-    rz_col = _pick("Rotation Z", "Rot Z")
+    """Read Motive rigid-body CSV as Time/Rotation/Position arrays."""
+    cols = [
+        "Time",
+        "Rotation X",
+        "Rotation Y",
+        "Rotation Z",
+        "Position X",
+        "Position Y",
+        "Position Z",
+    ]
+    # Excel 기준 B:H 열(0-based index 1~7), 데이터는 보통 8행부터 시작.
+    df = pd.read_csv(
+        csv_path,
+        skiprows=skiprow_num,
+        usecols=range(1, 8),
+        header=None,
+        names=cols,
+    )
+    if debug:
+        print(f"[read_rigid_body_csv] csv={csv_path}")
+        print(f"[read_rigid_body_csv] skiprows={skiprow_num}")
+        print(f"[read_rigid_body_csv] df.shape={df.shape}")
+        print(f"[read_rigid_body_csv] df.columns={list(df.columns)}")
+        print(f"[read_rigid_body_csv] df.head(3)={df.head(3).to_dict(orient='list')}")
+        print(f"df['Time'][0] = {df['Time'][0]}")
+    box_center = np.stack(
+        [
+            df["Position X"].to_numpy(dtype=float),
+            df["Position Y"].to_numpy(dtype=float),
+            df["Position Z"].to_numpy(dtype=float),
+        ],
+        axis=1,
+    )
+    box_rotation = np.stack(
+        [
+            df["Rotation X"].to_numpy(dtype=float),
+            df["Rotation Y"].to_numpy(dtype=float),
+            df["Rotation Z"].to_numpy(dtype=float),
+        ],
+        axis=1,
+    )
 
     out = {
-        "time": df[t_col].to_numpy(dtype=float),
-        "center": np.stack(
-            [
-                df[x_col].to_numpy(dtype=float),
-                df[y_col].to_numpy(dtype=float),
-                df[z_col].to_numpy(dtype=float),
-            ],
-            axis=1,
-        ),
-        "euler_deg": np.stack(
-            [
-                df[rx_col].to_numpy(dtype=float),
-                df[ry_col].to_numpy(dtype=float),
-                df[rz_col].to_numpy(dtype=float),
-            ],
-            axis=1,
-        ),
+        "time": df["Time"].to_numpy(dtype=float),
+        "center": box_center,
+        "euler_deg": box_rotation,
     }
     return out
 
