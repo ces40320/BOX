@@ -1,6 +1,12 @@
 import os
 from lxml import etree
 
+from pipeline_rules import (
+    ik_suffix as _ik_suffix,
+    ik_template as _ik_template,
+    resolve_model_path,
+)
+
 
 def _maybe_add_opensim_dll_dir() -> None:
     """Add OpenSim DLL directory on Windows if available."""
@@ -49,14 +55,21 @@ def run_ik(
     ik_template_addbox: str,
     dry_run: bool = False,
 ) -> str:
-    """Run IK and write setup/result files to planned structure."""
+    """Run IK and write setup/result files to planned structure.
+
+    Model / IK-folder / IK-template selection is delegated to
+    ``pipeline_rules`` so that the kg-aware policy stays in one place
+    (see ``REFAC_RUN_TOOLS_PLAN.md`` §3.4 / §4.3).
+    """
     trc_path = cp.trc_path(seg)
-    model_type = "" if app == "MeasuredEHF" else app
-    model_path = rp.model_path(model_type)
-    ik_suffix = "AddBox" if app == "AddBox" else ""
-    setup_ik_path = cp.setup_ik_path(seg, ik_suffix)
-    ik_output_path = cp.ik_path(seg, ik_suffix)
-    ik_template = ik_template_addbox if app == "AddBox" else ik_template_default
+    model_path = resolve_model_path(rp, cp.cond, app, "ik",
+                                    must_exist=not dry_run)
+    suffix = _ik_suffix(app)
+    setup_ik_path = cp.setup_ik_path(seg, suffix)
+    ik_output_path = cp.ik_path(seg, suffix)
+    ik_template_path = _ik_template(app,
+                                    default=ik_template_default,
+                                    addbox=ik_template_addbox)
 
     if dry_run:
         return setup_ik_path
@@ -70,7 +83,7 @@ def run_ik(
     trcdata = np.array(df)
 
     model = osim.Model(model_path)
-    ik = osim.InverseKinematicsTool(ik_template)
+    ik = osim.InverseKinematicsTool(ik_template_path)
     ik.setName(rp.sub_label)
     ik.set_marker_file(trc_path)
     ik.setModel(model)
