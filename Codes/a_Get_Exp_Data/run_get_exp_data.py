@@ -14,7 +14,6 @@ Usage
     protocol        method          pipeline 함수
     -------------   ------------    -----------------------------------
     Symmetric       findpeaks       process_condition_findpeaks     (TODO)
-    Asymmetric_Pilot findpeaks      process_condition_findpeaks     (TODO)
     Asymmetric      manual_window   process_condition_manual_window (구현)
     Asymmetric      bpm_window      process_condition_bpm_window    (TODO)
 
