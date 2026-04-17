@@ -5,8 +5,8 @@
 각 피험자 항목에 포함되는 필드(dict key-value pairs):
 "yymmdd_NAMECODE" : {
         "SUB_number"         : (int) 피험자 번호 숫자만 (e.g. 1),
-        "body_mass"          : (float) 체중 (kg),
         "height"             : (int) 신장 (mm),
+        "body_mass"          : (float) 체중 (kg),
         "sex"                : (str) 성별 ("M" / "F"),
         "age"                : (int) 만 나이,
         "protocol"           : (str) 프로토콜 이름 (e.g. "Symmetric" / "Asymmetric_Pilot" / "Asymmetric" ),
@@ -34,8 +34,8 @@ subjects = {
     
     "240124_PJH" : { #박준홍
         "SUB_number"         : 1,
-        "body_mass"          : 75.16,
         "height"             : 1740,
+        "body_mass"          : 75.16,
         "sex"                : "M",
         "age"                : 30,
         "protocol"           : "Symmetric",
@@ -76,8 +76,8 @@ subjects = {
     
     "260306_KTY" : { #김태영
         "SUB_number"         : 2,
-        "body_mass"          : 66.74,
         "height"             : 1730,
+        "body_mass"          : 66.74,
         "sex"                : "M",
         "age"                : 22,
         "protocol"           : "Asymmetric",
