@@ -74,7 +74,7 @@ subjects = {
                             },
     },
     
-    "260306_KTH" : { #김태영
+    "260306_KTY" : { #김태영
         "SUB_number"         : 2,
         "body_mass"          : 66.74,
         "height"             : 1730,
