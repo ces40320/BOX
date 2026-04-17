@@ -193,7 +193,8 @@ class ResultPaths:
         Uses current ``1AB``-style labels.
         """
         for dir_name, prefix in _cfg.section_info(self.style):
-            if seg_label.startswith(prefix) and seg_label[len(prefix):].isdigit():
+            # style: 1AB, 2BC, ...
+            if seg_label.endswith(prefix) and seg_label[:-len(prefix)].isdigit():
                 return dir_name
         raise ValueError(f"Cannot map {seg_label!r} for style {self.style!r}")
 
