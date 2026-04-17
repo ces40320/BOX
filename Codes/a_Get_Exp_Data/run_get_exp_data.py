@@ -258,8 +258,9 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):
     if len(marker_time) < 2 or len(force_time) < 2:
         print("    [SKIP] insufficient frames in C3D.")
         return
-    marker_rate = 1.0 / float(np.mean(np.diff(marker_time)))
-    force_rate = 1.0 / float(np.mean(np.diff(force_time)))
+    marker_rate = 1.0 / float(np.mean(np.diff(marker_time)))    # marker_rate = 100Hz
+    force_rate = 1.0 / float(np.mean(np.diff(force_time)))      # force_rate = 1000Hz
+    rigid = _io.upsample_rigid_to_rate(rigid, target_rate_hz=force_rate)
 
     # ── 2) 마커 필터링 ─────────────────────────────────────────
     for key in list(markers.keys()):

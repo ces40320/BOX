@@ -239,6 +239,42 @@ def _match_rigid_length(rigid: Dict[str, np.ndarray], target_len: int) -> Dict[s
     return {"time": time, "center": center, "euler_deg": euler}
 
 
+def upsample_rigid_to_rate(
+    rigid: Dict[str, np.ndarray],
+    target_rate_hz: float = 1000.0,
+) -> Dict[str, np.ndarray]:
+    """Upsample rigid-body data to a target rate using linear interpolation."""
+    time_src = np.asarray(rigid["time"], dtype=float)
+    center_src = np.asarray(rigid["center"], dtype=float)
+    euler_src = np.asarray(rigid["euler_deg"], dtype=float)
+
+    if time_src.ndim != 1 or time_src.size < 2:
+        raise ValueError("Rigid 'time' must be a 1D array with at least 2 samples.")
+    if center_src.shape[0] != time_src.size or euler_src.shape[0] != time_src.size:
+        raise ValueError("Rigid arrays must share the same first dimension as 'time'.")
+    if target_rate_hz <= 0:
+        raise ValueError(f"target_rate_hz must be > 0, got {target_rate_hz}.")
+
+    dt = np.diff(time_src)
+    if np.any(dt <= 0):
+        raise ValueError("Rigid 'time' must be strictly increasing.")
+
+    step = 1.0 / float(target_rate_hz)
+    time_end = time_src[-1]
+    time_up = np.arange(time_src[0], time_end + 0.5 * step, step, dtype=float)
+    time_up[-1] = min(time_up[-1], time_end)
+
+    center_up = np.stack(
+        [np.interp(time_up, time_src, center_src[:, i]) for i in range(3)],
+        axis=1,
+    )
+    euler_up = np.stack(
+        [np.interp(time_up, time_src, euler_src[:, i]) for i in range(3)],
+        axis=1,
+    )
+    return {"time": time_up, "center": center_up, "euler_deg": euler_up}
+
+
 def butterworth_filter(
     data: np.ndarray,
     fs_hz: float,
