@@ -1,4 +1,4 @@
 *.pyc
 opensim.log
-OpenSim_Process/
+OpenSim_Process/_Main_
 Codes/a_Get_Exp_Data/OLD
