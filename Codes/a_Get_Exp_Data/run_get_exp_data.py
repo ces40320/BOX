@@ -392,29 +392,37 @@ def _list_matches(directory, condition_key, ext):
 
 
 def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
-    """--dry-run 에서 condition 하나에 대한 상세 계획을 출력.
+    """--dry-run 에서 condition 하나에 대한 계획을 출력.
 
-    - 매칭된 C3D/CSV 후보 전체 목록 (선택된 항목 표시)
-    - 세그먼트 설정 검증 (BPM 추출/매핑, APP 구현 여부)
-    - 예상 생성 파일 수·경로 예시 (TRC + APP별 MOT)
-    - 세그먼트 라벨 목록
+    단계별로 진행하다가 근본적 문제(디렉토리 없음, 매칭 실패 등)를
+    만나면 즉시 종료하여 잡음을 줄인다.
     """
-    print(f"    ── dry-run plan ──")
+    # 1) 입력 파일 후보 (디렉토리 존재 체크는 _list_matches에서 처리됨.
+    #    단, subject 레벨에서 이미 걸러지지 않은 경우를 위해 한 번 더 검증)
+    if not os.path.isdir(rp.c3d_dir):
+        print(f"    [ERROR] C3D directory does not exist: {rp.c3d_dir}")
+        return
+    if not os.path.isdir(rp.rigid_dir):
+        print(f"    [ERROR] Rigid directory does not exist: {rp.rigid_dir}")
+        return
 
-    # 1) 입력 파일 후보
     c3d_cands = _list_matches(rp.c3d_dir, cp.cond, ".c3d")
     rigid_cands = _list_matches(rp.rigid_dir, cp.cond, ".csv")
 
-    print(f"    C3D candidates ({len(c3d_cands)}) in {rp.c3d_dir}:")
     if not c3d_cands:
-        print(f"      (none)")
+        print(f"    [ERROR] No C3D file matched '{cp.cond}' in {rp.c3d_dir}")
+        return
+    if not rigid_cands:
+        print(f"    [ERROR] No Rigid CSV matched '{cp.cond}' in {rp.rigid_dir}")
+        return
+
+    # 여기부터는 입력이 확보된 경우만 상세 리포트
+    print(f"    ── dry-run plan ──")
+    print(f"    C3D candidates ({len(c3d_cands)}):")
     for p in c3d_cands:
         mark = "  <- selected" if p == c3d_path else ""
         print(f"      {os.path.basename(p)}{mark}")
-
-    print(f"    Rigid candidates ({len(rigid_cands)}) in {rp.rigid_dir}:")
-    if not rigid_cands:
-        print(f"      (none)")
+    print(f"    Rigid candidates ({len(rigid_cands)}):")
     for p in rigid_cands:
         mark = "  <- selected" if p == rigid_csv_path else ""
         print(f"      {os.path.basename(p)}{mark}")
@@ -423,7 +431,7 @@ def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
     seg_cfg = rp.segmentation
     method = seg_cfg.get("method")
     issues = []
-    if method == "manual_window" or method == "bpm_window":
+    if method in ("manual_window", "bpm_window"):
         try:
             bpm = _extract_bpm_from_condition(cp.cond)
             print(f"    BPM extracted: {bpm}")
@@ -467,27 +475,17 @@ def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
         for app in apps_missing:
             print(f"      MOT : [SKIP]  {app}  (not implemented)")
 
-    # 5) 요약: 이슈/에러
-    errors = []
-    if not c3d_path:
-        errors.append("No C3D file matched")
-    if not rigid_csv_path:
-        errors.append("No RigidBody CSV matched")
+    # 5) 이슈 요약
     if len(c3d_cands) > 1:
         issues.append(f"{len(c3d_cands)} C3D candidates matched "
                       f"(first selected)")
     if len(rigid_cands) > 1:
         issues.append(f"{len(rigid_cands)} Rigid candidates matched "
                       f"(first selected)")
-
-    if errors:
-        for e in errors:
-            print(f"    [ERROR] {e}")
-    if issues:
-        for w in issues:
-            print(f"    [WARN] {w}")
-    if not errors and not issues:
-        print(f"    [OK] All inputs matched, config valid.")
+    for w in issues:
+        print(f"    [WARN] {w}")
+    if not issues:
+        print(f"    [OK] Inputs matched, config valid.")
 
 
 # ── 피험자 단위 처리 ─────────────────────────────────────────────
@@ -509,6 +507,18 @@ def process_subject(namecode, dry_run=False):
     if pipeline_fn is None:
         print(f"  [ERROR] Unknown segment method: "
               f"{rp.segmentation['method']!r}")
+        return
+
+    subject_root = os.path.join(_path.DATA_DIR, namecode)
+    if not os.path.isdir(subject_root):
+        print(f"  [ERROR] Subject data directory does not exist: "
+              f"{subject_root}")
+        return
+    if not os.path.isdir(rp.c3d_dir):
+        print(f"  [ERROR] C3D directory does not exist: {rp.c3d_dir}")
+        return
+    if not os.path.isdir(rp.rigid_dir):
+        print(f"  [ERROR] Rigid directory does not exist: {rp.rigid_dir}")
         return
 
     conditions_sorted = sorted(
