@@ -11,6 +11,7 @@ if CODES_DIR not in sys.path:
 from SUB_Info import subjects
 from PATH_RULE import ResultPaths
 from opensim_pipeline_handlers import prepare_extload_setup, run_ik
+from pipeline_rules import resolve_model_path
 
 
 def _parse_tools(raw_tools: str) -> list[str]:
@@ -61,10 +62,13 @@ def _pick_segments(cp, raw_segments: str | None) -> list[str]:
     return all_segments
 
 
-def _print_structure_validation_sample(cp, apps: list[str], segments: list[str]) -> None:
+def _print_structure_validation_sample(rp, cp, apps: list[str],
+                                       segments: list[str]) -> None:
     sample_seg = segments[0]
     sample_app = apps[0]
     sample_section = cp.seg_to_section(sample_seg)
+    sample_model = resolve_model_path(rp, cp.cond, sample_app, "ik",
+                                      must_exist=False)
     print("\n[Structure Validation - Sample]")
     print(f"  condition : {cp.cond}")
     print(f"  section   : {sample_section}")
@@ -76,6 +80,7 @@ def _print_structure_validation_sample(cp, apps: list[str], segments: list[str])
     print(f"  trc_path  : {cp.trc_path(sample_seg)}")
     print(f"  ext_xml   : {cp.setup_extload_path(sample_seg, sample_app)}")
     print(f"  ik_xml    : {cp.setup_ik_path(sample_seg)}")
+    print(f"  model(ik) : {os.path.basename(sample_model)}")
 
 
 def main() -> None:
@@ -129,7 +134,7 @@ def main() -> None:
     if error_log:
         print(f"  error_log : {sorted(error_log)}")
 
-    _print_structure_validation_sample(cp, apps, segments)
+    _print_structure_validation_sample(rp, cp, apps, segments)
 
     for seg in segments:
         if seg in error_log:
@@ -148,6 +153,12 @@ def main() -> None:
                 print(f"[OK] ExtLoad setup: {ext_path}")
 
             if "ik" in tools:
+                ik_model = resolve_model_path(
+                    rp, condition, app, "ik",
+                    must_exist=not args.dry_run,
+                )
+                print(f"[MODEL] cond={condition} app={app} stage=ik "
+                      f"-> {os.path.basename(ik_model)}")
                 ik_path = run_ik(
                     cp=cp,
                     rp=rp,
