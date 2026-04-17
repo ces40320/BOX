@@ -67,11 +67,11 @@ class ResultPaths:
     이후 호출에서 namecode 반복 불필요.
 
     >>> rp = ResultPaths("260306_KTH")
-    >>> rp.trc_name("7kg_10bpm", "AB1")
-    'SUB2_7kg_10bpm_AB1.trc'
+    >>> rp.trc_name("7kg_10bpm", "1AB")
+    'SUB2_7kg_10bpm_1AB.trc'
     >>> cp = rp.for_condition("7kg_10bpm")
-    >>> cp.trc_path("AB1")
-    '…/Asymmetric/SUB2/7kg_10bpm/AB/Markers/SUB2_7kg_10bpm_AB1.trc'
+    >>> cp.trc_path("1AB")
+    '…/Asymmetric/SUB2/7kg_10bpm/AB/Markers/SUB2_7kg_10bpm_1AB.trc'
     """
 
     def __init__(self, namecode: str):
@@ -134,54 +134,54 @@ class ResultPaths:
         return os.path.join(self.model_dir, self.model_name(model_type))
 
     def trc_name(self, cond: str, seg: str) -> str:
-        """e.g. ``'SUB2_7kg_10bpm_AB1.trc'``"""
+        """e.g. ``'SUB2_7kg_10bpm_1AB.trc'``"""
         return f"{self.sub_label}_{cond}_{seg}.trc"
 
     def extload_name(self, cond: str, seg: str, app: str) -> str:
-        """e.g. ``'SUB2_7kg_10bpm_AB1_ExtLoad_MeasuredEHF.mot'``"""
+        """e.g. ``'SUB2_7kg_10bpm_1AB_ExtLoad_MeasuredEHF.mot'``"""
         return f"{self.sub_label}_{cond}_{seg}_ExtLoad_{app}.mot"
 
     def setup_extload_name(self, cond: str, seg: str, app: str) -> str:
-        """e.g. ``'SETUP_ExtLoad_7kg_10bpm_AB1_MeasuredEHF.xml'``"""
+        """e.g. ``'SETUP_ExtLoad_7kg_10bpm_1AB_MeasuredEHF.xml'``"""
         return f"SETUP_ExtLoad_{cond}_{seg}_{app}.xml"
 
     def ik_name(self, cond: str, seg: str, suffix: str = "") -> str:
-        """e.g. ``'SUB2_7kg_10bpm_AB1_IK.mot'``"""
+        """e.g. ``'SUB2_7kg_10bpm_1AB_IK.mot'``"""
         sfx = f"_{suffix}" if suffix else ""
         return f"{self.sub_label}_{cond}_{seg}{sfx}_IK.mot"
 
     def setup_ik_name(self, cond: str, seg: str, suffix: str = "") -> str:
-        """e.g. ``'SETUP_IK_7kg_10bpm_AB1.xml'``"""
+        """e.g. ``'SETUP_IK_7kg_10bpm_1AB.xml'``"""
         sfx = f"_{suffix}" if suffix else ""
         return f"SETUP_IK_{cond}_{seg}{sfx}.xml"
 
     def bk_name(self, cond: str, seg: str, bk_type: str) -> str:
-        """e.g. ``'SUB2_7kg_10bpm_AB1_BodyKinematics_pos_global.sto'``"""
+        """e.g. ``'SUB2_7kg_10bpm_1AB_BodyKinematics_pos_global.sto'``"""
         return f"{self.sub_label}_{cond}_{seg}_BodyKinematics_{bk_type}.sto"
 
     def setup_bk_name(self, cond: str, seg: str) -> str:
-        """e.g. ``'SETUP_BK_7kg_10bpm_AB1.xml'``"""
+        """e.g. ``'SETUP_BK_7kg_10bpm_1AB.xml'``"""
         return f"SETUP_BK_{cond}_{seg}.xml"
 
     def so_name(self, cond: str, seg: str, app: str, so_type: str) -> str:
-        """e.g. ``'SUB2_7kg_10bpm_AB1_HeavyHand_StaticOptimization_force.sto'``"""
+        """e.g. ``'SUB2_7kg_10bpm_1AB_HeavyHand_StaticOptimization_force.sto'``"""
         ext = "xml" if so_type == "control" else "sto"
         return (f"{self.sub_label}_{cond}_{seg}"
                 f"_{app}_StaticOptimization_{so_type}.{ext}")
 
     def setup_so_name(self, cond: str, seg: str, app: str) -> str:
-        """e.g. ``'SETUP_SO_7kg_10bpm_AB1_HeavyHand.xml'``"""
+        """e.g. ``'SETUP_SO_7kg_10bpm_1AB_HeavyHand.xml'``"""
         return f"SETUP_SO_{cond}_{seg}_{app}.xml"
 
     def jr_name(self, cond: str, seg: str, app: str, suffix: str = "") -> str:
-        """e.g. ``'SUB2_7kg_10bpm_AB1_PreRiCTO_JointReaction_ReactionLoads.sto'``"""
+        """e.g. ``'SUB2_7kg_10bpm_1AB_PreRiCTO_JointReaction_ReactionLoads.sto'``"""
         sfx = f"_{suffix}" if suffix else ""
         return (f"{self.sub_label}_{cond}_{seg}"
                 f"_{app}_JointReaction_ReactionLoads{sfx}.sto")
 
     def setup_jr_name(self, cond: str, seg: str, app: str,
                       suffix: str = "") -> str:
-        """e.g. ``'SETUP_JR_7kg_10bpm_AB1_PreRiCTO.xml'``"""
+        """e.g. ``'SETUP_JR_7kg_10bpm_1AB_PreRiCTO.xml'``"""
         sfx = f"_{suffix}" if suffix else ""
         return f"SETUP_JR_{cond}_{seg}_{app}{sfx}.xml"
 
@@ -253,8 +253,8 @@ class ConditionPaths:
     """condition 1개에 바인딩된 경로 context.
 
     >>> cp = ResultPaths("260306_KTH").for_condition("7kg_10bpm")
-    >>> cp.trc_path("AB1")
-    '…/Asymmetric/SUB2/7kg_10bpm/AB/Markers/SUB2_7kg_10bpm_AB1.trc'
+    >>> cp.trc_path("1AB")
+    '…/Asymmetric/SUB2/7kg_10bpm/AB/Markers/SUB2_7kg_10bpm_1AB.trc'
     >>> for phase, segs in cp.phase_segments().items():
     ...     for seg in segs:
     ...         print(cp.extload_path(seg, "HeavyHand"))
@@ -278,11 +278,11 @@ class ConditionPaths:
     # ── 위상 / 세그먼트 조회 ──────────────────────────────────
 
     def phase_segments(self) -> dict[str, list[str]]:
-        """``{"AB": ["AB1","AB2",…], "BC": ["BC1",…], "CA": ["CA1",…]}``"""
-        return _cfg.phase_segment_labels(self.n_cycles, self._p.style)
+        """``{"AB": ["1AB","2AB",…], "BC": ["1BC",…], "CA": ["1CA",…]}``"""
+        return _cfg.section_segment_labels(self.n_cycles, self._p.style)
 
     def all_segments(self) -> list[str]:
-        """``["AB1","BC1","CA1","AB2","BC2","CA2",…]``"""
+        """``["1AB","1BC","1CA","2AB","2BC","2CA",…]``"""
         return _cfg.section_labels(self.n_cycles, self._p.style)
 
     def seg_to_phase(self, seg: str) -> str:

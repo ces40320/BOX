@@ -69,14 +69,14 @@ def section_labels(n_cycles: int, style: str) -> list[str]:
     n_cycles : int
         해당 condition의 lifting cycle 수.
     style : str
-        ``"UpDown"`` → ``["U1", "D1", "U2", "D2", ...]``
-        ``"ABC"``    → ``["AB1", "BC1", "CA1", "AB2", "BC2", "CA2", ...]``
+        ``"UpDown"`` → ``["1U", "1D", "2U", "2D", ...]``
+        ``"ABC"``    → ``["1AB", "1BC", "1CA", "2AB", "2BC", "2CA", ...]``
     """
     phases = section_info(style)
     labels = []
     for i in range(1, n_cycles + 1):
         for _, prefix in phases:
-            labels.append(f"{prefix}{i}")
+            labels.append(f"{i}{prefix}")
     return labels
 
 
@@ -86,12 +86,12 @@ def section_segment_labels(n_cycles: int, style: str) -> dict[str, list[str]]:
     Returns
     -------
     dict[str, list[str]]
-        ``"UpDown"`` → ``{"Up": ["U1","U2",...], "Down": ["D1","D2",...]}``
-        ``"ABC"``    → ``{"AB": ["AB1","AB2",...], "BC": [...], "CA": [...]}``
+        ``"UpDown"`` → ``{"Up": ["1U","2U",...], "Down": ["1D","2D",...]}``
+        ``"ABC"``    → ``{"AB": ["1AB","2AB",...], "BC": [...], "CA": [...]}``
     """
     phases = section_info(style)
     return {
-        dir_name: [f"{prefix}{i}" for i in range(1, n_cycles + 1)]
+        dir_name: [f"{i}{prefix}" for i in range(1, n_cycles + 1)]
         for dir_name, prefix in phases
     }
 
