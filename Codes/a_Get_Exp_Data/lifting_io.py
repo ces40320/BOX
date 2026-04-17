@@ -167,21 +167,6 @@ def read_c3d_force_platforms(
     return out
 
 
-def butterworth_filter(
-    data: np.ndarray,
-    fs_hz: float,
-    cutoff_hz: float,
-    order: int = 4,
-) -> np.ndarray:
-    """Zero-phase low-pass Butterworth filter for NxC arrays."""
-    if data.shape[0] < 4:
-        return data.copy()
-    nyquist = 0.5 * fs_hz
-    wn = cutoff_hz / nyquist
-    b, a = butter(order, wn, btype="low", analog=False)
-    return filtfilt(b, a, data, axis=0)
-
-
 def read_rigid_body_csv(
     csv_path: str,
     skiprow_num: int = 7,
@@ -245,6 +230,21 @@ def _match_rigid_length(rigid: Dict[str, np.ndarray], target_len: int) -> Dict[s
     euler = (1.0 - alpha) * rigid["euler_deg"][idx0] + alpha * rigid["euler_deg"][idx1]
     time = np.interp(np.arange(target_len), np.arange(n), rigid["time"])
     return {"time": time, "center": center, "euler_deg": euler}
+
+
+def butterworth_filter(
+    data: np.ndarray,
+    fs_hz: float,
+    cutoff_hz: float,
+    order: int = 4,
+) -> np.ndarray:
+    """Zero-phase low-pass Butterworth filter for NxC arrays."""
+    if data.shape[0] < 4:
+        return data.copy()
+    nyquist = 0.5 * fs_hz
+    wn = cutoff_hz / nyquist
+    b, a = butter(order, wn, btype="low", analog=False)
+    return filtfilt(b, a, data, axis=0)
 
 
 def detect_box_event_pairs(
@@ -433,6 +433,8 @@ def _grf_moment_xz_zeroed(m: np.ndarray) -> np.ndarray:
     out[:, 2] = 0.0
     return out
 
+
+# ───────────────────────────────────── ExtLoad Assembly ─────────────────────────────────────
 
 def transform_ExtLoad_MeasuredEHF(
     forces: Dict[str, np.ndarray],
