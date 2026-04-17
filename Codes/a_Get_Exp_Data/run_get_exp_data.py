@@ -468,9 +468,9 @@ def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
         )
 
     # 4) 예상 생성 파일
-    segments = cp.all_segments()
+    sections = cp.all_sections()
     section_segs = cp.section_segments()
-    n_trc = len(segments)
+    n_trc = len(sections)
     n_mot = n_trc * len(apps_ok)
 
     print(f"    Planned outputs: {n_trc} TRC + {n_mot} MOT "
@@ -478,9 +478,9 @@ def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
     for section, labels in section_segs.items():
         print(f"      section {section}: {labels}")
 
-    if segments:
-        ex = segments[0]
-        print(f"    Example paths for seg={ex!r}:")
+    if sections:
+        ex = sections[0]
+        print(f"    Example paths for section={ex!r}:")
         print(f"      TRC : {cp.trc_path(ex)}")
         for app in apps_ok:
             print(f"      MOT : {cp.extload_path(ex, app)}")

@@ -285,7 +285,7 @@ class ConditionPaths:
         """``{"AB": ["1AB","2AB",…], "BC": ["1BC",…], "CA": ["1CA",…]}``"""
         return _cfg.section_segment_labels(self.n_cycles, self._p.style)
 
-    def all_segments(self) -> list[str]:
+    def all_sections(self) -> list[str]:
         """``["1AB","1BC","1CA","2AB","2BC","2CA",…]``"""
         return _cfg.section_labels(self.n_cycles, self._p.style)
 
