@@ -17,13 +17,19 @@ conda activate opensim_scripting
 conda install -c opensim-org opensim
 ```
 
-### 3) Install additional project packages
+### 3) Install OpenSim Moco from conda channel
+
+```bash
+conda install -c opensim-org opensim-moco
+```
+
+### 4) Install additional project packages
 
 ```bash
 pip install -r requirement.txt
 ```
 
-### 4) Verify installation
+### 5) Verify installation
 
 ```bash
 python -c "import opensim as osim; print(osim.GetVersionAndDate())"
