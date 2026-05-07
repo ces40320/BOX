@@ -1,125 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <OpenSimDocument Version="40500">
 	<Model name="LFBModel">
-		<defaults>
-			<ControlLinear name="default">
-				<is_model_control>true</is_model_control>
-				<extrapolate>true</extrapolate>
-				<default_min>-1</default_min>
-				<default_max>1</default_max>
-				<filter_on>false</filter_on>
-				<use_steps>false</use_steps>
-				<x_nodes />
-				<min_nodes />
-				<max_nodes />
-				<kp>100</kp>
-				<kv>20</kv>
-			</ControlLinear>
-			<CoordinateActuator name="default">
-				<!--Name of the generalized coordinate to which the actuator applies.-->
-				<coordinate>Unassigned</coordinate>
-				<!--The maximum generalized force produced by this actuator.-->
-				<optimal_force>300</optimal_force>
-			</CoordinateActuator>
-			<PointActuator name="default">
-				<!--Name of Body to which this actuator is applied.-->
-				<body></body>
-				<!--Location of application point; in body frame unless point_is_global=true-->
-				<point>0 0 0</point>
-				<!--Interpret point in Ground frame if true; otherwise, body frame.-->
-				<point_is_global>false</point_is_global>
-				<!--Force application direction; in body frame unless force_is_global=true.-->
-				<direction>-1 -0 -0</direction>
-				<!--Interpret direction in Ground frame if true; otherwise, body frame.-->
-				<force_is_global>true</force_is_global>
-				<!--The maximum force produced by this actuator when fully activated.-->
-				<optimal_force>1000</optimal_force>
-			</PointActuator>
-			<TorqueActuator name="default">
-				<!--Name of Body to which the torque actuator is applied.-->
-				<bodyA>Unassigned</bodyA>
-				<!--Name of Body to which the equal and opposite torque is applied.-->
-				<bodyB>Unassigned</bodyB>
-				<!--Interpret axis in Ground frame if true; otherwise, body A's frame.-->
-				<torque_is_global>true</torque_is_global>
-				<!--Fixed direction about which torque is applied, in Ground or body A frame depending on 'torque_is_global' property.-->
-				<axis>-1 -0 -0</axis>
-				<!--The maximum torque produced by this actuator when fully activated.-->
-				<optimal_force>1</optimal_force>
-			</TorqueActuator>
-			<Thelen2003Muscle name="default">
-				<!--The path of the actuator which defines length and lengthening speed.-->
-				<GeometryPath name="path">
-					<!--Default appearance attributes for this AbstractGeometryPath.-->
-					<Appearance>
-						<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
-						<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
-					</Appearance>
-					<!--The set of points defining the path-->
-					<PathPointSet>
-						<objects />
-						<groups />
-					</PathPointSet>
-					<!--The wrap objects that are associated with this path-->
-					<PathWrapSet>
-						<objects />
-						<groups />
-					</PathWrapSet>
-				</GeometryPath>
-				<!--Maximum isometric force that the fibers can generate-->
-				<max_isometric_force>546</max_isometric_force>
-				<!--Optimal length of the muscle fibers-->
-				<optimal_fiber_length>0.053499999999999999</optimal_fiber_length>
-				<!--Resting length of the tendon-->
-				<tendon_slack_length>0.078</tendon_slack_length>
-				<!--Angle between tendon and fibers at optimal fiber length expressed in radians-->
-				<pennation_angle_at_optimal>0</pennation_angle_at_optimal>
-				<!--tendon strain at maximum isometric muscle force-->
-				<FmaxTendonStrain>0.033000000000000002</FmaxTendonStrain>
-				<!--passive muscle strain at maximum isometric muscle force-->
-				<FmaxMuscleStrain>0.59999999999999998</FmaxMuscleStrain>
-				<!--shape factor for Gaussian active muscle force-length relationship-->
-				<KshapeActive>0.5</KshapeActive>
-				<!--exponential shape factor for passive force-length relationship-->
-				<KshapePassive>4</KshapePassive>
-				<!--force-velocity shape factor-->
-				<Af>0.29999999999999999</Af>
-				<!--maximum normalized lengthening force-->
-				<Flen>1.8</Flen>
-				<!--Activation time constant, in seconds-->
-				<activation_time_constant>0.01</activation_time_constant>
-				<!--Deactivation time constant, in seconds-->
-				<deactivation_time_constant>0.040000000000000001</deactivation_time_constant>
-			</Thelen2003Muscle>
-			<CMC_Joint name="default">
-				<!--Flag (true or false) indicating whether or not a task is enabled.-->
-				<on>false</on>
-				<!--Weight with which a task is tracked relative to other tasks. To track a task more tightly, make the weight larger.-->
-				<weight> 1 1 1</weight>
-				<!--Name of body frame with respect to which a tracking objective is specified. The special name 'center_of_mass' refers to the system center of mass. This property is not used for tracking joint angles.-->
-				<wrt_body>-1</wrt_body>
-				<!--Name of body frame in which the tracking objectives are expressed.  This property is not used for tracking joint angles.-->
-				<express_body>-1</express_body>
-				<!--Array of 3 flags (each true or false) specifying whether a component of a task is active.  For example, tracking the trajectory of a point in space could have three components (x,y,z).  This allows each of those to be made active (true) or inactive (false).  A task for tracking a joint coordinate only has one component.-->
-				<active>false false false </active>
-				<!--Position error feedback gain (stiffness). To achieve critical damping of errors, choose kv = 2*sqrt(kp).-->
-				<kp> 1 1 1</kp>
-				<!--Velocity error feedback gain (damping). To achieve critical damping of errors, choose kv = 2*sqrt(kp).-->
-				<kv> 1 1 1</kv>
-				<!--Feedforward acceleration gain.  This is normally set to 1.0, so no gain.-->
-				<ka> 1 1 1</ka>
-				<!--Direction vector[3] for component 0 of a task. Joint tasks do not use this property.-->
-				<r0> 0 0 0</r0>
-				<!--Direction vector[3] for component 1 of a task. Joint tasks do not use this property.-->
-				<r1> 0 0 0</r1>
-				<!--Direction vector[3] for component 2 of a task. Joint tasks do not use this property.-->
-				<r2> 0 0 0</r2>
-				<!--Name of the coordinate to be tracked.-->
-				<coordinate />
-				<!--Error limit on the tracking accuracy for this coordinate. If the tracking errors approach this limit, the weighting for this coordinate is increased. -->
-				<limit>0</limit>
-			</CMC_Joint>
-		</defaults>
 		<!--The model's ground reference frame.-->
 		<Ground name="ground">
 			<!--The geometry used to display the axes of this Frame.-->
@@ -3492,7 +3373,7 @@
 							<!--Transform function of the generalized coordinates used to        represent the amount of displacement along a specified axis.-->
 							<SimmSpline name="function">
 								<x> -2.0943999999999998174 -1.745330000000000048 -1.3962600000000000566 -1.0471999999999999087 -0.6981319999999999748 -0.3490659999999999874 -0.1745329999999999937 0.19734399999999999165 0.33739500000000000046 0.4901780000000000026 1.5214600000000000346 2.0943999999999998174</x>
-								<y> 0.0012998565000000000119 0.0062898564999999996561 0.0086098565000000005371 0.0085998564999999992098 0.006619856500000000088 0.0034998565000000001445 0.0013998565000000000574 -0.00072714350000000003548 -0.00093514349999999999558 -0.0010741435000000000132 -0.00093514349999999999558 -0.00075014350000000005244</y>
+								<y> 0.0012998599999999999044 0.0062898600000000004159 0.0086098600000000004295 0.008599860000000000837 0.0066198599999999999804 0.0034998600000000000369 0.0013998599999999999498 -0.00072714399999999998914 -0.00093514300000000004191 -0.0010741399999999999039 -0.00093514300000000004191 -0.0007501440000000000061</y>
 							</SimmSpline>
 						</TransformAxis>
 						<TransformAxis name="translation2">
@@ -3503,7 +3384,7 @@
 							<!--Transform function of the generalized coordinates used to        represent the amount of displacement along a specified axis.-->
 							<SimmSpline name="function">
 								<x> -2.0943999999999998174 -1.2217299999999999827 -0.52359900000000003661 -0.3490659999999999874 -0.1745329999999999937 0.15914900000000001268 2.0943999999999998174</x>
-								<y> -0.026779303599999998431 -0.01237930360000000056 -0.0031793035999999998478 -0.0017793036000000000789 -0.00077930359999999994965 0.00055669639999999999836 -0.00017930360000000000222</y>
+								<y> -0.026779299999999998938 -0.012379299999999999332 -0.0031792999999999999212 -0.0017792999999999999355 -0.00077930399999999997764 0.00055669599999999997038 -0.00017930400000000000309</y>
 							</SimmSpline>
 						</TransformAxis>
 						<TransformAxis name="translation3">
@@ -4267,7 +4148,7 @@
 							<!--Transform function of the generalized coordinates used to        represent the amount of displacement along a specified axis.-->
 							<SimmSpline name="function">
 								<x> -2.0943999999999998174 -1.745330000000000048 -1.3962600000000000566 -1.0471999999999999087 -0.6981319999999999748 -0.3490659999999999874 -0.1745329999999999937 0.19734399999999999165 0.33739500000000000046 0.4901780000000000026 1.5214600000000000346 2.0943999999999998174</x>
-								<y> 0.0012998565000000000119 0.0062898564999999996561 0.0086098565000000005371 0.0085998564999999992098 0.006619856500000000088 0.0034998565000000001445 0.0013998565000000000574 -0.00072714350000000003548 -0.00093514349999999999558 -0.0010741435000000000132 -0.00093514349999999999558 -0.00075014350000000005244</y>
+								<y> 0.0012998599999999999044 0.0062898600000000004159 0.0086098600000000004295 0.008599860000000000837 0.0066198599999999999804 0.0034998600000000000369 0.0013998599999999999498 -0.00072714399999999998914 -0.00093514300000000004191 -0.0010741399999999999039 -0.00093514300000000004191 -0.0007501440000000000061</y>
 							</SimmSpline>
 						</TransformAxis>
 						<TransformAxis name="translation2">
@@ -4278,7 +4159,7 @@
 							<!--Transform function of the generalized coordinates used to        represent the amount of displacement along a specified axis.-->
 							<SimmSpline name="function">
 								<x> -2.0943999999999998174 -1.2217299999999999827 -0.52359900000000003661 -0.3490659999999999874 -0.1745329999999999937 0.15914900000000001268 2.0943999999999998174</x>
-								<y> -0.026779303599999998431 -0.01237930360000000056 -0.0031793035999999998478 -0.0017793036000000000789 -0.00077930359999999994965 0.00055669639999999999836 -0.00017930360000000000222</y>
+								<y> -0.026779299999999998938 -0.012379299999999999332 -0.0031792999999999999212 -0.0017792999999999999355 -0.00077930399999999997764 0.00055669599999999997038 -0.00017930400000000000309</y>
 							</SimmSpline>
 						</TransformAxis>
 						<TransformAxis name="translation3">
@@ -5788,7 +5669,7 @@
 					<coordinates>
 						<Coordinate name="arm_flex_r">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>6.3956810816450334e-09</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
@@ -5804,7 +5685,7 @@
 						</Coordinate>
 						<Coordinate name="arm_add_r">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>-6.3956810816443451e-09</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
@@ -5820,11 +5701,11 @@
 						</Coordinate>
 						<Coordinate name="arm_rot_r">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>-3.2895175937158217e-09</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
-							<range>-2.4434999999999998 1.7453000000000001</range>
+							<range>-1.221750020980835 1.7453000000000001</range>
 							<!--Flag indicating whether or not the values of the coordinates should be limited to the range, above.-->
 							<clamped>true</clamped>
 							<!--Flag indicating whether or not the values of the coordinates should be constrained to the current (e.g. default) value, above.-->
@@ -5943,7 +5824,7 @@
 					<coordinates>
 						<Coordinate name="elbow_flex_r">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>2.0385715036107949e-07</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
@@ -6066,7 +5947,7 @@
 					<coordinates>
 						<Coordinate name="pro_sup_r">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>3.1979497145110244e-09</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
@@ -6195,9 +6076,9 @@
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
 							<range>-1.22173048 1.22173048</range>
 							<!--Flag indicating whether or not the values of the coordinates should be limited to the range, above.-->
-							<clamped>false</clamped>
+							<clamped>true</clamped>
 							<!--Flag indicating whether or not the values of the coordinates should be constrained to the current (e.g. default) value, above.-->
-							<locked>true</locked>
+							<locked>false</locked>
 							<!--If specified, the coordinate can be prescribed by a function of time. It can be any OpenSim Function with valid second order derivatives.-->
 							<prescribed_function />
 							<!--Flag indicating whether or not the values of the coordinates should be prescribed according to the function above. It is ignored if the no prescribed function is specified.-->
@@ -6205,13 +6086,13 @@
 						</Coordinate>
 						<Coordinate name="wrist_dev_r">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>1.3314320554251291e-08</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
 							<range>-0.43633231 0.61086523999999998</range>
 							<!--Flag indicating whether or not the values of the coordinates should be limited to the range, above.-->
-							<clamped>false</clamped>
+							<clamped>true</clamped>
 							<!--Flag indicating whether or not the values of the coordinates should be constrained to the current (e.g. default) value, above.-->
 							<locked>false</locked>
 							<!--If specified, the coordinate can be prescribed by a function of time. It can be any OpenSim Function with valid second order derivatives.-->
@@ -6328,7 +6209,7 @@
 					<coordinates>
 						<Coordinate name="arm_flex_l">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>6.3956810816450334e-09</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
@@ -6344,7 +6225,7 @@
 						</Coordinate>
 						<Coordinate name="arm_add_l">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>-6.3956810816443451e-09</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
@@ -6364,7 +6245,7 @@
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
-							<range>-2.4434999999999998 1.7453000000000001</range>
+							<range>-1.221750020980835 1.7453000000000001</range>
 							<!--Flag indicating whether or not the values of the coordinates should be limited to the range, above.-->
 							<clamped>true</clamped>
 							<!--Flag indicating whether or not the values of the coordinates should be constrained to the current (e.g. default) value, above.-->
@@ -6483,13 +6364,13 @@
 					<coordinates>
 						<Coordinate name="elbow_flex_l">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>2.0385715036107949e-07</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
 							<range>-0.17449999999999999 2.7925</range>
 							<!--Flag indicating whether or not the values of the coordinates should be limited to the range, above.-->
-							<clamped>false</clamped>
+							<clamped>true</clamped>
 							<!--Flag indicating whether or not the values of the coordinates should be constrained to the current (e.g. default) value, above.-->
 							<locked>false</locked>
 							<!--If specified, the coordinate can be prescribed by a function of time. It can be any OpenSim Function with valid second order derivatives.-->
@@ -6606,7 +6487,7 @@
 					<coordinates>
 						<Coordinate name="pro_sup_l">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>3.1979497145110244e-09</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
@@ -6735,9 +6616,9 @@
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
 							<range>-1.22173048 1.22173048</range>
 							<!--Flag indicating whether or not the values of the coordinates should be limited to the range, above.-->
-							<clamped>false</clamped>
+							<clamped>true</clamped>
 							<!--Flag indicating whether or not the values of the coordinates should be constrained to the current (e.g. default) value, above.-->
-							<locked>true</locked>
+							<locked>false</locked>
 							<!--If specified, the coordinate can be prescribed by a function of time. It can be any OpenSim Function with valid second order derivatives.-->
 							<prescribed_function />
 							<!--Flag indicating whether or not the values of the coordinates should be prescribed according to the function above. It is ignored if the no prescribed function is specified.-->
@@ -6745,13 +6626,13 @@
 						</Coordinate>
 						<Coordinate name="wrist_dev_l">
 							<!--The value of this coordinate before any value has been set. Rotational coordinate value is in radians and Translational in meters.-->
-							<default_value>0</default_value>
+							<default_value>1.3314320554251291e-08</default_value>
 							<!--The speed value of this coordinate before any value has been set. Rotational coordinate value is in rad/s and Translational in m/s.-->
 							<default_speed_value>0</default_speed_value>
 							<!--The minimum and maximum values that the coordinate can range between. Rotational coordinate range in radians and Translational in meters.-->
 							<range>-0.43633231 0.61086523999999998</range>
 							<!--Flag indicating whether or not the values of the coordinates should be limited to the range, above.-->
-							<clamped>false</clamped>
+							<clamped>true</clamped>
 							<!--Flag indicating whether or not the values of the coordinates should be constrained to the current (e.g. default) value, above.-->
 							<locked>false</locked>
 							<!--If specified, the coordinate can be prescribed by a function of time. It can be any OpenSim Function with valid second order derivatives.-->
@@ -6860,6 +6741,7 @@
 					</SpatialTransform>
 				</CustomJoint>
 			</objects>
+			<groups />
 		</JointSet>
 		<!--Controllers that provide the control inputs for Actuators.-->
 		<ControllerSet name="controllerset">
@@ -15973,6 +15855,7 @@
 									<location>-0.013153 0.028534 0.025842299999999999</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16010,6 +15893,7 @@
 									<location>-0.023 0.027038 0.025466300000000001</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16047,6 +15931,7 @@
 									<location>-0.029770600000000001 0.022963899999999999 0.023201800000000002</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16084,6 +15969,7 @@
 									<location>-0.029969200000000001 0.0143552 0.022059700000000002</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16121,6 +16007,7 @@
 									<location>-0.031620799999999998 0.016656899999999999 0.022822599999999998</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 						<!--The wrap objects that are associated with this path-->
 						<PathWrapSet>
@@ -16163,6 +16050,7 @@
 									<location>-0.012999999999999999 0.029000000000000001 -0.025999999999999999</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16200,6 +16088,7 @@
 									<location>-0.023 0.027 -0.025000000000000001</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16237,6 +16126,7 @@
 									<location>-0.029999999999999999 0.023 -0.023</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16274,6 +16164,7 @@
 									<location>-0.029999999999999999 0.014 -0.021999999999999999</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 					</GeometryPath>
 					<!--Maximum isometric force that the fibers can generate-->
@@ -16311,6 +16202,7 @@
 									<location>-0.032000000000000001 0.017000000000000001 -0.023</location>
 								</PathPoint>
 							</objects>
+							<groups />
 						</PathPointSet>
 						<!--The wrap objects that are associated with this path-->
 						<PathWrapSet>
@@ -20543,7 +20435,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>0.010433599999999999 0.42919099999999999 -0.13924300000000001</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RSHO">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20551,7 +20443,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>0.010433599999999999 0.42919099999999999 0.13924300000000001</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="CLAV">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20559,7 +20451,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>0.040000000000000001 0.38 0</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="STRN">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20575,7 +20467,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.075999999999999998 0.41999999999999998 0</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="T10">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20703,7 +20595,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.0050000000000000001 -0.40999999999999998 -0.052999999999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RANK">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20711,7 +20603,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.0050000000000000001 -0.40999999999999998 0.052999999999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LMMA">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20719,7 +20611,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>0.0060000000000000001 -0.38879999999999998 0.037999999999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RMMA">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20727,39 +20619,39 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>0.0060000000000000001 -0.38879999999999998 -0.037999999999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LTOE">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/calcn_l</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>0.18645300000000001 0.031900999999999999 -0.00286075</location>
+					<location>0.18609999999999999 0.029729999999999999 0.029999999999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RTOE">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/calcn_r</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>0.18645300000000001 0.031900999999999999 0.00286075</location>
+					<location>0.18609999999999999 0.029729999999999999 -0.029999999999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LMT5">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/calcn_l</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>0.13751099999999999 0.00714725 -0.060021699999999997</location>
+					<location>0.13751099999999999 0.015768000000000001 -0.041614499999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RMT5">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/calcn_r</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>0.13751099999999999 0.00714725 0.060021699999999997</location>
+					<location>0.13751099999999999 0.015767977093986488 0.041614525310713329</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LHEE">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20767,7 +20659,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.022673100000000002 0.0281286 0.0068022200000000003</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RHEE">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20775,13 +20667,13 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.022673100000000002 0.0281286 -0.0068022200000000003</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LUPA">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/humerus_l</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>-0.024473399999999999 -0.185858 0.000294775</location>
+					<location>-0.0262715 -0.126108 -0.032393499999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
 					<fixed>false</fixed>
 				</Marker>
@@ -20789,7 +20681,7 @@
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/humerus_r</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>0.029235799999999999 -0.10044500000000001 0.048551299999999999</location>
+					<location>-0.021981000000000001 -0.207728 0.021476200000000001</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
 					<fixed>false</fixed>
 				</Marker>
@@ -20799,7 +20691,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.0121811 -0.27727600000000002 -0.0153499</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RELB">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20807,13 +20699,13 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.0121811 -0.27727600000000002 0.0153499</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LFRA">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/ulna_l</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>-0.033177791807677257 -0.15872014676737453 -0.034486655503667848</location>
+					<location>-0.019860516757276458 -0.101081 -0.040004999999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
 					<fixed>false</fixed>
 				</Marker>
@@ -20821,7 +20713,7 @@
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
 					<socket_parent_frame>/bodyset/ulna_r</socket_parent_frame>
 					<!--The fixed location of the station expressed in its parent frame.-->
-					<location>-0.049304300000000002 -0.066591600000000001 0.0266366</location>
+					<location>-0.02828818905675419 -0.16717499999999999 0.040945000000000002</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
 					<fixed>false</fixed>
 				</Marker>
@@ -20831,7 +20723,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.00316 -0.22312000000000001 -0.049880000000000001</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LWRB">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20839,7 +20731,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.015310000000000001 -0.23272000000000001 0.01839</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RWRA">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20847,7 +20739,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.00316 -0.22312000000000001 0.049880000000000001</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RWRB">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20855,7 +20747,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.015310000000000001 -0.23272000000000001 -0.01839</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LFN2">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20863,7 +20755,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.0145825 -0.090983900000000006 -0.013137599999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RFN2">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20871,7 +20763,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.0145825 -0.090983900000000006 0.013137599999999999</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="LFN5">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20879,7 +20771,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.016343199999999999 -0.076305999999999999 0.035216900000000002</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 				<Marker name="RFN5">
 					<!--Path to a Component that satisfies the Socket 'parent_frame' of type PhysicalFrame (description: The frame to which this station is fixed.).-->
@@ -20887,7 +20779,7 @@
 					<!--The fixed location of the station expressed in its parent frame.-->
 					<location>-0.016343199999999999 -0.076305999999999999 -0.035216900000000002</location>
 					<!--Flag (true or false) specifying whether the marker is fixed in its parent frame during the marker placement step of scaling.  If false, the marker is free to move within its parent Frame to match its experimental counterpart.-->
-					<fixed>false</fixed>
+					<fixed>true</fixed>
 				</Marker>
 			</objects>
 			<groups />
