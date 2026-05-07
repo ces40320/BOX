@@ -100,6 +100,19 @@ subjects = {
                             },
     },
     
+    "260423_CES" : { #최은식 파일럿
+        "SUB_number"         : 3,
+        "height"             : 1700,
+        "body_mass"          : 79.5,
+        "sex"                : "M",
+        "age"                : 30,
+        "protocol"           : "Asymmetric",
+        "conditions"         : {"7kg_10bpm":  {"order":      1,
+                                               "cycles":     10,
+                                               "error_log":  [],
+                                            },
+                            },
+    },
     
     
     
