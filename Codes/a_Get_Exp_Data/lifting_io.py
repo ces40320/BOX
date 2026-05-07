@@ -115,6 +115,69 @@ def _osim_table_to_dict(table) -> Dict[str, np.ndarray]:
     return out
 
 
+def find_static_c3d_path(c3d_dir: str) -> Optional[str]:
+    """``c3d_dir`` 안에서 ``Static.c3d`` / ``static.c3d`` 탐색.
+
+    우선순위: ``Static.c3d``, ``static.c3d`` (경로가 존재하면 즉시 반환).
+    리눅스 등 대소문자 구분 FS에서는 추가로 ``basename.lower() == 'static.c3d'`` 인 파일을 찾음.
+    """
+    if not c3d_dir or not os.path.isdir(c3d_dir):
+        return None
+    for base in ("Static.c3d", "static.c3d"):
+        p = os.path.join(c3d_dir, base)
+        if os.path.isfile(p):
+            return p
+    try:
+        for name in os.listdir(c3d_dir):
+            if name.lower() == "static.c3d":
+                p = os.path.join(c3d_dir, name)
+                if os.path.isfile(p):
+                    return p
+    except OSError:
+        return None
+    return None
+
+
+def export_static_c3d_to_trc(
+    c3d_path: str,
+    trc_path: str,
+    *,
+    rotations: Optional[Sequence[Tuple[str, float]]] = None,
+    marker_cutoff_hz: Optional[float] = None,
+    filter_order: int = 4,
+) -> None:
+    """정적 보정 C3D의 마커만 읽어 OpenSim TRC로 저장 (``write_trc``, meters).
+
+    Parameters
+    ----------
+    marker_cutoff_hz
+        지정 시 ``manual_window`` 트라이얼과 동일하게 각 마커 채널에 Butterworth 저역 통과.
+        ``None`` 이면 필터 생략.
+    """
+    markers = read_c3d_markers(c3d_path, rotations=rotations)
+    time_m = markers["time"]
+    if len(time_m) < 1:
+        raise ValueError(f"No marker frames in {c3d_path!r}")
+    marker_rate = (
+        1.0 / float(np.mean(np.diff(time_m))) if len(time_m) > 1 else 100.0
+    )
+    if marker_cutoff_hz is not None:
+        for key in list(markers.keys()):
+            if key == "time":
+                continue
+            markers[key] = butterworth_filter(
+                markers[key],
+                fs_hz=marker_rate,
+                cutoff_hz=marker_cutoff_hz,
+                order=filter_order,
+            )
+    write_trc(
+        trc_path,
+        markers["time"],
+        {k: v for k, v in markers.items() if k != "time"},
+    )
+
+
 def read_c3d_markers(
     c3d_path: str,
     rotations: Optional[Sequence[Tuple[str, float]]] = None,

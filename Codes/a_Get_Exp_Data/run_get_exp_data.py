@@ -1,6 +1,10 @@
 """
 통합 진입점 — C3D + RigidBody CSV → TRC/MOT 변환 파이프라인.
 
+피험자 처리 시 ``Labeled`` 폴더의 ``Static.c3d`` / ``static.c3d`` 를 찾아
+``Model_osim/static.trc`` 로 먼저 변환한다. 해당 C3D 가 없으면 오류 메시지만 출력하고
+조건별 lifting C3D 처리는 계속한다.
+
 Usage
 -----
     python run_get_exp_data.py                                 # 모든 피험자 처리
@@ -532,6 +536,33 @@ def process_subject(namecode, dry_run=False):
     if not os.path.isdir(rp.rigid_dir):
         print(f"  [ERROR] Rigid directory does not exist: {rp.rigid_dir}")
         return
+
+    static_c3d_path = _io.find_static_c3d_path(rp.c3d_dir)
+    static_trc_out = rp.static_trc_path()
+    static_names = ", ".join(_path.STATIC_C3D_FILENAMES)
+
+    if dry_run:
+        if static_c3d_path:
+            print(f"  [static]  OK  {os.path.basename(static_c3d_path)}  →  {static_trc_out}")
+        else:
+            print(f"  [ERROR] Static calibration C3D missing: "
+                  f"expected one of [{static_names}] under {rp.c3d_dir}")
+    else:
+        if static_c3d_path:
+            try:
+                _io.export_static_c3d_to_trc(
+                    static_c3d_path,
+                    static_trc_out,
+                    rotations=None,
+                    marker_cutoff_hz=_lcfg.MARKER_FILTER_HZ,
+                    filter_order=_lcfg.FILTER_ORDER,
+                )
+                print(f"  [static]  Wrote {static_trc_out}")
+            except Exception as exc:
+                print(f"  [ERROR] Static TRC export failed ({static_c3d_path}): {exc}")
+        else:
+            print(f"  [ERROR] Static calibration C3D missing: "
+                  f"expected one of [{static_names}] under {rp.c3d_dir}")
 
     conditions_sorted = sorted(
         rp.conditions.items(),

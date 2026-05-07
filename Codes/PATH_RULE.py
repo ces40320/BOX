@@ -26,6 +26,12 @@ os.makedirs(OPENSIM_DIR, exist_ok=True)
 
 DATA_SUB_NAMECODE_li = list(_sub_info.subjects.keys())
 
+# ── Static calibration (Scale 마커) ──────────────────────────────
+# 실험 데이터: ``…/<namecode>/Labeled/`` 안에서 다음 파일명 중 하나를 사용.
+# 산출: ``…/<protocol>/<SUBn>/Model_osim/static.trc`` (OpenSim `Units=m` TRC)
+STATIC_C3D_FILENAMES: tuple[str, ...] = ("Static.c3d", "static.c3d")
+STATIC_TRC_FILENAME: str = "static.trc"
+
 C3D_PATH_li = [
     glob.glob(os.path.join(DATA_DIR, namecode, "Labeled", "*.c3d"))
     for namecode in DATA_SUB_NAMECODE_li
@@ -132,6 +138,14 @@ class ResultPaths:
     def model_path(self, model_type: str = "") -> str:
         """e.g. ``…/Model_osim/SUB2_Scaled_HeavyHand.osim``"""
         return os.path.join(self.model_dir, self.model_name(model_type))
+
+    def static_trc_path(self) -> str:
+        """Scale용 정적 트라이얼 마커 TRC (예: ``…/Model_osim/static.trc``).
+
+        입력 C3D는 ``Labeled`` 디렉터리의 ``STATIC_C3D_FILENAMES`` 중 하나.
+        형식은 ``lifting_io.write_trc`` 기준 (``Units=m``).
+        """
+        return os.path.join(self.model_dir, STATIC_TRC_FILENAME)
 
     def trc_name(self, cond: str, seg: str) -> str:
         """e.g. ``'SUB2_7kg_10bpm_1AB.trc'``"""
