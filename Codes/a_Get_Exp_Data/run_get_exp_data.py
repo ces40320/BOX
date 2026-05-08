@@ -39,6 +39,7 @@ import glob
 import argparse
 
 import numpy as np
+from scipy.signal import find_peaks
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -205,6 +206,170 @@ def _build_extload_for_app(app, forces, markers, rigid):
     if app == "AddBox":
         return _io.transform_ExtLoad_AddBox(forces, markers, _lcfg)
     return None
+
+
+# ── bpm_window 전용 보조 함수 ─────────────────────────────────────
+
+def _force_plate_norm(forces, plate_idx):
+    """force plate ``f{plate_idx}`` 의 합력 norm 시계열 ‖F‖ = √(Fx²+Fy²+Fz²)."""
+    f = forces[f"f{plate_idx}"]
+    return np.linalg.norm(f, axis=1)
+
+
+def _detect_first_tap_onset(force_time, norm3, norm4, *,
+                            height_n, prominence_n, min_dist_sec,
+                            onset_thr_n, quantize_hz=100.0):
+    """양손 로드셀 ‖F‖ 시계열에서 첫 tap onset 시점 검출 (bpm_window 전용).
+
+    메트로놈 첫 박자에 한쪽 로드셀(f3 OR f4)을 친 단발성 임펄스를
+    ``scipy.signal.find_peaks`` 로 찾고, 그 피크에서 시간 역방향으로
+    ‖F‖ 가 ``onset_thr_n`` 위로 처음 올라간 샘플을 onset 으로 채택한다.
+    onset 시간은 ``quantize_hz`` Hz 그리드(기본 100 Hz → 0.01 s)로
+    **정수 인덱스 경유** 양자화하여 부동소수점 누적 오류를 차단한다.
+
+    Parameters
+    ----------
+    force_time : (N,) ndarray
+    norm3, norm4 : (N,) ndarray
+        FP3(왼손) / FP4(오른손) 로드셀의 합력 norm 시계열 (raw, 1000 Hz).
+    height_n, prominence_n : float
+        ``find_peaks`` 절대 임계 / prominence (둘 다 적용).
+    min_dist_sec : float
+        같은 채널 내 인접 피크 최소 시간 간격 (초).
+    onset_thr_n : float
+        peak → onset 역추적 임계.  onset_idx 는 ‖F‖ ≥ onset_thr_n 가
+        시간 순으로 처음 시작된 샘플(피크 직전 가장 가까운).
+    quantize_hz : float
+        onset 시각 양자화 그리드(Hz). 기본 100 Hz.
+
+    Returns
+    -------
+    dict
+        ``"t_tap"`` (양자화된 onset 시간, s),
+        ``"tap_idx_grid"`` (정수 인덱스, t_tap = idx / quantize_hz),
+        ``"side"`` (``"f3"`` 또는 ``"f4"``),
+        ``"onset_idx"`` / ``"peak_idx"`` (1000 Hz 그리드 인덱스),
+        ``"peak_value"`` (선택된 채널의 ‖F‖[peak_idx]),
+        ``"peaks3"`` / ``"peaks4"`` (전체 검출 피크, 디버그용).
+    """
+    if len(force_time) < 2:
+        raise ValueError("force_time too short for tap detection.")
+    fs = 1.0 / float(np.mean(np.diff(force_time)))
+    distance = max(int(round(fs * float(min_dist_sec))), 1)
+
+    peaks3, _ = find_peaks(
+        norm3, height=height_n, prominence=prominence_n, distance=distance,
+    )
+    peaks4, _ = find_peaks(
+        norm4, height=height_n, prominence=prominence_n, distance=distance,
+    )
+
+    # 각 채널의 첫 피크만 비교 (가장 빠른 쪽이 tap).
+    candidates = []
+    if len(peaks3):
+        candidates.append((int(peaks3[0]), "f3", norm3))
+    if len(peaks4):
+        candidates.append((int(peaks4[0]), "f4", norm4))
+    if not candidates:
+        raise RuntimeError(
+            f"No tap peak detected on f3/f4 with "
+            f"height>={height_n}, prominence>={prominence_n}. "
+            f"임계값 또는 신호 확인 필요."
+        )
+    candidates.sort(key=lambda x: x[0])
+    peak_idx, side, peak_signal = candidates[0]
+
+    # 피크에서 시간 역방향 — peak_signal[i-1] 이 onset_thr_n 미만이 되면 정지.
+    # 결과 onset_idx 는 ‖F‖ ≥ onset_thr_n 가 처음 만족된 샘플(시간 순).
+    i = peak_idx
+    while i > 0 and peak_signal[i - 1] >= onset_thr_n:
+        i -= 1
+    onset_idx = i
+
+    t_raw = float(force_time[onset_idx])
+    tap_idx_grid = int(round(t_raw * float(quantize_hz)))
+    t_tap = tap_idx_grid / float(quantize_hz)
+
+    return {
+        "t_tap": t_tap,
+        "tap_idx_grid": tap_idx_grid,
+        "side": side,
+        "onset_idx": int(onset_idx),
+        "peak_idx": int(peak_idx),
+        "peak_value": float(peak_signal[peak_idx]),
+        "peaks3": peaks3,
+        "peaks4": peaks4,
+    }
+
+
+def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
+                          tap_info, onset_thr_n,
+                          bpm_duration=None, n_segments=None):
+    """tap onset 검출 결과 확인용 PNG 저장.
+
+    - 두 로드셀의 ‖F‖ 시계열을 한 축에 같이 플롯.
+    - 채택된 onset 위치에 빈 동그라미(face=none)로 강조.
+    - 검출된 모든 피크는 작은 cross 마커로 같이 표시 (튜닝 참조).
+    - ``onset_thr_n`` 가로 점선.
+    - ``bpm_duration`` / ``n_segments`` 주어지면 segment 경계 vline 표시.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    side = tap_info["side"]
+    t_tap = tap_info["t_tap"]
+    onset_idx = tap_info["onset_idx"]
+    peak_idx = tap_info["peak_idx"]
+    peak_val = tap_info["peak_value"]
+
+    fig, ax = plt.subplots(figsize=(11.0, 4.5))
+    ax.plot(force_time, norm3, color="#1f77b4", lw=0.7, alpha=0.7,
+            label="‖F3‖ (left)")
+    ax.plot(force_time, norm4, color="#d62728", lw=0.7, alpha=0.7,
+            label="‖F4‖ (right)")
+
+    if len(tap_info["peaks3"]):
+        ax.plot(force_time[tap_info["peaks3"]], norm3[tap_info["peaks3"]],
+                "x", color="#1f77b4", ms=5, alpha=0.5)
+    if len(tap_info["peaks4"]):
+        ax.plot(force_time[tap_info["peaks4"]], norm4[tap_info["peaks4"]],
+                "x", color="#d62728", ms=5, alpha=0.5)
+
+    chosen_signal = norm3 if side == "f3" else norm4
+    chosen_color = "#1f77b4" if side == "f3" else "#d62728"
+    ax.plot(force_time[onset_idx], chosen_signal[onset_idx],
+            "o", mfc="none", mec=chosen_color, ms=12, mew=2.0,
+            label=f"onset (t_tap={t_tap:.2f}s)")
+    ax.plot(force_time[peak_idx], chosen_signal[peak_idx],
+            "*", color=chosen_color, ms=10, alpha=0.8,
+            label=f"peak ({peak_val:.1f}N)")
+
+    ax.axhline(onset_thr_n, color="gray", ls="--", lw=0.7,
+               label=f"onset_thr={onset_thr_n}N")
+
+    if bpm_duration is not None and n_segments is not None:
+        t_min = float(force_time[0])
+        t_max = float(force_time[-1])
+        for k in range(int(n_segments) + 1):
+            tk = t_tap + (1 + k) * float(bpm_duration)
+            if tk < t_min or tk > t_max:
+                continue
+            ax.axvline(tk, color="green", ls=":", lw=0.5, alpha=0.6)
+
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("‖F‖ (N)")
+    ax.set_title(
+        f"tap_onset_check  side={side}  t_tap={t_tap:.2f}s  "
+        f"peak={peak_val:.1f}N"
+    )
+    ax.legend(loc="upper right", fontsize=8)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)
 
 
 # ── 매뉴얼 윈도우 분할 파이프라인 ─────────────────────────────────
@@ -374,18 +539,183 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):      # TO
 
 
 def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
-    """BPM 기반 고정 윈도우 세그먼트 분할 → TRC/MOT 출력.
+    """BPM 기반 자동 윈도우 세그먼트 분할 → TRC/MOT 출력.
+
+    manual_window 와 차이점은 단 하나 — cycle 시작점을 결정하는 방식.
+
+    - manual_window: 매 cycle 마다 양손 |Fy| 합 threshold 로 contact_start 검출.
+    - bpm_window:    메트로놈 첫 박자에 한쪽 로드셀(f3 또는 f4)을 친 단발성
+      tap 의 onset 1점만 검출 → 0.01 s 그리드로 양자화 → 그 시점을 anchor
+      삼아 모든 segment 시각을 BPM 균등 스케줄로 산정.
+
+    윈도우 시각:
+        total_idx = (cyc_i - 1) * n_phases + lift_j        (0 ≤ total_idx < n_cycles*n_phases)
+        ps = t_tap + (1 + total_idx) * BPM_DURATION
+        pe = ps + BPM_DURATION
+
+    이외 단계(C3D/RigidBody 로드, 마커·ExtLoad 필터링, error_log 스킵,
+    build_tree, TRC/MOT 출력) 는 manual_window 와 동일.
 
     Parameters
     ----------
     rp : _path.ResultPaths
     cp : _path.ConditionPaths
+    c3d_path : str
+    rigid_csv_path : str
     """
-    # TODO: split_lifting_trial2section_bpm_window.py 구현 후 이주
-    raise NotImplementedError(
-        "bpm_window pipeline not yet implemented. "
-        "Requires: lifting_io.py, split_lifting_trial2section_bpm_window.py"
+    seg_cfg = rp.segmentation
+    if seg_cfg.get("method") != "bpm_window":
+        raise ValueError(
+            f"bpm_window 는 method='bpm_window' 에서 호출되어야 합니다. "
+            f"(received: {seg_cfg.get('method')!r})"
+        )
+
+    bpm = _extract_bpm_from_condition(cp.cond)
+    bpm_duration_map = seg_cfg["BPM_DURATION"]
+    if bpm not in bpm_duration_map:
+        raise ValueError(
+            f"BPM {bpm} not in BPM_DURATION map: "
+            f"{sorted(bpm_duration_map.keys())}"
+        )
+    seg_duration = float(bpm_duration_map[bpm])
+    tap_height = float(seg_cfg["TAP_HEIGHT_N"])
+    tap_prom = float(seg_cfg["TAP_PROMINENCE_N"])
+    tap_min_dist = float(seg_cfg["TAP_MIN_DISTANCE_SEC"])
+    onset_thr = float(seg_cfg["ONSET_THRESHOLD_N"])
+    quantize_hz = float(seg_cfg.get("ONSET_QUANTIZE_HZ", 100.0))
+    error_segments = _normalize_errorlog_scetions(cp.error_log)
+
+    print(f"    [bpm_window] BPM={bpm} window={seg_duration}s "
+          f"apps={rp.apps}")
+
+    # ── 1) 데이터 로드 (회전 없음 — Motive Y-up 가정) ──────────
+    markers = _io.read_c3d_markers(c3d_path, rotations=None)
+    forces = _io.read_c3d_force_platforms(c3d_path, rotations=None)
+    rigid = _io.read_rigid_body_csv(
+        rigid_csv_path, skiprow_num=_lcfg.RIGID_BODY_SKIPROWS,
     )
+
+    marker_time = markers["time"]
+    force_time = forces["time"]
+    if len(marker_time) < 2 or len(force_time) < 2:
+        print("    [SKIP] insufficient frames in C3D.")
+        return
+    marker_rate = 1.0 / float(np.mean(np.diff(marker_time)))    # 100 Hz
+    force_rate = 1.0 / float(np.mean(np.diff(force_time)))      # 1000 Hz
+    rigid = _io.upsample_rigid_to_rate(rigid, target_rate_hz=force_rate)
+
+    # ── 2) 마커 필터링 ─────────────────────────────────────────
+    for key in list(markers.keys()):
+        if key == "time":
+            continue
+        markers[key] = _io.butterworth_filter(
+            markers[key], fs_hz=marker_rate,
+            cutoff_hz=_lcfg.MARKER_FILTER_HZ, order=_lcfg.FILTER_ORDER,
+        )
+
+    # ── 3) APP별 ExtLoad 조립 + 필터링 ─────────────────────────
+    ext_by_app = {}
+    for app in rp.apps:
+        ext = _build_extload_for_app(app, forces, markers, rigid)
+        if ext is None:
+            print(f"    [WARN] APP {app!r} not implemented for "
+                  f"bpm_window. Skipping ExtLoad.")
+            continue
+        for key in list(ext.keys()):
+            if key == "time":
+                continue
+            ext[key] = _io.butterworth_filter(
+                ext[key], fs_hz=force_rate,
+                cutoff_hz=_lcfg.FORCE_FILTER_HZ, order=_lcfg.FILTER_ORDER,
+            )
+        ext_by_app[app] = ext
+
+    # ── 4) tap onset 검출 (raw f3/f4, 합력 norm) ────────────────
+    # NOTE: 검출은 raw(미필터링) force 채널의 ‖F‖ = √(Fx²+Fy²+Fz²) 사용.
+    #       manual_window 는 양손 |Fy| 합을 쓰는 반면, bpm_window 는 한쪽 채널의
+    #       3축 합력 norm 으로 더 빠른 쪽을 채택한다.
+    if "f3" not in forces or "f4" not in forces:
+        raise KeyError(
+            "bpm_window requires hand load-cell plates 'f3', 'f4' in C3D."
+        )
+    norm3 = _force_plate_norm(forces, 3)
+    norm4 = _force_plate_norm(forces, 4)
+    tap_info = _detect_first_tap_onset(
+        force_time, norm3, norm4,
+        height_n=tap_height, prominence_n=tap_prom,
+        min_dist_sec=tap_min_dist,
+        onset_thr_n=onset_thr, quantize_hz=quantize_hz,
+    )
+    t_tap = tap_info["t_tap"]
+    print(f"    tap onset: side={tap_info['side']} t_tap={t_tap:.2f}s "
+          f"peak={tap_info['peak_value']:.1f}N "
+          f"(peak_idx={tap_info['peak_idx']})")
+
+    # ── 5) section 정보 + 디렉토리 트리 + 디버그 플롯 ───────────
+    section_segs = cp.section_segments()         # {"AB":[...], "BC":[...], "CA":[...]}
+    section_order = list(section_segs.keys())
+    n_phases = len(section_order)
+    n_total = cp.n_cycles * n_phases
+
+    cp.build_tree()
+
+    debug_png = os.path.join(cp.cond_dir, "tap_onset_check.png")
+    try:
+        _plot_tap_onset_check(
+            debug_png, force_time, norm3, norm4,
+            tap_info, onset_thr_n=onset_thr,
+            bpm_duration=seg_duration, n_segments=n_total,
+        )
+        print(f"    debug plot: {debug_png}")
+    except Exception as exc:
+        print(f"    [WARN] debug plot failed: {exc}")
+
+    # ── 6) 세그먼트 분할 + 파일 출력 (tap+tempo 균등 스케줄) ────
+    # 데이터 길이는 SUB_Info.cycles 만큼 모든 segment 가 들어가도록
+    # 사전 검수된 trial 만 처리하므로 out-of-range 체크는 두지 않는다.
+    written = 0
+    for cyc_i in range(1, cp.n_cycles + 1):
+        for lift_j in range(n_phases):
+            section = section_order[lift_j]
+            section_list = section_segs[section]
+            if cyc_i - 1 >= len(section_list):
+                continue
+            seg_label = section_list[cyc_i - 1]   # e.g. 1AB, 1BC, 1CA, 2AB …
+            seg_key = str(seg_label).strip().upper()
+
+            if seg_key in error_segments:
+                print(f"      [SKIP] {seg_label}  listed in error_log")
+                continue
+
+            total_idx = (cyc_i - 1) * n_phases + lift_j
+            ps = t_tap + (1 + total_idx) * seg_duration
+            pe = ps + seg_duration
+
+            mark_seg = _slice_markers_by_time(markers, ps, pe)
+            if len(mark_seg["time"]) == 0:
+                print(f"      [WARN] {seg_label}  empty marker slice "
+                      f"({ps:.2f}~{pe:.2f}s) — 데이터 길이 / tap 검출 확인")
+                continue
+            trc_path = cp.trc_path(seg_label)
+            _io.write_trc(
+                trc_path, mark_seg["time"],
+                {k: v for k, v in mark_seg.items() if k != "time"},
+            )
+
+            for app, ext in ext_by_app.items():
+                ext_seg = _slice_extload_by_time(ext, ps, pe)
+                if len(ext_seg["time"]) == 0:
+                    print(f"      [WARN] {seg_label} {app}: empty MOT slice")
+                    continue
+                _io.write_extload_mot(
+                    cp.extload_path(seg_label, app), ext_seg,
+                )
+
+            written += 1
+            print(f"      seg{written:03d}  {seg_label}  cyc{cyc_i}L{lift_j+1}  "
+                  f"{ps:.2f}~{pe:.2f}s")
+
+    print(f"    [Done] {written} sections → {cp.cond_dir}")
 
 
 _METHOD_DISPATCH = {                                        # TODO: config 파일로 이주 필요? 아니면 그냥 두어도 괜찮을 듯
