@@ -12,6 +12,10 @@ Usage
     python run_get_exp_data.py 240124_PJH 260306_KTH           # 여러 피험자
     python run_get_exp_data.py --dry-run                       # 파일 탐색만, 실제 처리 안 함
     python run_get_exp_data.py 260306_KTH --dry-run            # 특정 피험자 + 탐색만
+    python run_get_exp_data.py 260423_CES --t-tap-offset -0.5  # bpm_window: t_tap 0.5s 앞당김
+
+Notebook (예: ``_a_Main.ipynb``) 에서는:
+    process_subject("260423_CES", dry_run=False, t_tap_offset=-0.5)
 
 세그먼트 분할 방식 -> 구현 후 이주 개별 py파일로 예정
 ------------------
@@ -19,7 +23,7 @@ Usage
     -------------   ------------    -----------------------------------
     Symmetric       findpeaks       process_condition_findpeaks     (TODO)
     Asymmetric      manual_window   process_condition_manual_window (구현)
-    Asymmetric      bpm_window      process_condition_bpm_window    (TODO)
+    Asymmetric      bpm_window      process_condition_bpm_window    (구현)
 
 설정 파일 의존 관계
 -------------------
@@ -340,21 +344,30 @@ def _detect_first_tap_onset(force_time, norm3, norm4, *,
 
 def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
                           tap_info, onset_thr_n,
-                          bpm_duration=None, n_segments=None):
+                          bpm_duration=None, seg_labels=None):
     """tap onset 검출 결과 확인용 PNG 저장.
 
     - 두 로드셀의 ‖F‖ 시계열을 한 축에 같이 플롯.
     - 채택된 onset 위치에 빈 동그라미(face=none)로 강조.
     - 검출된 모든 피크는 작은 cross 마커로 같이 표시 (튜닝 참조).
     - ``onset_thr_n`` 가로 점선.
-    - ``bpm_duration`` / ``n_segments`` 주어지면 segment 경계 vline 표시.
+    - ``bpm_duration`` / ``seg_labels`` 주어지면 segment 경계를 phase별
+      색의 vline 으로 그리고, 각 segment 중앙 상단에 라벨(예: ``1AB``) 표기.
+
+    Parameters
+    ----------
+    seg_labels : list[str] or None
+        segment 라벨 (예: ``["1AB","1BC","1CA","2AB",…]``). 스케줄 순서 유지.
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
 
     side = tap_info["side"]
-    t_tap = tap_info["t_tap"]
+    t_tap = tap_info["t_tap"]                                # offset 보정 후 anchor
+    t_tap_raw = tap_info.get("t_tap_raw", t_tap)             # 검출 직후 (offset 미적용)
+    offset = float(tap_info.get("t_tap_offset", 0.0))
     onset_idx = tap_info["onset_idx"]
     peak_idx = tap_info["peak_idx"]
     peak_val = tap_info["peak_value"]
@@ -374,32 +387,83 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
 
     chosen_signal = norm3 if side == "f3" else norm4
     chosen_color = "#1f77b4" if side == "f3" else "#d62728"
+    onset_label = (f"onset_raw (t_tap_raw={t_tap_raw:.2f}s)"
+                   if offset != 0.0 else f"onset (t_tap={t_tap:.2f}s)")
     ax.plot(force_time[onset_idx], chosen_signal[onset_idx],
             "o", mfc="none", mec=chosen_color, ms=12, mew=2.0,
-            label=f"onset (t_tap={t_tap:.2f}s)")
+            label=onset_label)
     ax.plot(force_time[peak_idx], chosen_signal[peak_idx],
             "*", color=chosen_color, ms=10, alpha=0.8,
             label=f"peak ({peak_val:.1f}N)")
 
+    # offset 가 있으면 보정된 anchor 위치를 보라색 점선으로 추가 표시
+    if offset != 0.0:
+        ax.axvline(t_tap, color="purple", ls="--", lw=1.0, alpha=0.8,
+                   label=f"t_tap (offset {offset:+.2f}s) = {t_tap:.2f}s")
+
     ax.axhline(onset_thr_n, color="gray", ls="--", lw=0.7,
                label=f"onset_thr={onset_thr_n}N")
 
-    if bpm_duration is not None and n_segments is not None:
+    # ── segment 경계: phase별 색 + 중앙 상단 라벨 ──────────────
+    phase_handles = []
+    if bpm_duration is not None and seg_labels:
         t_min = float(force_time[0])
         t_max = float(force_time[-1])
-        for k in range(int(n_segments) + 1):
-            tk = t_tap + (1 + k) * float(bpm_duration)
-            if tk < t_min or tk > t_max:
+
+        # 라벨 위치용 y 범위 확보 (15% 여유).
+        y_max = float(max(np.nanmax(norm3), np.nanmax(norm4)))
+        ax.set_ylim(top=y_max * 1.15)
+        y_label = y_max * 1.08
+
+        # phase suffix → 색 매핑 (등장 순서대로 tab10 할당).
+        cmap = plt.get_cmap("tab10")
+        phase_colors: dict[str, tuple] = {}
+        for label in seg_labels:
+            phase = re.sub(r"^\d+", "", str(label))
+            if phase and phase not in phase_colors:
+                phase_colors[phase] = cmap(len(phase_colors) % 10)
+
+        for k, label in enumerate(seg_labels):
+            phase = re.sub(r"^\d+", "", str(label))
+            color = phase_colors.get(phase, (0.3, 0.3, 0.3, 1.0))
+            ps = t_tap + (1 + k) * float(bpm_duration)
+            pe = ps + float(bpm_duration)
+            if pe < t_min or ps > t_max:
                 continue
-            ax.axvline(tk, color="green", ls=":", lw=0.5, alpha=0.6)
+            ax.axvline(ps, color=color, ls=":", lw=0.9, alpha=0.85)
+            ax.text((ps + pe) / 2.0, y_label, str(label),
+                    ha="center", va="bottom", fontsize=7,
+                    color=color, alpha=0.95)
+
+        # 마지막 segment 끝(다음 segment 시작점)도 회색 vline 으로 닫기.
+        ps_end = t_tap + (1 + len(seg_labels)) * float(bpm_duration)
+        if t_min <= ps_end <= t_max:
+            ax.axvline(ps_end, color="gray", ls=":", lw=0.6, alpha=0.6)
+
+        phase_handles = [
+            Line2D([0], [0], color=c, ls=":", lw=1.5, label=p)
+            for p, c in phase_colors.items()
+        ]
 
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("‖F‖ (N)")
-    ax.set_title(
-        f"tap_onset_check  side={side}  t_tap={t_tap:.2f}s  "
-        f"peak={peak_val:.1f}N"
-    )
-    ax.legend(loc="upper right", fontsize=8)
+    if offset != 0.0:
+        title = (
+            f"tap_onset_check  side={side}  "
+            f"t_tap_raw={t_tap_raw:.2f}s  offset={offset:+.2f}s  "
+            f"→ t_tap={t_tap:.2f}s  peak={peak_val:.1f}N"
+        )
+    else:
+        title = (
+            f"tap_onset_check  side={side}  t_tap={t_tap:.2f}s  "
+            f"peak={peak_val:.1f}N"
+        )
+    ax.set_title(title)
+    main_legend = ax.legend(loc="upper right", fontsize=8)
+    if phase_handles:
+        ax.add_artist(main_legend)
+        ax.legend(handles=phase_handles, loc="upper left", fontsize=8,
+                  title="Phases")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
 
@@ -575,7 +639,8 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):      # TO
     print(f"    [Done] {written} sections → {cp.cond_dir}")
 
 
-def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
+def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path,
+                                 t_tap_offset=0.0):
     """BPM 기반 자동 윈도우 세그먼트 분할 → TRC/MOT 출력.
 
     manual_window 와 차이점은 단 하나 — cycle 시작점을 결정하는 방식.
@@ -599,6 +664,10 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
     cp : _path.ConditionPaths
     c3d_path : str
     rigid_csv_path : str
+    t_tap_offset : float, default 0.0
+        검출된 ``t_tap`` 에 더하는 수동 보정 (초). 음수면 anchor 를 앞으로
+        당김(=윈도우 전체가 일찍 시작), 양수면 뒤로 미룸. 보정값도
+        ``ONSET_QUANTIZE_HZ`` 그리드(기본 100 Hz, 0.01 s)로 재양자화된다.
     """
     seg_cfg = rp.segmentation
     if seg_cfg.get("method") != "bpm_window":
@@ -684,16 +753,32 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
         min_dist_sec=tap_min_dist,
         onset_thr_n=onset_thr, quantize_hz=quantize_hz,
     )
-    t_tap = tap_info["t_tap"]
-    print(f"    tap onset: side={tap_info['side']} t_tap={t_tap:.2f}s "
-          f"peak={tap_info['peak_value']:.1f}N "
-          f"(peak_idx={tap_info['peak_idx']})")
+
+    # ── 4-1) 수동 offset 적용 (그리드 재양자화) ────────────────
+    t_tap_raw = tap_info["t_tap"]
+    offset = float(t_tap_offset)
+    t_tap_idx = int(round((t_tap_raw + offset) * quantize_hz))
+    t_tap = t_tap_idx / quantize_hz
+    tap_info["t_tap_raw"] = t_tap_raw
+    tap_info["t_tap"] = t_tap
+    tap_info["t_tap_offset"] = offset
+
+    if offset != 0.0:
+        print(f"    tap onset: side={tap_info['side']} "
+              f"t_tap_raw={t_tap_raw:.2f}s offset={offset:+.2f}s "
+              f"→ t_tap={t_tap:.2f}s "
+              f"peak={tap_info['peak_value']:.1f}N "
+              f"(peak_idx={tap_info['peak_idx']})")
+    else:
+        print(f"    tap onset: side={tap_info['side']} t_tap={t_tap:.2f}s "
+              f"peak={tap_info['peak_value']:.1f}N "
+              f"(peak_idx={tap_info['peak_idx']})")
 
     # ── 5) section 정보 + 디렉토리 트리 + 디버그 플롯 ───────────
     section_segs = cp.section_segments()         # {"AB":[...], "BC":[...], "CA":[...]}
     section_order = list(section_segs.keys())
     n_phases = len(section_order)
-    n_total = cp.n_cycles * n_phases
+    seg_labels = cp.all_sections()               # ["1AB","1BC","1CA","2AB",…] (스케줄 순서)
 
     cp.build_tree()
 
@@ -702,7 +787,7 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
         _plot_tap_onset_check(
             debug_png, force_time, norm3, norm4,
             tap_info, onset_thr_n=onset_thr,
-            bpm_duration=seg_duration, n_segments=n_total,
+            bpm_duration=seg_duration, seg_labels=seg_labels,
         )
         print(f"    debug plot: {debug_png}")
     except Exception as exc:
@@ -874,8 +959,20 @@ def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
 
 # ── 피험자 단위 처리 ─────────────────────────────────────────────
 
-def process_subject(namecode, dry_run=False):
-    """한 명의 피험자에 대해 전체 파이프라인 수행."""
+def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
+    """한 명의 피험자에 대해 전체 파이프라인 수행.
+
+    Parameters
+    ----------
+    namecode : str
+        피험자 namecode (예: ``"260306_KTH"``).
+    dry_run : bool, default False
+        True 면 파일 탐색·계획 출력만 수행하고 실제 변환은 건너뜀.
+    t_tap_offset : float, default 0.0
+        ``bpm_window`` 전용. 자동 검출된 ``t_tap`` 에 더하는 수동 보정(초).
+        음수면 윈도우를 앞으로 당김(=일찍 시작), 양수면 뒤로 미룸.
+        다른 method (manual_window/findpeaks)에서는 무시.
+    """
     rp = _path.ResultPaths(namecode)
 
     print(f"\n{'='*60}")
@@ -885,6 +982,8 @@ def process_subject(namecode, dry_run=False):
     print(f"  Rigid dir: {rp.rigid_dir}")
     print(f"  Output  : {rp.sub_dir}")
     print(f"  APPs    : {rp.apps}")
+    if rp.segmentation.get("method") == "bpm_window" and t_tap_offset != 0.0:
+        print(f"  t_tap_offset : {t_tap_offset:+.2f}s  (manual)")
     print(f"{'='*60}")
 
     pipeline_fn = _METHOD_DISPATCH.get(rp.segmentation["method"])
@@ -963,7 +1062,12 @@ def process_subject(namecode, dry_run=False):
             print(f"    [SKIP] No RigidBody CSV found for '{cond_key}'")
             continue
 
-        pipeline_fn(rp, cp, c3d_path, rigid_csv_path)
+        # bpm_window 만 t_tap_offset 을 사용. 다른 method 시그니처는 변경 없음.
+        if rp.segmentation.get("method") == "bpm_window":
+            pipeline_fn(rp, cp, c3d_path, rigid_csv_path,
+                        t_tap_offset=t_tap_offset)
+        else:
+            pipeline_fn(rp, cp, c3d_path, rigid_csv_path)
 
 
 # ── CLI 엔트리포인트 ─────────────────────────────────────────────
@@ -979,6 +1083,11 @@ def main():
     parser.add_argument(
         "--dry-run", action="store_true",
         help="파일 탐색만 수행, 실제 변환 생략",
+    )
+    parser.add_argument(
+        "--t-tap-offset", type=float, default=0.0,
+        help="(bpm_window 전용) 검출된 t_tap 에 더할 수동 보정(초). "
+             "음수면 윈도우를 앞으로 당김. 기본 0.",
     )
     args = parser.parse_args()
 
@@ -1001,7 +1110,8 @@ def main():
 
     for namecode in namecodes:
         try:
-            process_subject(namecode, dry_run=args.dry_run)
+            process_subject(namecode, dry_run=args.dry_run,
+                            t_tap_offset=args.t_tap_offset)
         except NotImplementedError as e:
             print(f"    [NOT IMPLEMENTED] {e}")
         except Exception as e:
