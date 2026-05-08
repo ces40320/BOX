@@ -208,6 +208,42 @@ def _build_extload_for_app(app, forces, markers, rigid):
     return None
 
 
+# ── 외력 채널 안전장치 ──────────────────────────────────────────
+
+# Canonical force keys produced by ``_io.read_c3d_force_platforms``.
+# 4-source / 7-source 레이아웃 모두 lifting_io 단계에서 1=L발 / 2=R발 /
+# 3=L손 / 4=R손 으로 정규화되므로, 이 외 키가 등장하면 ExtLoad 조립 시
+# 손-발 채널이 뒤바뀌었을 가능성이 있다는 신호다.
+_CANONICAL_FORCE_KEYS = (
+    {"time"}
+    | {f"f{i}" for i in (1, 2, 3, 4)}
+    | {f"p{i}" for i in (1, 2, 3, 4)}
+    | {f"m{i}" for i in (1, 2, 3, 4)}
+)
+
+
+def _assert_canonical_force_keys(forces, c3d_path):
+    """``read_c3d_force_platforms`` 출력이 4-plate 표준 키만 갖는지 검증.
+
+    ``lifting_io.read_c3d_force_platforms`` 가 4-source / 7-source 두
+    레이아웃을 모두 ``f1..f4`` 로 정규화하지만, 만약 새로운 source 개수가
+    들어오거나 매핑 누락이 생기면 ``f5/f6/f7`` 같은 키가 살아남을 수 있다.
+    그 경우 ``_extract_fp`` 가 잘못된 채널을 무성으로 0 처리하여 손-발
+    데이터가 뒤섞일 수 있으므로, 여기서 강제 fail-fast 한다.
+    """
+    keys = set(forces.keys())
+    extras = sorted(keys - _CANONICAL_FORCE_KEYS)
+    missing = sorted(_CANONICAL_FORCE_KEYS - keys)
+    if extras or missing:
+        raise RuntimeError(
+            f"Force channel keys are not canonical for {c3d_path!r}.\n"
+            f"  unexpected keys: {extras}\n"
+            f"  missing keys   : {missing}\n"
+            f"  → lifting_io.read_c3d_force_platforms 의 source 매핑을 "
+            f"확인하세요 (4-source / 7-source 외 레이아웃일 가능성)."
+        )
+
+
 # ── bpm_window 전용 보조 함수 ─────────────────────────────────────
 
 def _force_plate_norm(forces, plate_idx):
@@ -424,6 +460,7 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):      # TO
     # ── 1) 데이터 로드 (회전 없음 — Motive Y-up 가정) ──────────
     markers = _io.read_c3d_markers(c3d_path, rotations=None)
     forces = _io.read_c3d_force_platforms(c3d_path, rotations=None)
+    _assert_canonical_force_keys(forces, c3d_path)
     rigid = _io.read_rigid_body_csv(
         rigid_csv_path, skiprow_num=_lcfg.RIGID_BODY_SKIPROWS,
     )
@@ -591,6 +628,7 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path):
     # ── 1) 데이터 로드 (회전 없음 — Motive Y-up 가정) ──────────
     markers = _io.read_c3d_markers(c3d_path, rotations=None)
     forces = _io.read_c3d_force_platforms(c3d_path, rotations=None)
+    _assert_canonical_force_keys(forces, c3d_path)
     rigid = _io.read_rigid_body_csv(
         rigid_csv_path, skiprow_num=_lcfg.RIGID_BODY_SKIPROWS,
     )

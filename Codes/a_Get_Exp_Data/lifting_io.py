@@ -197,11 +197,55 @@ def read_c3d_markers(
     return markers
 
 
+# Canonical 4-plate convention used by every downstream consumer
+# (transform_ExtLoad_*, _extract_fp, flatten_extload_for_opensim_mot, ...).
+#   plate 1 = ground left foot
+#   plate 2 = ground right foot
+#   plate 3 = hand left
+#   plate 4 = hand right
+#
+# C3D 의 force source 레이아웃은 실험 세팅에 따라 두 가지가 들어올 수 있다.
+#   * 4 sources (정상): 1,2,3,4 → 위 정의 그대로.
+#   * 7 sources (실험 직전 불필요한 force source 3개를 미처 끄지 않은 케이스):
+#                1,2 → 왼발/오른발, 5,6 → 왼손/오른손, 3·4·7 은 무시.
+# 그 외 source 개수는 silent miscount 를 막기 위해 예외로 처리.
+_FORCE_SOURCE_LAYOUTS: Dict[int, Dict[int, int]] = {
+    4: {1: 1, 2: 2, 3: 3, 4: 4},
+    7: {1: 1, 2: 2, 5: 3, 6: 4},
+}
+
+
 def read_c3d_force_platforms(
     c3d_path: str,
     rotations: Optional[Sequence[Tuple[str, float]]] = None,
+    *,
+    verbose: bool = True,
 ) -> Dict[str, np.ndarray]:
-    """Read force plate channels and map to f/p/m arrays."""
+    """Read force plate channels and map to canonical ``f/p/m`` × 4 plates.
+
+    Output keys are always ``time`` plus ``f{1..4}``, ``p{1..4}``, ``m{1..4}``,
+    independent of how many force sources the C3D contains. See
+    ``_FORCE_SOURCE_LAYOUTS`` for the supported layouts (4 or 7 sources).
+
+    Parameters
+    ----------
+    c3d_path
+        Path to the C3D file.
+    rotations
+        Optional axis/degree pairs applied as a global rotation to every
+        f/p/m vector (same convention as :func:`read_c3d_markers`).
+    verbose
+        If ``True`` (default), prints which source-layout was detected and
+        the source→plate mapping that was applied. Helpful when ``f5/f6``
+        appear because the experimenter forgot to disable extra devices.
+
+    Raises
+    ------
+    ValueError
+        Detected source count is neither 4 nor 7. Raising rather than
+        silently using the first 4 sources prevents wrong-channel data
+        from leaking into downstream ExtLoad assembly.
+    """
     osim = _opensim_import()
     adapter = osim.C3DFileAdapter()
     tables = adapter.read(c3d_path)
@@ -209,8 +253,8 @@ def read_c3d_force_platforms(
     raw = _osim_table_to_dict(force_table)
 
     r = _rotation_from_sequence(rotations)
-    out: Dict[str, np.ndarray] = {"time": raw["time"]}
 
+    by_idx: Dict[int, Dict[str, np.ndarray]] = {}
     for label, value in raw.items():
         if label == "time":
             continue
@@ -223,10 +267,54 @@ def read_c3d_force_platforms(
             prefix = "m"
         else:
             continue
-        idx = "".join(ch for ch in low[1:] if ch.isdigit())
-        if not idx:
+        idx_str = "".join(ch for ch in low[1:] if ch.isdigit())
+        if not idx_str:
             continue
-        out[f"{prefix}{idx}"] = _rotated_xyz(value, r)
+        src = int(idx_str)
+        by_idx.setdefault(src, {})[prefix] = _rotated_xyz(value, r)
+
+    n_sources = len(by_idx)
+    src2plate = _FORCE_SOURCE_LAYOUTS.get(n_sources)
+    if src2plate is None:
+        raise ValueError(
+            f"Unsupported C3D force-source count={n_sources} "
+            f"(expected one of {sorted(_FORCE_SOURCE_LAYOUTS.keys())}) "
+            f"in {c3d_path!r}. Found source indices "
+            f"{sorted(by_idx.keys())}."
+        )
+
+    if verbose:
+        layout_tag = "default" if n_sources == 4 else "extras-on"
+        kept_pairs = ", ".join(
+            f"src{src}->plate{plate}"
+            for src, plate in sorted(src2plate.items())
+        )
+        dropped = sorted(set(by_idx.keys()) - set(src2plate.keys()))
+        dropped_str = (
+            f"  dropped sources: {dropped}" if dropped else ""
+        )
+        print(
+            f"    [force-mapping] {n_sources}-source layout ({layout_tag})"
+            f"  {kept_pairs}{dropped_str}"
+        )
+
+    missing = [src for src in src2plate if src not in by_idx]
+    if missing:
+        raise KeyError(
+            f"C3D forces table missing expected source indices {missing} "
+            f"for {n_sources}-source layout in {c3d_path!r}. "
+            f"Available indices: {sorted(by_idx.keys())}."
+        )
+
+    out: Dict[str, np.ndarray] = {"time": raw["time"]}
+    n_time = len(raw["time"])
+    for src, plate in src2plate.items():
+        channels = by_idx[src]
+        for prefix in ("f", "p", "m"):
+            arr = channels.get(prefix)
+            if arr is None:
+                arr = np.zeros((n_time, 3), dtype=float)
+            out[f"{prefix}{plate}"] = arr
     return out
 
 
