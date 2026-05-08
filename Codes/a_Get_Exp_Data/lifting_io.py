@@ -215,6 +215,29 @@ _FORCE_SOURCE_LAYOUTS: Dict[int, Dict[int, int]] = {
 }
 
 
+class UnsupportedForceSourceCountError(ValueError):
+    """C3D 의 force source 개수가 지원 레이아웃(4 또는 7)이 아닌 경우.
+
+    대부분 Motive 측 External Hand Force source 기록 설정이 정상이 아닐 때
+    발생한다. 호출 측(run_get_exp_data.main 등)에서 이 예외를 잡아 사용자
+    안내를 띄우고 즉시 실행을 종료하도록 분기시킨다.
+
+    ``ValueError`` 의 서브클래스이므로 기존 ``except ValueError`` 는 영향
+    없이 동작한다.
+    """
+
+    def __init__(self, n_sources: int, found_indices, c3d_path: str):
+        self.n_sources = int(n_sources)
+        self.found_indices = list(found_indices)
+        self.c3d_path = str(c3d_path)
+        super().__init__(
+            f"Unsupported C3D force-source count={self.n_sources} "
+            f"(expected one of {sorted(_FORCE_SOURCE_LAYOUTS.keys())}) "
+            f"in {self.c3d_path!r}. Found source indices "
+            f"{sorted(self.found_indices)}."
+        )
+
+
 def read_c3d_force_platforms(
     c3d_path: str,
     rotations: Optional[Sequence[Tuple[str, float]]] = None,
@@ -241,7 +264,7 @@ def read_c3d_force_platforms(
 
     Raises
     ------
-    ValueError
+    UnsupportedForceSourceCountError
         Detected source count is neither 4 nor 7. Raising rather than
         silently using the first 4 sources prevents wrong-channel data
         from leaking into downstream ExtLoad assembly.
@@ -276,11 +299,10 @@ def read_c3d_force_platforms(
     n_sources = len(by_idx)
     src2plate = _FORCE_SOURCE_LAYOUTS.get(n_sources)
     if src2plate is None:
-        raise ValueError(
-            f"Unsupported C3D force-source count={n_sources} "
-            f"(expected one of {sorted(_FORCE_SOURCE_LAYOUTS.keys())}) "
-            f"in {c3d_path!r}. Found source indices "
-            f"{sorted(by_idx.keys())}."
+        raise UnsupportedForceSourceCountError(
+            n_sources=n_sources,
+            found_indices=by_idx.keys(),
+            c3d_path=c3d_path,
         )
 
     if verbose:

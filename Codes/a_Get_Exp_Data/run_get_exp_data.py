@@ -248,6 +248,30 @@ def _assert_canonical_force_keys(forces, c3d_path):
         )
 
 
+def _print_force_source_warning_banner(exc, namecode, cond_key=None):
+    """``UnsupportedForceSourceCountError`` 발생 시 사용자 안내 배너 출력.
+
+    호출 측은 출력 직후 ``sys.exit(1)`` 등으로 즉시 실행을 종료하는 것을
+    가정한다 (잘못된 source 매핑으로 손-발 채널이 섞이는 사고 방지).
+    """
+    bar = "=" * 70
+    where = f"{namecode}" + (f" / {cond_key}" if cond_key else "")
+    print()
+    print(bar)
+    print(f"[STOP] 외력 source 개수가 비정상입니다.  ({where})")
+    print(bar)
+    print(f"  세부: detected {exc.n_sources} sources "
+          f"(found indices {sorted(exc.found_indices)})")
+    print(f"        c3d = {exc.c3d_path}")
+    print()
+    print("  ▶ Motive Software 에서 External Hand Force source 가 정상적으로")
+    print("    기록되어 있는지 확인하세요.")
+    print("    - 정상 케이스: 4 sources (왼발, 오른발, 왼손, 오른손).")
+    print("    - 자동 보정 가능: 7 sources (불필요한 3개 source 가 켜진 상태).")
+    print("    - 그 외 개수는 채널 매핑이 불가능하므로 처리 불가.")
+    print(bar)
+
+
 # ── bpm_window 전용 보조 함수 ─────────────────────────────────────
 
 def _force_plate_norm(forces, plate_idx):
@@ -1063,11 +1087,15 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
             continue
 
         # bpm_window 만 t_tap_offset 을 사용. 다른 method 시그니처는 변경 없음.
-        if rp.segmentation.get("method") == "bpm_window":
-            pipeline_fn(rp, cp, c3d_path, rigid_csv_path,
-                        t_tap_offset=t_tap_offset)
-        else:
-            pipeline_fn(rp, cp, c3d_path, rigid_csv_path)
+        try:
+            if rp.segmentation.get("method") == "bpm_window":
+                pipeline_fn(rp, cp, c3d_path, rigid_csv_path,
+                            t_tap_offset=t_tap_offset)
+            else:
+                pipeline_fn(rp, cp, c3d_path, rigid_csv_path)
+        except _io.UnsupportedForceSourceCountError as exc:
+            _print_force_source_warning_banner(exc, namecode, cond_key)
+            sys.exit(1)
 
 
 # ── CLI 엔트리포인트 ─────────────────────────────────────────────
