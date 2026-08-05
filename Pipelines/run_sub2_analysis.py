@@ -6,8 +6,9 @@ import matplotlib.pyplot as plt # 결과 확인용 (선택 사항)
 from Algorithms.kinematics_engine import calculate_kinematic_force
 from Algorithms.rmo_core import weight_status_curve # RMO 결과 적용 시 필요
 
-# [1] 설정: 데이터 경로 (사용자 환경에 맞게 수정)
-base_path = r"./data/SUB2" 
+# [1] 설정: 데이터 경로 (환경변수 BOX_DATA_DIR / BOX_RESULT_DIR 로 지정 가능)
+base_path = os.path.join(os.environ.get("BOX_DATA_DIR", os.path.join(".", "data")), "SUB2")
+save_dir = os.environ.get("BOX_RESULT_DIR", os.path.join(".", "results"))
 vel_file = "SUB2_vel_global.sto" # 속도 데이터 파일
 full_path = os.path.join(base_path, vel_file)
 
@@ -40,7 +41,8 @@ def main():
         'calculated_ehf_y': ehf_kinematic
     })
     
-    output_path = "./results/SUB2_EHF_Analysis.csv"
+    os.makedirs(save_dir, exist_ok=True)
+    output_path = os.path.join(save_dir, "SUB2_EHF_Analysis.csv")
     results.to_csv(output_path, index=False)
     print(f"✅ SUB2 분석 완료! 결과 저장됨: {output_path}")
 

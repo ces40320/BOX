@@ -1,3 +1,14 @@
+"""Batch RMO optimization over repeated trials.
+
+Data and output locations are configured through environment variables so that
+the script is portable:
+
+    BOX_DATA_DIR    directory holding the static-optimization .sto files
+                    (default: ./data)
+    BOX_RESULT_DIR  directory for the result table (default: ./results)
+
+    BOX_DATA_DIR=/path/to/sto python Pipelines/run_batch_optimization.py
+"""
 import os
 import pandas as pd
 import numpy as np
@@ -5,10 +16,13 @@ from scipy.optimize import minimize
 # Algorithms 폴더에서 핵심 엔진 불러오기
 from Algorithms.rmo_core import rmo_objective, weight_status_curve
 
-# [설정] 데이터 경로 및 저장 경로
-base_path = r"C:\Users\612ch\Dropbox\..." # 실제 데이터 경로로 수정
-save_dir = "./results"
-if not os.path.exists(save_dir): os.makedirs(save_dir)
+# [설정] 데이터 경로 및 저장 경로 (환경변수로 지정, 없으면 기본값)
+base_path = os.environ.get("BOX_DATA_DIR", os.path.join(".", "data"))
+save_dir = os.environ.get("BOX_RESULT_DIR", os.path.join(".", "results"))
+os.makedirs(save_dir, exist_ok=True)
+if not os.path.isdir(base_path):
+    raise SystemExit(f"data directory not found: {base_path}\n"
+                     f"set BOX_DATA_DIR to the folder containing the .sto files")
 
 def read_sto(filename):
     with open(filename, 'r') as f: lines = f.readlines()
