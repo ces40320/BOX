@@ -1,3 +1,21 @@
+"""
+rmo_core.py — initial RMO prototype
+
+Note
+----
+This module is an early prototype in which several values are tied to one
+specific dataset:
+  - fixed optimization start value [2.2, 0.4, 4.0, 0.4]
+  - segment length hard-coded to 6.0 s (t2 constraint in `rmo_objective`)
+  - baseline taken as the mean of the first 0.5 s, which assumes that window
+    is always contact-free
+
+The generalized implementation is `Algorithms/ricto_core.py`. It does not depend
+on the segment duration, derives the start value from the residual itself, and
+additionally covers hand-force reconstruction and external-load application.
+
+This file is kept unchanged for compatibility with the existing pipelines.
+"""
 import numpy as np
 
 def smoothstep_ramp(t, t_start, duration):
