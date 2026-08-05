@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
-from Algorithms.rmo_core import smoothstep_ramp # 핵심 수식만 호출
+from Algorithms.ricto_core import smoothstep_ramp # 핵심 수식만 호출
 
 # [참고] 이 코드는 그래프를 그리는 대신 데이터(CSV)로 저장하도록 정제했습니다.
 def run_landscape_scan(time, residual, baseline, save_path):

@@ -7,12 +7,9 @@ asymmetric box lifting **without measuring the external hand force**.
 
 ```
 Algorithms/
-  ricto_core.py          RiCTO — generalized correction algorithm (current)
-  rmo_core.py            initial RMO prototype (kept for pipeline compatibility)
-  kinematics_engine.py   velocity-based force estimate (early experiment)
+  ricto_core.py               RiCTO correction algorithm
 Pipelines/
-  run_batch_optimization.py   batch RMO over repeated trials
-  run_sub2_analysis.py        kinematic force estimation for one subject
+  run_batch_optimization.py   batch transition estimation over repeated trials
   verify_cost_landscape.py    cost-landscape scan over transition onset
 Scripts/
   exp_data_utils.py           C3D/TRC/MOT I/O and coordinate utilities
@@ -80,13 +77,6 @@ Individual steps are also available: `optimize_transition`,
 - The optimization start value is derived from the residual instead of being
   fixed, and the baseline is an upper-quantile mean rather than an
   initial-window mean.
-
-## Relation to `rmo_core.py`
-
-`rmo_core.py` is the first prototype and remains importable so that the existing
-pipelines keep working. It assumes a 6.0 s segment, a constant start value, and a
-contact-free first 0.5 s. `ricto_core.py` removes those assumptions and adds the
-force-reconstruction and external-load steps.
 
 ## Running the pipelines
 

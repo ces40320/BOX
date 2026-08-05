@@ -12,9 +12,8 @@ the script is portable:
 import os
 import pandas as pd
 import numpy as np
-from scipy.optimize import minimize
 # Algorithms 폴더에서 핵심 엔진 불러오기
-from Algorithms.rmo_core import rmo_objective, weight_status_curve
+from Algorithms.ricto_core import optimize_transition
 
 # [설정] 데이터 경로 및 저장 경로 (환경변수로 지정, 없으면 기본값)
 base_path = os.environ.get("BOX_DATA_DIR", os.path.join(".", "data"))
@@ -38,30 +37,25 @@ for i in range(1, 11):
     full_path = os.path.join(base_path, file_name)
     if not os.path.exists(full_path): continue
     
-    # 1. 데이터 전처리
+    # 1. 데이터 전처리 (시간 영점 조절)
     df = read_sto(full_path)
-    df['time'] = df['time'] - df['time'].iloc[0] # 시간 영점 조절
-    df = df[df['time'] <= 6.0].reset_index(drop=True)
-    
+    df['time'] = df['time'] - df['time'].iloc[0]
+
     time = df['time'].values
     target_col = next((c for c in df.columns if 'pelvis' in c.lower() and 'y' in c.lower()), None)
     residual_raw = df[target_col].values
-    
-    # 2. [핵심] Baseline 추출 (동작 전 0.5초 구간 평균)
-    baseline_val = np.mean(residual_raw[time < 0.5]) if any(time < 0.5) else residual_raw[0]
 
-    # 3. RMO 최적화 실행
-    init_guess = [2.2, 0.4, 4.0, 0.4] # 초기 추정치 [t1, d1, t2, d2]
-    res = minimize(rmo_objective, init_guess, args=(time, residual_raw, baseline_val), method='Nelder-Mead')
-    
-    if res.success:
-        opt_params = res.x
+    # 2. 전이 파라미터 추정 (baseline 과 초기 추정치는 잔차에서 자동 산출)
+    result = optimize_transition(time, residual_raw)
+
+    if result['success']:
+        t1, d1, t2, d2 = result['params']
         summary_list.append({
             'Trial': i,
-            't1_start': opt_params[0], 'd1_duration': opt_params[1],
-            't2_start': opt_params[2], 'd2_duration': opt_params[3],
-            'Baseline_N': baseline_val,
-            'Final_Cost': res.fun
+            't1_start': t1, 'd1_duration': d1,
+            't2_start': t2, 'd2_duration': d2,
+            'Baseline_N': result['baseline'],
+            'Final_Cost': result['cost']
         })
         print(f"✅ Trial {i} 최적화 완료")
 
