@@ -1,11 +1,45 @@
+"""Per-tool handlers for the OpenSim pipeline.
+
+Each handler is invoked once per ``(segment, app)`` (or per ``segment`` for
+``bk``) by ``run_opensim_pipeline.py``.  All filesystem locations come from
+``ConditionPaths`` / ``ResultPaths`` (see ``PATH_RULE.py``) and all model
+selection goes through ``pipeline_rules`` so the kg-aware policy stays in a
+single source of truth (see ``REFAC_RUN_TOOLS_PLAN.md`` §3.4 / §4.3).
+
+SET ↔ RUN isolation
+-------------------
+Reserve / residual / torque ``CoordinateActuator`` 의 모델 주입은 더 이상
+이 모듈의 책임이 아니다.  ``Codes/b_Build_Model/add_reserve_actuators.py``
+가 베이스 osim (``SUB{n}_Scaled.osim``) 단계에서 이미 baked-in 한다.
+따라서 SO/JR SETUP XML 은 ``_Actuator`` 접미사 **없이** 베이스/변형 osim
+경로를 그대로 가리킨다.
+
+또한 SO/BK/JR 의 ``run_*`` 함수들은 **별도 Python 서브프로세스**
+(``_run_analyze_subprocess.py``) 에서 ``AnalyzeTool.run()`` 만 수행한다.
+이는 OLD 가 ``*_SET.py`` 와 ``*_RUN.py`` 를 두 파일로 분리해 실행하던
+이유 (동일 프로세스 안에서 SET → RUN 직행 시 OpenSim 분석이 조용히
+미수행되는 알려진 문제) 를 그대로 회피하기 위함이다.
+"""
+
+from __future__ import annotations
+
+import json
 import os
+import subprocess
+import sys
+import tempfile
 from lxml import etree
 
 from pipeline_rules import (
     ik_suffix as _ik_suffix,
     ik_template as _ik_template,
+    jr_suffixes as _jr_suffixes,
     resolve_model_path,
 )
+
+
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_SUBPROC_SCRIPT = os.path.join(_THIS_DIR, "_run_analyze_subprocess.py")
 
 
 def _maybe_add_opensim_dll_dir() -> None:
@@ -17,6 +51,58 @@ def _maybe_add_opensim_dll_dir() -> None:
     if os.path.isdir(dll_dir):
         add_dll(dll_dir)
 
+
+# ──────────────────────────────────────────────────────────────────
+# Subprocess-isolated RUN dispatcher
+# ──────────────────────────────────────────────────────────────────
+def _run_analyze_jobs(jobs: list[dict]) -> None:
+    """Execute one or more ``AnalyzeTool`` jobs in an isolated subprocess.
+
+    Each job dict must carry: ``tool``, ``setup_xml``, ``model_path``.
+    Optionally ``rename_after`` = ``list[[src, dst]]`` pairs applied
+    after the corresponding ``.run()`` (used by JR to move the canonical
+    ``..._ReactionLoads.sto`` to ``..._ReactionLoads_ground.sto`` before
+    the subsequent child run overwrites it).
+
+    Raises ``RuntimeError`` on non-zero subprocess exit; the JSON manifest
+    is preserved on failure for inspection (deleted only on success).
+    """
+    if not jobs:
+        return
+    if not os.path.isfile(_SUBPROC_SCRIPT):
+        raise FileNotFoundError(
+            f"Subprocess RUN script missing: {_SUBPROC_SCRIPT}"
+        )
+
+    fd, manifest = tempfile.mkstemp(prefix="opensim_jobs_", suffix=".json")
+    success = False
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(jobs, f, indent=2)
+
+        result = subprocess.run(
+            [sys.executable, _SUBPROC_SCRIPT, "--manifest", manifest],
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"AnalyzeTool subprocess failed (exit {result.returncode}).\n"
+                f"  Manifest preserved at: {manifest}\n"
+                f"  Re-run manually for debugging:\n"
+                f"    {sys.executable} {_SUBPROC_SCRIPT} --manifest {manifest}"
+            )
+        success = True
+    finally:
+        if success:
+            try:
+                os.remove(manifest)
+            except OSError:
+                pass
+
+
+# ══════════════════════════════════════════════════════════════════
+#  ExtLoad
+# ══════════════════════════════════════════════════════════════════
 
 def prepare_extload_setup(
     *,
@@ -45,6 +131,10 @@ def prepare_extload_setup(
     return setup_xml_path
 
 
+# ══════════════════════════════════════════════════════════════════
+#  IK
+# ══════════════════════════════════════════════════════════════════
+
 def run_ik(
     *,
     cp,
@@ -57,9 +147,11 @@ def run_ik(
 ) -> str:
     """Run IK and write setup/result files to planned structure.
 
-    Model / IK-folder / IK-template selection is delegated to
-    ``pipeline_rules`` so that the kg-aware policy stays in one place
-    (see ``REFAC_RUN_TOOLS_PLAN.md`` §3.4 / §4.3).
+    Note
+    ----
+    IK uses ``InverseKinematicsTool`` (not ``AnalyzeTool``) which is not
+    affected by the SET↔RUN-in-same-process issue, so it stays in-process
+    matching the OLD ``IK_RUN.py``.
     """
     trc_path = cp.trc_path(seg)
     model_path = resolve_model_path(rp, cp.cond, app, "ik",
@@ -95,3 +187,408 @@ def run_ik(
     ik.printToXML(setup_ik_path)
     ik.run()
     return setup_ik_path
+
+
+# ──────────────────────────────────────────────────────────────────
+# Shared AnalyzeTool helpers (SO / BK / JR)
+# ──────────────────────────────────────────────────────────────────
+
+def _read_trc_time_bounds(trc_path: str) -> tuple[float, float]:
+    """Return (start_time, end_time) from a TRC file (skips 4 header rows)."""
+    import numpy as np
+    import pandas as pd
+
+    df = pd.read_csv(trc_path, sep="\t", skiprows=4)
+    trcdata = np.array(df)
+    return float(trcdata[1, 1]), float(trcdata[-1, 1])
+
+
+def _new_analyze_tool(*, osim_mod, name: str, model_path: str, model,
+                      coordinates_path: str, extload_xml: str,
+                      results_dir: str, t0: float, t1: float,
+                      lowpass_cutoff: float = 6.0,
+                      controls_path: str | None = None):
+    """Construct a populated ``AnalyzeTool`` with the common settings."""
+    analyze = osim_mod.AnalyzeTool()
+    analyze.setName(name)
+    analyze.setModel(model)
+    analyze.setModelFilename(model_path)
+    analyze.setReplaceForceSet(False)
+    if controls_path is not None:
+        analyze.setControlsFileName(controls_path)
+    analyze.setCoordinatesFileName(coordinates_path)
+    analyze.setLowpassCutoffFrequency(lowpass_cutoff)
+    analyze.setSolveForEquilibrium(True)
+    analyze.setStartTime(t0)
+    analyze.setFinalTime(t1)
+    analyze.setExternalLoadsFileName(extload_xml)
+    analyze.setResultsDir(results_dir)
+    return analyze
+
+
+def _ik_inputs_for_app(cp, seg: str, app: str) -> tuple[str, str]:
+    """Return (ik_mot_path, setup_extload_xml) for an SO/JR input app.
+
+    ``AddBox`` consumes the ``IK_AddBox`` motion (kg-aware AddBox model);
+    other apps consume the base ``IK`` motion.  ExtLoad XML is always the
+    one generated for that app.
+    """
+    ik_suffix = _ik_suffix(app)
+    ik_mot = cp.ik_path(seg, ik_suffix)
+    extload_xml = cp.setup_extload_path(seg, app)
+    return ik_mot, extload_xml
+
+
+# ══════════════════════════════════════════════════════════════════
+#  SO  (Static Optimization)
+# ══════════════════════════════════════════════════════════════════
+
+def prepare_so_setup(
+    *,
+    cp,
+    rp,
+    seg: str,
+    app: str,
+    lowpass_cutoff: float = 6.0,
+    step_interval: int = 1,
+    activation_exponent: int = 2,
+    convergence_criterion: float = 1e-4,
+    max_iterations: int = 100,
+    dry_run: bool = False,
+) -> str:
+    """Write ``SETUP_SO_*.xml`` for one (segment, app).
+
+    The setup XML's ``<model_file>`` points at the kg-aware **base** osim
+    (``SUB{n}_Scaled[_HeavyHand_{w}kg|_SplitBox_{w}kg].osim``) — reserves
+    are assumed to be baked in by ``b_Build_Model/add_reserve_actuators``.
+    No ``_Actuator`` suffix is generated here.
+    """
+    setup_so_xml = cp.setup_so_path(seg, app)
+    results_dir = cp.so_dir(cp.seg_to_section(seg), app)
+    model_path = resolve_model_path(rp, cp.cond, app, "so",
+                                    must_exist=not dry_run)
+
+    if dry_run:
+        return setup_so_xml
+
+    _maybe_add_opensim_dll_dir()
+    import opensim as osim
+
+    trc_path = cp.trc_path(seg)
+    t0, t1 = _read_trc_time_bounds(trc_path)
+    ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
+
+    model = osim.Model(model_path)
+    analyze = _new_analyze_tool(
+        osim_mod=osim,
+        name=f"{rp.sub_label}_{cp.cond}_{seg}_{app}",
+        model_path=model_path,
+        model=model,
+        coordinates_path=ik_mot,
+        extload_xml=extload_xml,
+        results_dir=results_dir,
+        t0=t0, t1=t1,
+        lowpass_cutoff=lowpass_cutoff,
+    )
+
+    so = osim.StaticOptimization()
+    so.setModel(model)
+    so.setStartTime(t0)
+    so.setEndTime(t1)
+    so.setStepInterval(step_interval)
+    so.setInDegrees(True)
+    so.setUseModelForceSet(True)
+    so.setActivationExponent(activation_exponent)
+    so.setUseMusclePhysiology(True)
+    so.setConvergenceCriterion(convergence_criterion)
+    so.setMaxIterations(max_iterations)
+    analyze.getAnalysisSet().adoptAndAppend(so)
+
+    os.makedirs(os.path.dirname(setup_so_xml), exist_ok=True)
+    analyze.printToXML(setup_so_xml)
+    return setup_so_xml
+
+
+def run_so(
+    *,
+    cp,
+    rp,
+    seg: str,
+    app: str,
+    dry_run: bool = False,
+) -> str:
+    """Run a previously prepared ``SETUP_SO_*.xml`` for one (segment, app).
+
+    Executes inside an isolated Python subprocess so that the in-process
+    OpenSim state left over by ``prepare_so_setup`` (or by any earlier
+    SETUP build) cannot suppress this run.  See module docstring.
+    """
+    setup_so_xml = cp.setup_so_path(seg, app)
+    if dry_run:
+        return setup_so_xml
+    if not os.path.isfile(setup_so_xml):
+        raise FileNotFoundError(
+            f"SO setup missing: {setup_so_xml}\n"
+            "  Run with --tools so (setup is created on first invocation)."
+        )
+
+    model_path = resolve_model_path(rp, cp.cond, app, "so", must_exist=True)
+    _run_analyze_jobs([{
+        "tool": "so",
+        "setup_xml": setup_so_xml,
+        "model_path": model_path,
+    }])
+    return setup_so_xml
+
+
+# ══════════════════════════════════════════════════════════════════
+#  BK  (BodyKinematics — segment-level, app-agnostic)
+# ══════════════════════════════════════════════════════════════════
+
+def prepare_bk_setup(
+    *,
+    cp,
+    rp,
+    seg: str,
+    bk_ik_app: str = "MeasuredEHF",
+    lowpass_cutoff: float = 6.0,
+    step_interval: int = 1,
+    dry_run: bool = False,
+) -> str:
+    """Write ``SETUP_BK_*.xml`` for one segment (no app dimension).
+
+    BodyKinematics is purely kinematic, so it uses the **base** osim
+    (``SUB{n}_Scaled.osim``) and the ``IK`` (non-AddBox) motion by default.
+    ``bk_ik_app`` lets callers override which IK / ExtLoad to bind to.
+    """
+    setup_bk_xml = cp.setup_bk_path(seg)
+    results_dir = cp.bk_dir(cp.seg_to_section(seg))
+
+    base_model_path = rp.model_path("")
+
+    if dry_run:
+        return setup_bk_xml
+
+    if not os.path.isfile(base_model_path):
+        raise FileNotFoundError(
+            f"Base osim missing for BK: {base_model_path}\n"
+            "  Run Codes/b_Build_Model/_b_Main.ipynb first."
+        )
+
+    _maybe_add_opensim_dll_dir()
+    import opensim as osim
+
+    trc_path = cp.trc_path(seg)
+    t0, t1 = _read_trc_time_bounds(trc_path)
+    ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, bk_ik_app)
+
+    model = osim.Model(base_model_path)
+    analyze = _new_analyze_tool(
+        osim_mod=osim,
+        name=f"{rp.sub_label}_{cp.cond}_{seg}",
+        model_path=base_model_path,
+        model=model,
+        coordinates_path=ik_mot,
+        extload_xml=extload_xml,
+        results_dir=results_dir,
+        t0=t0, t1=t1,
+        lowpass_cutoff=lowpass_cutoff,
+    )
+
+    bk = osim.BodyKinematics()
+    bk.setName("BodyKinematics")
+    bk.setStartTime(t0)
+    bk.setEndTime(t1)
+    bk.setStepInterval(step_interval)
+    bk.setInDegrees(True)
+    analyze.getAnalysisSet().adoptAndAppend(bk)
+
+    os.makedirs(os.path.dirname(setup_bk_xml), exist_ok=True)
+    analyze.printToXML(setup_bk_xml)
+    return setup_bk_xml
+
+
+def run_bk(
+    *,
+    cp,
+    rp,
+    seg: str,
+    dry_run: bool = False,
+) -> str:
+    """Run a previously prepared ``SETUP_BK_*.xml`` for one segment."""
+    setup_bk_xml = cp.setup_bk_path(seg)
+    if dry_run:
+        return setup_bk_xml
+    if not os.path.isfile(setup_bk_xml):
+        raise FileNotFoundError(
+            f"BK setup missing: {setup_bk_xml}\n"
+            "  Run with --tools bk (setup is created on first invocation)."
+        )
+
+    base_model_path = rp.model_path("")
+    _run_analyze_jobs([{
+        "tool": "bk",
+        "setup_xml": setup_bk_xml,
+        "model_path": base_model_path,
+    }])
+    return setup_bk_xml
+
+
+# ══════════════════════════════════════════════════════════════════
+#  JR  (JointReaction)
+# ══════════════════════════════════════════════════════════════════
+#
+# Per ``STRUCTURE_PLAN.md`` the ``JR_<App>/`` folder may hold one or two
+# setup/result pairs depending on app:
+#   - non-AddBox  → ``SETUP_JR_..._<app>.xml``         (express_in_frame=child)
+#                   → ``..._JointReaction_ReactionLoads.sto``
+#   - AddBox      → ALSO ``SETUP_JR_..._<app>_ground.xml`` (default ground)
+#                   → ``..._JointReaction_ReactionLoads_ground.sto``
+#
+# OpenSim's AnalyzeTool writes a fixed basename (``..._ReactionLoads.sto``).
+# To keep two files in the same folder we run ``ground`` FIRST and rename
+# the output (in the same subprocess between consecutive ``.run()`` calls),
+# then run ``child`` which produces the canonical
+# ``..._ReactionLoads.sto``.  ``pipeline_rules.jr_suffixes(app)`` decides
+# which set of suffixes applies.
+# ══════════════════════════════════════════════════════════════════
+
+def _set_express_in_frame_child(setup_xml_path: str) -> None:
+    """Edit ``<express_in_frame>`` element in a JR setup XML → 'child'."""
+    tree = etree.parse(setup_xml_path)
+    root = tree.getroot()
+    el = root.find(".//express_in_frame")
+    if el is None:
+        # OpenSim sometimes uses a different tag depending on version; bail
+        # out loudly so the user can inspect the template.
+        raise ValueError(
+            f"<express_in_frame> not found in {setup_xml_path}; cannot "
+            "switch JR frame to 'child'."
+        )
+    el.text = "child"
+    tree.write(setup_xml_path, pretty_print=True,
+               encoding="UTF-8", xml_declaration=True)
+
+
+def _jr_suffix_order(app: str) -> list[str]:
+    """Stable order: ``ground`` first (so its output gets renamed before the
+    canonical child run overwrites it), then ``""`` (child)."""
+    return sorted(_jr_suffixes(app), key=lambda s: 0 if s == "ground" else 1)
+
+
+def prepare_jr_setup(
+    *,
+    cp,
+    rp,
+    seg: str,
+    app: str,
+    lowpass_cutoff: float = 6.0,
+    step_interval: int = 1,
+    dry_run: bool = False,
+) -> list[str]:
+    """Write one or two ``SETUP_JR_*.xml`` files for one (segment, app).
+
+    Returns the list of setup XML paths actually written / planned, in the
+    fixed ``ground → child`` order.
+    """
+    suffixes = _jr_suffix_order(app)
+    setup_paths = [cp.setup_jr_path(seg, app, suffix) for suffix in suffixes]
+
+    if dry_run:
+        return setup_paths
+
+    model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+
+    _maybe_add_opensim_dll_dir()
+    import opensim as osim
+
+    trc_path = cp.trc_path(seg)
+    t0, t1 = _read_trc_time_bounds(trc_path)
+    ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
+
+    # SO outputs are mandatory inputs for JR (controls + forces).
+    so_controls = cp.so_path(seg, app, "activation")
+    so_forces   = cp.so_path(seg, app, "force")
+
+    results_dir = cp.jr_dir(cp.seg_to_section(seg), app)
+    os.makedirs(results_dir, exist_ok=True)
+
+    for suffix, setup_xml in zip(suffixes, setup_paths):
+        model = osim.Model(model_path)
+        analyze = _new_analyze_tool(
+            osim_mod=osim,
+            name=f"{rp.sub_label}_{cp.cond}_{seg}_{app}",
+            model_path=model_path,
+            model=model,
+            coordinates_path=ik_mot,
+            extload_xml=extload_xml,
+            results_dir=results_dir,
+            t0=t0, t1=t1,
+            lowpass_cutoff=lowpass_cutoff,
+            controls_path=so_controls,
+        )
+
+        jr = osim.JointReaction()
+        jr.setName("JointReaction")
+        jr.setStartTime(t0)
+        jr.setEndTime(t1)
+        jr.setStepInterval(step_interval)
+        jr.setInDegrees(True)
+        jr.setForcesFileName(so_forces)
+        analyze.getAnalysisSet().adoptAndAppend(jr)
+
+        os.makedirs(os.path.dirname(setup_xml), exist_ok=True)
+        analyze.printToXML(setup_xml)
+
+        # Default OpenSim JR frame is 'ground'; flip to 'child' for the
+        # canonical (suffix-less) setup.
+        if suffix == "":
+            _set_express_in_frame_child(setup_xml)
+
+    return setup_paths
+
+
+def run_jr(
+    *,
+    cp,
+    rp,
+    seg: str,
+    app: str,
+    dry_run: bool = False,
+) -> list[str]:
+    """Run all JR setup XMLs for one (segment, app), renaming ground output.
+
+    All jobs are executed in a SINGLE isolated subprocess so that the
+    rename step (canonical → ``_ground``) sits between the two consecutive
+    ``.run()`` calls without going back to the SET-polluted main process.
+    """
+    suffixes = _jr_suffix_order(app)
+    setup_paths = [cp.setup_jr_path(seg, app, suffix) for suffix in suffixes]
+
+    if dry_run:
+        return setup_paths
+
+    model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+    canonical_jr_sto = cp.jr_path(seg, app, "")
+
+    jobs: list[dict] = []
+    for suffix, setup_xml in zip(suffixes, setup_paths):
+        if not os.path.isfile(setup_xml):
+            raise FileNotFoundError(
+                f"JR setup missing: {setup_xml}\n"
+                "  Run with --tools jr (setups are created on first invocation)."
+            )
+        job: dict = {
+            "tool": "jr",
+            "setup_xml": setup_xml,
+            "model_path": model_path,
+        }
+        if suffix:
+            # Rename the canonical sto (just produced by this job) to its
+            # suffixed name BEFORE the next (child) job overwrites it.
+            suffixed = cp.jr_path(seg, app, suffix)
+            job["rename_after"] = [[canonical_jr_sto, suffixed]]
+        jobs.append(job)
+
+    _run_analyze_jobs(jobs)
+    return setup_paths
