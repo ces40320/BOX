@@ -518,7 +518,7 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
         ax.add_artist(main_legend)
         ax.legend(handles=phase_handles, loc="upper left", fontsize=8,
                   title="Phases")
-    ax.grid(True, alpha=0.3)
+    ax.grid(False)
     fig.tight_layout()
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -544,6 +544,14 @@ def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
     r                    : 자동 검출값(``t_tap_auto``)으로 reset
     Enter / Space        : 현재 선택값으로 확정 후 창 닫기
     창 X 클릭            : 현재 선택값으로 확정
+
+    Bounds
+    ------
+    오른쪽은 데이터 끝(``force_time[-1]``). 왼쪽은 ``t_tap`` 이 음수로
+    넘어갈 수 있게 열어 두되, 1AB 시작
+    (``t_tap + bpm_duration``) 이 0 초 미만이 되지 않는 지점
+    (``t_tap >= -bpm_duration``) 까지만 허용한다. ``bpm_duration`` 이
+    없으면 기존처럼 데이터 시작(``force_time[0]``) 에서 자른다.
 
     Parameters
     ----------
@@ -595,10 +603,19 @@ def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
     peak_idx = tap_info_auto["peak_idx"]
     peak_val = tap_info_auto["peak_value"]
 
-    state = {"t_tap": initial_t_tap_q}
     grid_step = 1.0 / float(quantize_hz)
     t_min = float(force_time[0])
     t_max = float(force_time[-1])
+    # 1AB start = t_tap + 1*bpm_duration. Allow t_tap < 0 so 1AB can
+    # be pulled left, but not past trial t=0.
+    if bpm_duration is not None:
+        t_tap_lo = -float(bpm_duration)
+        t_tap_lo = int(round(t_tap_lo * float(quantize_hz))) / float(quantize_hz)
+    else:
+        t_tap_lo = t_min
+    if initial_t_tap_q < t_tap_lo:
+        initial_t_tap_q = t_tap_lo
+    state = {"t_tap": initial_t_tap_q}
 
     fig, ax = plt.subplots(figsize=(13.0, 5.5))
     if window_title:
@@ -638,6 +655,11 @@ def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
     ax.axvline(t_tap_auto, color="gray", ls=":", lw=1.0, alpha=0.8,
                label=f"auto t_tap = {t_tap_auto:.2f}s")
     sel_vline = ax.axvline(state["t_tap"], color="purple", lw=2.0, alpha=0.9)
+
+    # t=0 가이드 + 음수 구간이 보이도록 xlim 을 t_tap_lo 까지 확장.
+    ax.axvline(0.0, color="k", ls="-", lw=0.6, alpha=0.25, zorder=0)
+    x_pad = max(0.3, 0.02 * max(t_max - t_tap_lo, 1.0))
+    ax.set_xlim(t_tap_lo - x_pad, t_max)
 
     y_max_val = float(max(np.nanmax(norm3), np.nanmax(norm4)))
     ax.set_ylim(top=y_max_val * 1.15)
@@ -687,19 +709,27 @@ def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
 
     def _set_title(t_tap):
         diff = t_tap - t_tap_auto
+        extra = ""
+        if bpm_duration is not None:
+            t_ab0 = t_tap + float(bpm_duration)
+            extra = (f"   1AB start = {t_ab0:.2f}s"
+                     f"  (floor 0.00s,  t_tap lo = {t_tap_lo:.2f}s)")
         ax.set_title(
             f"[MANUAL TAP]  Left-click: set t_tap (snap {grid_step:.2f}s)   "
             f"←/→: ±{grid_step:.2f}s   Shift+←/→: ±{10 * grid_step:.2f}s   "
             f"r: reset   Enter / close window: confirm\n"
             f"selected t_tap = {t_tap:.2f}s   "
             f"(auto = {t_tap_auto:.2f}s,  diff = {diff:+.2f}s)"
+            f"{extra}"
         )
 
     def _apply_t_tap(t_new):
-        # 데이터 범위 안으로 clip → 그리드 양자화 → 시각 업데이트.
-        t_clipped = max(t_min, min(t_max, float(t_new)))
+        # 1AB 시작 ≥ 0 이 되는 범위로 clip → 그리드 양자화 → 시각 업데이트.
+        t_clipped = max(t_tap_lo, min(t_max, float(t_new)))
         idx = int(round(t_clipped * float(quantize_hz)))
         t_q = idx / float(quantize_hz)
+        if t_q < t_tap_lo:
+            t_q = t_tap_lo
         state["t_tap"] = t_q
         sel_vline.set_xdata([t_q, t_q])
         _redraw_segments(t_q)
@@ -743,7 +773,7 @@ def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
         ax.add_artist(main_legend)
         ax.legend(handles=phase_handles, loc="upper left", fontsize=8,
                   title="Phases")
-    ax.grid(True, alpha=0.3)
+    ax.grid(False)
     fig.tight_layout()
 
     # blocking call — 창이 닫힐 때까지 대기.

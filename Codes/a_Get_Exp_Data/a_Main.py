@@ -40,6 +40,7 @@ print("Available subjects:", _path.DATA_SUB_NAMECODE_li)
 #   Shift + ← / →  : ±0.1s 조정
 #   r              : 자동 검출값으로 reset
 #   Enter / 창 닫기: 현재 선택값 확정 → 다음 condition 으로 진행
+#   왼쪽 한계      : 1AB 시작이 0초가 되는 t_tap (= -BPM_DURATION). 음수 허용.
 #
 # t_tap_offset 은 GUI 의 "초기 선택 위치" 로 사용된다 (없으면 자동 검출값).
 # scalar 또는 dict 두 가지 형태 지원:
@@ -59,9 +60,9 @@ namecode = "260306_KTY"    # TODO: 필요 시 변경
 #  동일한 결과를 자동으로 재현할 수 있음.)
 t_tap_offset_per_cond = {
     # "_default":  -2.00,   # 명시 안 한 cond 에 적용할 기본값 (선택)
-    "7kg_10bpm":  -2.30,
-    "7kg_16bpm": 0.30,
-    "15kg_10bpm": -1.45,
+    # "7kg_10bpm":  -2.30,
+    # "7kg_16bpm": 0.30,
+    # "15kg_10bpm": -1.45,
     # "15kg_16bpm": -2.45,
 }
 
