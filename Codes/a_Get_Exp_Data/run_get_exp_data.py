@@ -7,15 +7,37 @@
 
 Usage
 -----
-    python run_get_exp_data.py                                 # 모든 피험자 처리
-    python run_get_exp_data.py 240124_PJH                      # 특정 피험자만
-    python run_get_exp_data.py 240124_PJH 260306_KTH           # 여러 피험자
-    python run_get_exp_data.py --dry-run                       # 파일 탐색만, 실제 처리 안 함
-    python run_get_exp_data.py 260306_KTH --dry-run            # 특정 피험자 + 탐색만
-    python run_get_exp_data.py 260423_CES --t-tap-offset -0.5  # bpm_window: t_tap 0.5s 앞당김
+    python run_get_exp_data.py                                                # 모든 피험자
+    python run_get_exp_data.py 240124_PJH                                     # 특정 피험자만
+    python run_get_exp_data.py 240124_PJH 260306_KTH                          # 여러 피험자
+    python run_get_exp_data.py --dry-run                                      # 파일 탐색만
+    python run_get_exp_data.py 260306_KTH --dry-run                           # 특정 피험자 + 탐색만
+    python run_get_exp_data.py 260423_CES --t-tap-offset -0.5                 # 모든 cond 에 동일 offset
+    python run_get_exp_data.py 260423_CES --t-tap-offset 7kg_10bpm=-2.3 \
+                                          7kg_16bpm=-1.5                       # cond 별 offset
+    python run_get_exp_data.py 260423_CES --t-tap-offset -2.0 \
+                                          7kg_16bpm=-1.5                       # default + override
+    python run_get_exp_data.py 260423_CES --interactive-tap                   # tap 을 GUI 에서 클릭 선택
+    python run_get_exp_data.py 260423_CES --interactive-tap --dry-run         # 인터랙티브 + 탐색만
 
 Notebook (예: ``_a_Main.ipynb``) 에서는:
+    # 모든 condition 에 동일 offset
     process_subject("260423_CES", dry_run=False, t_tap_offset=-0.5)
+    # condition 별로 다른 offset
+    process_subject("260512_KCH", dry_run=False, t_tap_offset={
+        "7kg_10bpm":  -2.30,
+        "7kg_16bpm":  -1.50,
+        "15kg_10bpm": -2.45,
+    })
+    # default + 일부만 override
+    process_subject("260512_KCH", dry_run=False, t_tap_offset={
+        "_default":  -2.00,
+        "7kg_16bpm": -1.50,
+    })
+    # 인터랙티브 (cond 마다 GUI 창이 뜸; t_tap_offset 은 초기 선택 위치)
+    process_subject("260423_CES", dry_run=False, interactive_tap=True)
+    # 주피터의 경우 인터랙티브 창이 별도로 뜨려면 셀 상단에 ``%matplotlib qt``
+    # 또는 ``%matplotlib tk`` 가 설정되어 있어야 한다 (기본 ``inline`` 은 GUI 미지원).
 
 세그먼트 분할 방식 -> 구현 후 이주 개별 py파일로 예정
 ------------------
@@ -384,7 +406,15 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
         segment 라벨 (예: ``["1AB","1BC","1CA","2AB",…]``). 스케줄 순서 유지.
     """
     import matplotlib
-    matplotlib.use("Agg")
+    # GUI backend 가 이미 초기화된 세션(인터랙티브 선택을 먼저 사용한 경우 등)
+    # 에선 matplotlib.use("Agg") 가 경고를 내거나 무시될 수 있다.  pyplot
+    # 모듈이 아직 import 되지 않았을 때만 안전하게 Agg 로 강제하여 헤드리스
+    # 환경에서도 PNG 저장이 가능하도록 한다.
+    if "matplotlib.pyplot" not in sys.modules:
+        try:
+            matplotlib.use("Agg")
+        except Exception:
+            pass
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
 
@@ -494,6 +524,232 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     fig.savefig(out_path, dpi=120)
     plt.close(fig)
+
+
+def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
+                              onset_thr_n, bpm_duration=None, seg_labels=None,
+                              quantize_hz=100.0, initial_t_tap=None,
+                              window_title=None):
+    """[INTERACTIVE] matplotlib GUI 창에서 마우스 클릭으로 ``t_tap`` 직접 선택.
+
+    창이 열리면 자동 검출 결과(회색 점선)와 현재 선택(보라색 실선) 이 함께
+    표시된다. 사용자는 그래프 영역을 좌클릭해 anchor 를 옮길 수 있고,
+    클릭 위치는 ``quantize_hz`` 그리드(기본 100 Hz → 0.01 s)로 스냅된다.
+    창을 닫거나 Enter 를 누르면 현재 선택값이 확정되어 반환된다.
+
+    Keyboard shortcuts
+    ------------------
+    Left / Right         : ``±1/quantize_hz`` 초 단위 미세 조정
+    Shift+Left / Right   : ``±10/quantize_hz`` 초 단위 조정
+    r                    : 자동 검출값(``t_tap_auto``)으로 reset
+    Enter / Space        : 현재 선택값으로 확정 후 창 닫기
+    창 X 클릭            : 현재 선택값으로 확정
+
+    Parameters
+    ----------
+    force_time, norm3, norm4 : ndarray
+        1000 Hz 시간축과 두 손 로드셀의 ‖F‖ 시계열.
+    tap_info_auto : dict
+        ``_detect_first_tap_onset`` 가 반환한 dict (자동 검출 결과를
+        참조용 시각화에 사용).
+    onset_thr_n : float
+        가로 점선으로 표시할 onset threshold (N).
+    bpm_duration : float or None
+        segment 폭(초). 주어지면 선택된 ``t_tap`` 기준 segment 경계선을
+        실시간으로 함께 그려준다.
+    seg_labels : list[str] or None
+        segment 라벨 (예: ``["1AB","1BC","1CA","2AB",…]``).
+    quantize_hz : float
+        선택 위치를 정렬할 그리드 (기본 100 Hz).
+    initial_t_tap : float or None
+        창이 열릴 때 초기 선택값. None 이면 ``tap_info_auto["t_tap"]``.
+        ``--t-tap-offset`` 같은 사전 보정을 초기값으로 넣고 추가 미세조정을
+        하고 싶을 때 사용.
+    window_title : str or None
+        OS 창 제목 (다중 condition 처리 시 어느 trial 인지 식별용).
+
+    Returns
+    -------
+    float
+        확정된 ``t_tap`` (``quantize_hz`` 그리드로 양자화된 값).
+
+    Notes
+    -----
+    - 헤드리스 환경(또는 ``MPLBACKEND=Agg``)에서는 GUI 창이 열리지 않으므로
+      ``--interactive-tap`` 옵션을 사용해선 안 된다.
+    - Jupyter 에선 기본 ``%matplotlib inline`` 이 GUI 를 지원하지 않으므로
+      셀 상단에 ``%matplotlib qt`` 또는 ``%matplotlib tk`` 를 먼저 실행해야
+      별도 창이 뜬다.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    t_tap_auto = float(tap_info_auto["t_tap"])
+    if initial_t_tap is None:
+        initial_t_tap = t_tap_auto
+    initial_idx = int(round(float(initial_t_tap) * float(quantize_hz)))
+    initial_t_tap_q = initial_idx / float(quantize_hz)
+
+    side = tap_info_auto["side"]
+    onset_idx = tap_info_auto["onset_idx"]
+    peak_idx = tap_info_auto["peak_idx"]
+    peak_val = tap_info_auto["peak_value"]
+
+    state = {"t_tap": initial_t_tap_q}
+    grid_step = 1.0 / float(quantize_hz)
+    t_min = float(force_time[0])
+    t_max = float(force_time[-1])
+
+    fig, ax = plt.subplots(figsize=(13.0, 5.5))
+    if window_title:
+        try:
+            fig.canvas.manager.set_window_title(window_title)
+        except Exception:
+            pass
+
+    # ── 기본 신호 / 검출 시각화 (저장용 plot 과 동일 톤) ────────
+    ax.plot(force_time, norm3, color="#1f77b4", lw=0.7, alpha=0.7,
+            label="‖F3‖ (left)")
+    ax.plot(force_time, norm4, color="#d62728", lw=0.7, alpha=0.7,
+            label="‖F4‖ (right)")
+
+    if len(tap_info_auto["peaks3"]):
+        ax.plot(force_time[tap_info_auto["peaks3"]],
+                norm3[tap_info_auto["peaks3"]],
+                "x", color="#1f77b4", ms=5, alpha=0.5)
+    if len(tap_info_auto["peaks4"]):
+        ax.plot(force_time[tap_info_auto["peaks4"]],
+                norm4[tap_info_auto["peaks4"]],
+                "x", color="#d62728", ms=5, alpha=0.5)
+
+    chosen_signal = norm3 if side == "f3" else norm4
+    chosen_color = "#1f77b4" if side == "f3" else "#d62728"
+    ax.plot(force_time[onset_idx], chosen_signal[onset_idx],
+            "o", mfc="none", mec=chosen_color, ms=12, mew=2.0,
+            label="auto onset")
+    ax.plot(force_time[peak_idx], chosen_signal[peak_idx],
+            "*", color=chosen_color, ms=10, alpha=0.8,
+            label=f"peak ({peak_val:.1f}N)")
+
+    ax.axhline(onset_thr_n, color="gray", ls="--", lw=0.7,
+               label=f"onset_thr={onset_thr_n}N")
+
+    # 자동 검출 reference (회색 점선) + 사용자 선택 (보라 실선).
+    ax.axvline(t_tap_auto, color="gray", ls=":", lw=1.0, alpha=0.8,
+               label=f"auto t_tap = {t_tap_auto:.2f}s")
+    sel_vline = ax.axvline(state["t_tap"], color="purple", lw=2.0, alpha=0.9)
+
+    y_max_val = float(max(np.nanmax(norm3), np.nanmax(norm4)))
+    ax.set_ylim(top=y_max_val * 1.15)
+    y_label_pos = y_max_val * 1.08
+
+    # phase suffix → 색 매핑 (저장용 plot 과 동일 규칙).
+    phase_colors: dict[str, tuple] = {}
+    if seg_labels:
+        cmap = plt.get_cmap("tab10")
+        for label in seg_labels:
+            phase = re.sub(r"^\d+", "", str(label))
+            if phase and phase not in phase_colors:
+                phase_colors[phase] = cmap(len(phase_colors) % 10)
+
+    seg_artists = {"lines": [], "texts": []}
+
+    def _redraw_segments(t_tap):
+        # 이전 segment artifacts 제거 → 새 위치로 다시 그림.
+        for a in seg_artists["lines"]:
+            a.remove()
+        for a in seg_artists["texts"]:
+            a.remove()
+        seg_artists["lines"].clear()
+        seg_artists["texts"].clear()
+
+        if bpm_duration is None or not seg_labels:
+            return
+
+        for k, label in enumerate(seg_labels):
+            phase = re.sub(r"^\d+", "", str(label))
+            color = phase_colors.get(phase, (0.3, 0.3, 0.3, 1.0))
+            ps = t_tap + (1 + k) * float(bpm_duration)
+            pe = ps + float(bpm_duration)
+            if pe < t_min or ps > t_max:
+                continue
+            line = ax.axvline(ps, color=color, ls=":", lw=0.9, alpha=0.85)
+            txt = ax.text((ps + pe) / 2.0, y_label_pos, str(label),
+                          ha="center", va="bottom", fontsize=7,
+                          color=color, alpha=0.95)
+            seg_artists["lines"].append(line)
+            seg_artists["texts"].append(txt)
+
+        ps_end = t_tap + (1 + len(seg_labels)) * float(bpm_duration)
+        if t_min <= ps_end <= t_max:
+            line = ax.axvline(ps_end, color="gray", ls=":", lw=0.6, alpha=0.6)
+            seg_artists["lines"].append(line)
+
+    def _set_title(t_tap):
+        diff = t_tap - t_tap_auto
+        ax.set_title(
+            f"[MANUAL TAP]  Left-click: set t_tap (snap {grid_step:.2f}s)   "
+            f"←/→: ±{grid_step:.2f}s   Shift+←/→: ±{10 * grid_step:.2f}s   "
+            f"r: reset   Enter / close window: confirm\n"
+            f"selected t_tap = {t_tap:.2f}s   "
+            f"(auto = {t_tap_auto:.2f}s,  diff = {diff:+.2f}s)"
+        )
+
+    def _apply_t_tap(t_new):
+        # 데이터 범위 안으로 clip → 그리드 양자화 → 시각 업데이트.
+        t_clipped = max(t_min, min(t_max, float(t_new)))
+        idx = int(round(t_clipped * float(quantize_hz)))
+        t_q = idx / float(quantize_hz)
+        state["t_tap"] = t_q
+        sel_vline.set_xdata([t_q, t_q])
+        _redraw_segments(t_q)
+        _set_title(t_q)
+        fig.canvas.draw_idle()
+
+    def on_click(event):
+        if event.inaxes != ax or event.xdata is None:
+            return
+        if event.button != 1:
+            return
+        _apply_t_tap(float(event.xdata))
+
+    def on_key(event):
+        k = event.key
+        if k in ("enter", " "):
+            plt.close(fig)
+        elif k == "r":
+            _apply_t_tap(t_tap_auto)
+        elif k == "left":
+            _apply_t_tap(state["t_tap"] - grid_step)
+        elif k == "right":
+            _apply_t_tap(state["t_tap"] + grid_step)
+        elif k == "shift+left":
+            _apply_t_tap(state["t_tap"] - 10 * grid_step)
+        elif k == "shift+right":
+            _apply_t_tap(state["t_tap"] + 10 * grid_step)
+
+    fig.canvas.mpl_connect("button_press_event", on_click)
+    fig.canvas.mpl_connect("key_press_event", on_key)
+
+    _redraw_segments(state["t_tap"])
+    _set_title(state["t_tap"])
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("‖F‖ (N)")
+
+    main_legend = ax.legend(loc="upper right", fontsize=8)
+    if phase_colors:
+        phase_handles = [Line2D([0], [0], color=c, ls=":", lw=1.5, label=p)
+                         for p, c in phase_colors.items()]
+        ax.add_artist(main_legend)
+        ax.legend(handles=phase_handles, loc="upper left", fontsize=8,
+                  title="Phases")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    # blocking call — 창이 닫힐 때까지 대기.
+    plt.show()
+
+    return state["t_tap"]
 
 
 # ── 매뉴얼 윈도우 분할 파이프라인 ─────────────────────────────────
@@ -664,7 +920,7 @@ def process_condition_manual_window(rp, cp, c3d_path, rigid_csv_path):      # TO
 
 
 def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path,
-                                 t_tap_offset=0.0):
+                                 t_tap_offset=0.0, interactive_tap=False):
     """BPM 기반 자동 윈도우 세그먼트 분할 → TRC/MOT 출력.
 
     manual_window 와 차이점은 단 하나 — cycle 시작점을 결정하는 방식.
@@ -692,6 +948,13 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path,
         검출된 ``t_tap`` 에 더하는 수동 보정 (초). 음수면 anchor 를 앞으로
         당김(=윈도우 전체가 일찍 시작), 양수면 뒤로 미룸. 보정값도
         ``ONSET_QUANTIZE_HZ`` 그리드(기본 100 Hz, 0.01 s)로 재양자화된다.
+    interactive_tap : bool, default False
+        True 면 자동 검출 직후 matplotlib GUI 창을 띄워 사용자가 직접
+        ``t_tap`` 위치를 마우스 클릭으로 선택하도록 한다. 창이 열릴 때
+        초기 선택값은 ``t_tap_raw + t_tap_offset`` (그리드 양자화)이며,
+        창을 닫으면 그 시점에서의 선택값이 anchor 로 채택된다.
+        ``t_tap_offset`` 인자는 보조 초기값 역할만 하고, 최종 effective
+        offset 은 ``selected_t_tap - t_tap_raw`` 로 다시 계산된다.
     """
     seg_cfg = rp.segmentation
     if seg_cfg.get("method") != "bpm_window":
@@ -778,32 +1041,67 @@ def process_condition_bpm_window(rp, cp, c3d_path, rigid_csv_path,
         onset_thr_n=onset_thr, quantize_hz=quantize_hz,
     )
 
-    # ── 4-1) 수동 offset 적용 (그리드 재양자화) ────────────────
+    # ── 4-1) tap anchor 결정 (인터랙티브 선택 OR offset 보정) ───
+    # interactive_tap=True 면 GUI 창에서 사용자가 직접 클릭으로 선택.
+    # 그렇지 않으면 t_tap_offset 만 적용해 그리드에 재양자화.
+    # 양쪽 경로 모두 동일한 tap_info dict (t_tap / t_tap_raw / t_tap_offset)
+    # 형태로 통일되어 이후 plot 및 segment 분할에서 분기 없이 사용된다.
     t_tap_raw = tap_info["t_tap"]
     offset = float(t_tap_offset)
-    t_tap_idx = int(round((t_tap_raw + offset) * quantize_hz))
-    t_tap = t_tap_idx / quantize_hz
-    tap_info["t_tap_raw"] = t_tap_raw
-    tap_info["t_tap"] = t_tap
-    tap_info["t_tap_offset"] = offset
 
-    if offset != 0.0:
-        print(f"    tap onset: side={tap_info['side']} "
-              f"t_tap_raw={t_tap_raw:.2f}s offset={offset:+.2f}s "
-              f"→ t_tap={t_tap:.2f}s "
-              f"peak={tap_info['peak_value']:.1f}N "
-              f"(peak_idx={tap_info['peak_idx']})")
-    else:
-        print(f"    tap onset: side={tap_info['side']} t_tap={t_tap:.2f}s "
-              f"peak={tap_info['peak_value']:.1f}N "
-              f"(peak_idx={tap_info['peak_idx']})")
-
-    # ── 5) section 정보 + 디렉토리 트리 + 디버그 플롯 ───────────
+    # section 정보는 인터랙티브 창에 segment 경계를 그릴 때도 필요하므로
+    # build_tree 보다 먼저 계산해둔다 (메서드 호출만으로 사이드이펙트 없음).
     section_segs = cp.section_segments()         # {"AB":[...], "BC":[...], "CA":[...]}
     section_order = list(section_segs.keys())
     n_phases = len(section_order)
-    seg_labels = cp.all_sections()               # ["1AB","1BC","1CA","2AB",…] (스케줄 순서)
+    seg_labels = cp.all_sections()               # ["1AB","1BC","1CA","2AB",…]
 
+    if interactive_tap:
+        initial_idx = int(round((t_tap_raw + offset) * quantize_hz))
+        initial_t_tap = initial_idx / quantize_hz
+        win_title = (f"[manual tap] {os.path.basename(c3d_path)}  "
+                     f"cond={cp.cond}")
+        print(f"    [interactive] auto t_tap_raw={t_tap_raw:.2f}s "
+              f"(initial selection={initial_t_tap:.2f}s) "
+              f"— opening matplotlib window…")
+        t_tap = _select_t_tap_interactive(
+            force_time, norm3, norm4, tap_info,
+            onset_thr_n=onset_thr,
+            bpm_duration=seg_duration,
+            seg_labels=seg_labels,
+            quantize_hz=quantize_hz,
+            initial_t_tap=initial_t_tap,
+            window_title=win_title,
+        )
+        effective_offset = round(t_tap - t_tap_raw,
+                                 int(round(np.log10(quantize_hz))))
+        tap_info["t_tap_raw"] = t_tap_raw
+        tap_info["t_tap"] = t_tap
+        tap_info["t_tap_offset"] = effective_offset
+        print(f"    [interactive] selected t_tap={t_tap:.2f}s  "
+              f"(auto={t_tap_raw:.2f}s, effective offset "
+              f"{effective_offset:+.2f}s)  "
+              f"→ 재실행 시 동일 결과: --t-tap-offset "
+              f"{effective_offset:+.2f}")
+    else:
+        t_tap_idx = int(round((t_tap_raw + offset) * quantize_hz))
+        t_tap = t_tap_idx / quantize_hz
+        tap_info["t_tap_raw"] = t_tap_raw
+        tap_info["t_tap"] = t_tap
+        tap_info["t_tap_offset"] = offset
+
+        if offset != 0.0:
+            print(f"    tap onset: side={tap_info['side']} "
+                  f"t_tap_raw={t_tap_raw:.2f}s offset={offset:+.2f}s "
+                  f"→ t_tap={t_tap:.2f}s "
+                  f"peak={tap_info['peak_value']:.1f}N "
+                  f"(peak_idx={tap_info['peak_idx']})")
+        else:
+            print(f"    tap onset: side={tap_info['side']} t_tap={t_tap:.2f}s "
+                  f"peak={tap_info['peak_value']:.1f}N "
+                  f"(peak_idx={tap_info['peak_idx']})")
+
+    # ── 5) 디렉토리 트리 + 디버그 플롯 ──────────────────────────
     cp.build_tree()
 
     debug_png = os.path.join(cp.cond_dir, "tap_onset_check.png")
@@ -981,9 +1279,184 @@ def _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path):
         print(f"    [OK] Inputs matched, config valid.")
 
 
+def _dry_run_tap_onset_plot(rp, cp, c3d_path, t_tap_offset=0.0,
+                            interactive_tap=False):
+    """dry-run 전용: ``bpm_window`` 의 ``tap_onset_check.png`` 만 생성.
+
+    실제 segment 분할 / TRC·MOT 출력은 수행하지 않는다. tap 검출 위치와
+    BPM 윈도우 배치를 미리 시각적으로 검증해 ``t_tap_offset`` 을 조정할
+    수 있게 돕는 용도. ``bpm_window`` 가 아닌 method 에선 아무 것도 안 함.
+
+    ``interactive_tap=True`` 면 자동 검출 결과를 보여주는 matplotlib GUI
+    창이 먼저 뜨고, 사용자가 클릭으로 선택한 ``t_tap`` 이 PNG 에 반영되어
+    저장된다. (dry-run 이므로 TRC/MOT 은 여전히 작성되지 않는다.)
+
+    Notes
+    -----
+    - C3D 의 force platform 만 읽으므로 RigidBody CSV 는 필요 없음.
+    - ``cp.build_tree()`` 는 호출하지 않음 — PNG 가 들어갈 ``cond_dir`` 만
+      ``_plot_tap_onset_check`` 내부의 ``os.makedirs`` 로 생성됨.
+    - 검출/플롯이 실패해도 dry-run 자체는 중단하지 않음.
+    """
+    if rp.segmentation.get("method") != "bpm_window":
+        return
+    if not c3d_path or not os.path.isfile(c3d_path):
+        return
+
+    seg_cfg = rp.segmentation
+    try:
+        bpm = _extract_bpm_from_condition(cp.cond)
+    except ValueError as exc:
+        print(f"    [dry-run plot] BPM extract failed: {exc}")
+        return
+
+    bpm_duration_map = seg_cfg.get("BPM_DURATION", {})
+    if bpm not in bpm_duration_map:
+        print(f"    [dry-run plot] BPM {bpm} not in BPM_DURATION map")
+        return
+
+    seg_duration = float(bpm_duration_map[bpm])
+    tap_height = float(seg_cfg["TAP_HEIGHT_N"])
+    tap_prom = float(seg_cfg["TAP_PROMINENCE_N"])
+    tap_min_dist = float(seg_cfg["TAP_MIN_DISTANCE_SEC"])
+    onset_thr = float(seg_cfg["ONSET_THRESHOLD_N"])
+    quantize_hz = float(seg_cfg.get("ONSET_QUANTIZE_HZ", 100.0))
+
+    try:
+        forces = _io.read_c3d_force_platforms(c3d_path, rotations=None)
+        _assert_canonical_force_keys(forces, c3d_path)
+        force_time = forces["time"]
+        if len(force_time) < 2:
+            print("    [dry-run plot] insufficient frames in C3D.")
+            return
+        if "f3" not in forces or "f4" not in forces:
+            print("    [dry-run plot] hand load-cells 'f3'/'f4' missing.")
+            return
+
+        norm3 = _force_plate_norm(forces, 3)
+        norm4 = _force_plate_norm(forces, 4)
+        tap_info = _detect_first_tap_onset(
+            force_time, norm3, norm4,
+            height_n=tap_height, prominence_n=tap_prom,
+            min_dist_sec=tap_min_dist,
+            onset_thr_n=onset_thr, quantize_hz=quantize_hz,
+        )
+
+        # tap anchor 결정 — 실제 실행 경로(process_condition_bpm_window) 와
+        # 동일한 분기 로직을 유지해 dry-run 으로 확인한 결과가 그대로 실행에
+        # 재현될 수 있게 한다.
+        t_tap_raw = tap_info["t_tap"]
+        offset = float(t_tap_offset)
+        seg_labels = cp.all_sections()
+
+        if interactive_tap:
+            initial_idx = int(round((t_tap_raw + offset) * quantize_hz))
+            initial_t_tap = initial_idx / quantize_hz
+            win_title = (f"[manual tap / dry-run] "
+                         f"{os.path.basename(c3d_path)}  cond={cp.cond}")
+            print(f"    [interactive/dry-run] auto t_tap_raw={t_tap_raw:.2f}s "
+                  f"(initial={initial_t_tap:.2f}s) — opening matplotlib "
+                  f"window…")
+            t_tap = _select_t_tap_interactive(
+                force_time, norm3, norm4, tap_info,
+                onset_thr_n=onset_thr,
+                bpm_duration=seg_duration,
+                seg_labels=seg_labels,
+                quantize_hz=quantize_hz,
+                initial_t_tap=initial_t_tap,
+                window_title=win_title,
+            )
+            effective_offset = round(t_tap - t_tap_raw,
+                                     int(round(np.log10(quantize_hz))))
+            tap_info["t_tap_raw"] = t_tap_raw
+            tap_info["t_tap"] = t_tap
+            tap_info["t_tap_offset"] = effective_offset
+            print(f"    [interactive/dry-run] selected t_tap={t_tap:.2f}s  "
+                  f"(auto={t_tap_raw:.2f}s, effective offset "
+                  f"{effective_offset:+.2f}s)  "
+                  f"→ 실제 실행: --t-tap-offset {effective_offset:+.2f}")
+        else:
+            t_tap_idx = int(round((t_tap_raw + offset) * quantize_hz))
+            t_tap = t_tap_idx / quantize_hz
+            tap_info["t_tap_raw"] = t_tap_raw
+            tap_info["t_tap"] = t_tap
+            tap_info["t_tap_offset"] = offset
+
+            if offset != 0.0:
+                print(f"    tap onset: side={tap_info['side']} "
+                      f"t_tap_raw={t_tap_raw:.2f}s offset={offset:+.2f}s "
+                      f"→ t_tap={t_tap:.2f}s "
+                      f"peak={tap_info['peak_value']:.1f}N "
+                      f"(peak_idx={tap_info['peak_idx']})")
+            else:
+                print(f"    tap onset: side={tap_info['side']} "
+                      f"t_tap={t_tap:.2f}s "
+                      f"peak={tap_info['peak_value']:.1f}N "
+                      f"(peak_idx={tap_info['peak_idx']})")
+
+        debug_png = os.path.join(cp.cond_dir, "tap_onset_check.png")
+        _plot_tap_onset_check(
+            debug_png, force_time, norm3, norm4,
+            tap_info, onset_thr_n=onset_thr,
+            bpm_duration=seg_duration, seg_labels=seg_labels,
+        )
+        print(f"    [dry-run] debug plot: {debug_png}")
+    except Exception as exc:
+        print(f"    [WARN] dry-run debug plot failed: {exc}")
+
+
 # ── 피험자 단위 처리 ─────────────────────────────────────────────
 
-def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
+_T_TAP_OFFSET_DEFAULT_KEY = "_default"
+
+
+def _resolve_t_tap_offset(t_tap_offset, cond_key):
+    """``t_tap_offset`` 인자를 condition 별 scalar 로 정규화.
+
+    Accepted forms
+    --------------
+    - None                              → 0.0
+    - float / int                       → 모든 condition 에 동일 적용
+    - dict[str, float]                  → condition key 별 lookup
+        - ``cond_key`` 가 dict 에 있으면 그 값 사용
+        - 없으면 ``"_default"`` key 값 사용
+        - 그것도 없으면 0.0 (정보용 print)
+
+    Examples
+    --------
+    >>> _resolve_t_tap_offset(-2.3, "7kg_10bpm")
+    -2.3
+    >>> _resolve_t_tap_offset({"7kg_10bpm": -2.3, "7kg_16bpm": -1.5}, "7kg_10bpm")
+    -2.3
+    >>> _resolve_t_tap_offset({"_default": -2.0, "7kg_16bpm": -1.5}, "7kg_10bpm")
+    -2.0
+    """
+    if t_tap_offset is None:
+        return 0.0
+    if isinstance(t_tap_offset, dict):
+        if cond_key in t_tap_offset:
+            return float(t_tap_offset[cond_key])
+        if _T_TAP_OFFSET_DEFAULT_KEY in t_tap_offset:
+            return float(t_tap_offset[_T_TAP_OFFSET_DEFAULT_KEY])
+        print(f"    [INFO] t_tap_offset dict has no entry for "
+              f"{cond_key!r} and no {_T_TAP_OFFSET_DEFAULT_KEY!r}; "
+              f"using 0.0")
+        return 0.0
+    return float(t_tap_offset)
+
+
+def _format_t_tap_offset_header(t_tap_offset):
+    """``process_subject`` 헤더 출력용 문자열. dict 면 보기 좋게 정렬."""
+    if isinstance(t_tap_offset, dict):
+        items = ", ".join(
+            f"{k}={float(v):+.2f}" for k, v in t_tap_offset.items()
+        )
+        return f"{{{items}}}  (per-condition)"
+    return f"{float(t_tap_offset):+.2f}s  (manual)"
+
+
+def process_subject(namecode, dry_run=False, t_tap_offset=0.0,
+                    interactive_tap=False):
     """한 명의 피험자에 대해 전체 파이프라인 수행.
 
     Parameters
@@ -992,10 +1465,35 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
         피험자 namecode (예: ``"260306_KTH"``).
     dry_run : bool, default False
         True 면 파일 탐색·계획 출력만 수행하고 실제 변환은 건너뜀.
-    t_tap_offset : float, default 0.0
+    t_tap_offset : float or dict[str, float], default 0.0
         ``bpm_window`` 전용. 자동 검출된 ``t_tap`` 에 더하는 수동 보정(초).
         음수면 윈도우를 앞으로 당김(=일찍 시작), 양수면 뒤로 미룸.
+
+        - ``float`` 로 주면 모든 condition 에 동일 적용.
+        - ``dict[cond_key, offset]`` 로 주면 condition 별로 다른 값 적용.
+          dict 에 없는 cond_key 는 ``"_default"`` key 값(없으면 0.0)으로
+          폴백한다.
+
         다른 method (manual_window/findpeaks)에서는 무시.
+    interactive_tap : bool, default False
+        ``bpm_window`` 전용. True 면 자동 검출 후 matplotlib GUI 창에서
+        ``t_tap`` 을 마우스 클릭으로 직접 선택할 수 있게 한다.
+        ``t_tap_offset`` 가 함께 주어지면 (scalar 또는 dict 모두) 해당
+        condition 의 값이 창의 초기 선택 위치로 사용된다. ``dry_run``
+        모드에서도 동일하게 GUI 가 뜨며, 사용자가 고른 위치로
+        ``tap_onset_check.png`` 만 저장하고 TRC/MOT 은 생성하지 않는다.
+
+    Examples
+    --------
+    >>> process_subject("260512_KCH", t_tap_offset=-2.3)
+    >>> process_subject(
+    ...     "260512_KCH",
+    ...     t_tap_offset={"7kg_10bpm": -2.30, "7kg_16bpm": -1.50},
+    ... )
+    >>> process_subject(
+    ...     "260512_KCH",
+    ...     t_tap_offset={"_default": -2.0, "7kg_16bpm": -1.50},
+    ... )
     """
     rp = _path.ResultPaths(namecode)
 
@@ -1006,8 +1504,27 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
     print(f"  Rigid dir: {rp.rigid_dir}")
     print(f"  Output  : {rp.sub_dir}")
     print(f"  APPs    : {rp.apps}")
-    if rp.segmentation.get("method") == "bpm_window" and t_tap_offset != 0.0:
-        print(f"  t_tap_offset : {t_tap_offset:+.2f}s  (manual)")
+    if rp.segmentation.get("method") == "bpm_window":
+        # dict / scalar 양쪽 모두 동일 포맷터로 헤더 출력.
+        if isinstance(t_tap_offset, dict) or t_tap_offset != 0.0:
+            print(f"  t_tap_offset : {_format_t_tap_offset_header(t_tap_offset)}")
+
+        # dict 모드: 등록된 cond_key 중 실존하지 않는 것 검출 → 사용자 경고.
+        # (오타 / 사라진 condition 을 조용히 무시하지 않도록.)
+        if isinstance(t_tap_offset, dict):
+            available_conds = set(rp.conditions.keys())
+            invalid_keys = [
+                k for k in t_tap_offset.keys()
+                if k != _T_TAP_OFFSET_DEFAULT_KEY and k not in available_conds
+            ]
+            if invalid_keys:
+                print(f"  [WARN] t_tap_offset has keys not in this "
+                      f"subject's conditions: {invalid_keys}")
+                print(f"         available conditions: "
+                      f"{sorted(available_conds)}")
+
+        if interactive_tap:
+            print(f"  interactive_tap : ON  (GUI window for t_tap selection)")
     print(f"{'='*60}")
 
     pipeline_fn = _METHOD_DISPATCH.get(rp.segmentation["method"])
@@ -1076,8 +1593,25 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
         if cond_val.get("error_log"):
             print(f"    error_log: {cond_val['error_log']}")
 
+        # condition 별 offset 해석 (scalar 면 그대로, dict 면 lookup).
+        cond_offset = _resolve_t_tap_offset(t_tap_offset, cond_key)
+        if (rp.segmentation.get("method") == "bpm_window"
+                and isinstance(t_tap_offset, dict)
+                and cond_offset != 0.0):
+            print(f"    [t_tap_offset] {cond_offset:+.2f}s  "
+                  f"(per-condition override)")
+
         if dry_run:
             _report_dry_run_plan(rp, cp, cond_val, c3d_path, rigid_csv_path)
+            # bpm_window 인 경우 tap_onset_check.png 도 미리 생성해
+            # t_tap_offset 튜닝을 시각적으로 확인할 수 있게 한다.
+            # interactive_tap=True 면 GUI 창에서 직접 선택 가능.
+            if c3d_path is not None:
+                _dry_run_tap_onset_plot(
+                    rp, cp, c3d_path,
+                    t_tap_offset=cond_offset,
+                    interactive_tap=interactive_tap,
+                )
             continue
         if not c3d_path:
             print(f"    [SKIP] No C3D file found for '{cond_key}'")
@@ -1086,11 +1620,13 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
             print(f"    [SKIP] No RigidBody CSV found for '{cond_key}'")
             continue
 
-        # bpm_window 만 t_tap_offset 을 사용. 다른 method 시그니처는 변경 없음.
+        # bpm_window 만 t_tap_offset / interactive_tap 을 사용.
+        # 다른 method 시그니처는 변경 없음.
         try:
             if rp.segmentation.get("method") == "bpm_window":
                 pipeline_fn(rp, cp, c3d_path, rigid_csv_path,
-                            t_tap_offset=t_tap_offset)
+                            t_tap_offset=cond_offset,
+                            interactive_tap=interactive_tap)
             else:
                 pipeline_fn(rp, cp, c3d_path, rigid_csv_path)
         except _io.UnsupportedForceSourceCountError as exc:
@@ -1099,6 +1635,60 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0):
 
 
 # ── CLI 엔트리포인트 ─────────────────────────────────────────────
+
+def _parse_cli_t_tap_offset(tokens):
+    """``--t-tap-offset`` CLI 토큰들을 scalar 또는 dict 으로 변환.
+
+    Token 규칙
+    ----------
+    - ``=`` 가 없는 토큰: 단일 scalar (예: ``-2.3``)
+    - ``cond_key=value``: condition 별 override (예: ``7kg_10bpm=-2.3``)
+
+    Examples
+    --------
+    >>> _parse_cli_t_tap_offset(["-2.3"])
+    -2.3
+    >>> _parse_cli_t_tap_offset(["7kg_10bpm=-2.3", "7kg_16bpm=-1.5"])
+    {'7kg_10bpm': -2.3, '7kg_16bpm': -1.5}
+    >>> _parse_cli_t_tap_offset(["-2.0", "7kg_16bpm=-1.5"])
+    {'_default': -2.0, '7kg_16bpm': -1.5}
+    """
+    if not tokens:
+        return 0.0
+    has_keyed = any("=" in t for t in tokens)
+    if not has_keyed:
+        if len(tokens) > 1:
+            raise argparse.ArgumentTypeError(
+                f"--t-tap-offset 에 scalar 토큰은 1개만 허용됩니다 "
+                f"(받은 값: {tokens}). condition 별 override 는 "
+                f"'cond_key=value' 형식으로 주세요."
+            )
+        return float(tokens[0])
+
+    result = {}
+    for t in tokens:
+        if "=" in t:
+            k, v = t.split("=", 1)
+            k = k.strip()
+            if not k:
+                raise argparse.ArgumentTypeError(
+                    f"--t-tap-offset: 빈 cond_key (token={t!r})"
+                )
+            try:
+                result[k] = float(v)
+            except ValueError:
+                raise argparse.ArgumentTypeError(
+                    f"--t-tap-offset: 잘못된 숫자 (token={t!r})"
+                )
+        else:
+            if _T_TAP_OFFSET_DEFAULT_KEY in result:
+                raise argparse.ArgumentTypeError(
+                    f"--t-tap-offset 에 default scalar 가 두 번 이상 "
+                    f"지정되었습니다 (token={t!r})."
+                )
+            result[_T_TAP_OFFSET_DEFAULT_KEY] = float(t)
+    return result
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -1113,11 +1703,27 @@ def main():
         help="파일 탐색만 수행, 실제 변환 생략",
     )
     parser.add_argument(
-        "--t-tap-offset", type=float, default=0.0,
+        "--t-tap-offset", nargs="+", default=None, metavar="OFFSET",
         help="(bpm_window 전용) 검출된 t_tap 에 더할 수동 보정(초). "
-             "음수면 윈도우를 앞으로 당김. 기본 0.",
+             "음수면 윈도우를 앞으로 당김. 기본 0.\n"
+             "사용 방식:\n"
+             "  --t-tap-offset -2.3                              # 모든 cond\n"
+             "  --t-tap-offset 7kg_10bpm=-2.3 7kg_16bpm=-1.5     # cond별\n"
+             "  --t-tap-offset -2.0 7kg_16bpm=-1.5               # default + override",
+    )
+    parser.add_argument(
+        "--interactive-tap", action="store_true",
+        help="(bpm_window 전용) tap event 를 matplotlib GUI 창에서 "
+             "마우스 클릭으로 직접 선택. --t-tap-offset 가 함께 주어지면 "
+             "각 condition 별 값이 창의 초기 선택 위치로 사용된다. "
+             "--dry-run 과도 결합 가능 (선택 결과로 tap_onset_check.png 만 저장).",
     )
     args = parser.parse_args()
+
+    try:
+        t_tap_offset = _parse_cli_t_tap_offset(args.t_tap_offset)
+    except argparse.ArgumentTypeError as exc:
+        parser.error(str(exc))
 
     available = _path.DATA_SUB_NAMECODE_li
 
@@ -1139,7 +1745,8 @@ def main():
     for namecode in namecodes:
         try:
             process_subject(namecode, dry_run=args.dry_run,
-                            t_tap_offset=args.t_tap_offset)
+                            t_tap_offset=t_tap_offset,
+                            interactive_tap=args.interactive_tap)
         except NotImplementedError as e:
             print(f"    [NOT IMPLEMENTED] {e}")
         except Exception as e:
