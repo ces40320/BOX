@@ -28,6 +28,7 @@ import opensim as osim
 
 import SUB_Info as _sub_info
 from PATH_RULE import ResultPaths
+from add_reserve_actuators import add_reserve_actuators
 
 
 def box_weights_from_conditions(conditions: dict) -> list[int]:
@@ -57,8 +58,15 @@ def add_hand_mass(model_path_in: str, model_path_out: str,
 
 
 def build_heavyhand_models(namecode: str,
-                           *, overwrite: bool = True) -> list[str]:
+                           *, overwrite: bool = True,
+                           add_actuators: bool = True) -> list[str]:
     """피험자 1명에 대해 조건별 HeavyHand osim 모델 일괄 생성.
+
+    Parameters
+    ----------
+    add_actuators : bool, default True
+        각 산출 osim 에 reserve/residual/torque ``CoordinateActuator`` 를
+        주입할지 여부. 이미 sentinel 이 있으면 idempotent skip.
 
     Returns
     -------
@@ -83,14 +91,21 @@ def build_heavyhand_models(namecode: str,
         add_hand_mass(src, dst, per_hand)
         print(f"[HeavyHand] {namecode}: +{per_hand}kg/hand -> {os.path.basename(dst)}")
         outputs.append(dst)
+
+    if add_actuators:
+        for path in outputs:
+            add_reserve_actuators(path)
     return outputs
 
 
 def build_all(namecodes: list[str] | None = None,
-              *, overwrite: bool = True) -> dict[str, list[str]]:
+              *, overwrite: bool = True,
+              add_actuators: bool = True) -> dict[str, list[str]]:
     if namecodes is None:
         namecodes = list(_sub_info.subjects.keys())
-    return {nc: build_heavyhand_models(nc, overwrite=overwrite) for nc in namecodes}
+    return {nc: build_heavyhand_models(nc, overwrite=overwrite,
+                                       add_actuators=add_actuators)
+            for nc in namecodes}
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ import SUB_Info as _sub_info
 from PATH_RULE import ResultPaths
 from ADDBOX import ADDBOXtoOSIM, DEFAULT_MESH_DIR
 from add_hand_mass_model import box_weights_from_conditions
+from add_reserve_actuators import add_reserve_actuators
 
 
 BOX_VARIANTS = (
@@ -34,8 +35,16 @@ BOX_VARIANTS = (
 
 def build_box_models(namecode: str,
                      *, overwrite: bool = True,
-                     mesh_dir: str | None = None) -> list[str]:
-    """피험자 1명에 대해 WeldBox/SplitBox × 박스 무게 조합 osim 일괄 생성."""
+                     mesh_dir: str | None = None,
+                     add_actuators: bool = True) -> list[str]:
+    """피험자 1명에 대해 WeldBox/SplitBox × 박스 무게 조합 osim 일괄 생성.
+
+    Parameters
+    ----------
+    add_actuators : bool, default True
+        각 산출 osim 에 reserve/residual/torque ``CoordinateActuator`` 를
+        주입할지 여부. 이미 sentinel 이 있으면 idempotent skip.
+    """
     info = _sub_info.subjects[namecode]
     rp = ResultPaths(namecode)
     src = rp.model_path()
@@ -62,16 +71,22 @@ def build_box_models(namecode: str,
             )
             print(f"[{variant}] {namecode}: box_total={w_kg}kg -> {os.path.basename(dst)}")
             outputs.append(dst)
+
+    if add_actuators:
+        for path in outputs:
+            add_reserve_actuators(path)
     return outputs
 
 
 def build_all(namecodes: list[str] | None = None,
               *, overwrite: bool = True,
-              mesh_dir: str | None = None) -> dict[str, list[str]]:
+              mesh_dir: str | None = None,
+              add_actuators: bool = True) -> dict[str, list[str]]:
     if namecodes is None:
         namecodes = list(_sub_info.subjects.keys())
     return {
-        nc: build_box_models(nc, overwrite=overwrite, mesh_dir=mesh_dir)
+        nc: build_box_models(nc, overwrite=overwrite, mesh_dir=mesh_dir,
+                             add_actuators=add_actuators)
         for nc in namecodes
     }
 
