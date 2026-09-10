@@ -24,6 +24,7 @@ from opensim_pipeline_handlers import (
     run_so,
 )
 from pipeline_rules import (
+    ik_suffix,
     jr_suffixes,
     resolve_model_path,
 )
@@ -115,6 +116,7 @@ def _run_flags_from_args(args) -> dict:
     """Plain dict for spawn-safe worker payloads (no argparse.Namespace)."""
     return {
         "dry_run": bool(args.dry_run),
+        "skip_existing": bool(args.skip_existing),
         "extload_template": args.extload_template,
         "ik_template_default": args.ik_template_default,
         "ik_template_addbox": args.ik_template_addbox,
@@ -123,6 +125,54 @@ def _run_flags_from_args(args) -> dict:
         "no_run_bk": bool(args.no_run_bk),
         "no_run_jr": bool(args.no_run_jr),
     }
+
+
+def _canonical_result_paths(cp, seg: str, tool: str, app: str | None) -> list[str]:
+    """Paths that must exist for ``--skip-existing`` to skip this tool step.
+
+    For analyze tools this is the canonical ``.mot`` / ``.sto`` output.
+    ExtLoad is special: this pipeline only *writes* the SETUP XML (the
+    ``.mot`` is experimental input from ``a_Get_Exp_Data``). Skipping when
+    the ``.mot`` exists would leave SO/JR pointing at a missing ExtLoad
+    SETUP and cause mass AnalyzeTool failures — so ExtLoad skips on the
+    SETUP XML instead.
+    """
+    tool = tool.lower()
+    if tool == "extload":
+        if app is None:
+            raise ValueError("extload requires app")
+        return [cp.setup_extload_path(seg, app)]
+    if tool == "ik":
+        if app is None:
+            raise ValueError("ik requires app")
+        return [cp.ik_path(seg, ik_suffix(app))]
+    if tool == "so":
+        if app is None:
+            raise ValueError("so requires app")
+        return [cp.so_path(seg, app, "force")]
+    if tool == "bk":
+        return [cp.bk_path(seg, "pos_global")]
+    if tool == "jr":
+        if app is None:
+            raise ValueError("jr requires app")
+        return [cp.jr_path(seg, app, sfx) for sfx in jr_suffixes(app)]
+    raise ValueError(f"Unknown tool for skip check: {tool!r}")
+
+
+def _try_skip_existing(*, cp, seg: str, tool: str, app: str | None,
+                       args) -> bool:
+    """If ``--skip-existing`` and all canonical results exist, log and return True."""
+    if not getattr(args, "skip_existing", False):
+        return False
+    paths = _canonical_result_paths(cp, seg, tool, app)
+    missing = [p for p in paths if not os.path.isfile(p)]
+    if missing:
+        return False
+    app_tag = f"  app={app}" if app is not None else ""
+    shown = ", ".join(os.path.basename(p) for p in paths)
+    _log(f"[SKIP] seg={seg}  tool={tool}{app_tag}  "
+         f"(exists: {shown})")
+    return True
 
 
 def _resolve_workers(requested: int, n_segments: int) -> int:
@@ -174,6 +224,8 @@ def _print_structure_validation_sample(rp, cp, apps: list[str],
 
 
 def _run_extload(*, cp, seg, app, args):
+    if _try_skip_existing(cp=cp, seg=seg, tool="extload", app=app, args=args):
+        return
     _log(f"[RUN ] seg={seg}  tool=extload  app={app}")
     ext_path = prepare_extload_setup(
         cp=cp, seg=seg, app=app,
@@ -184,6 +236,8 @@ def _run_extload(*, cp, seg, app, args):
 
 
 def _run_ik(*, cp, rp, seg, app, args, condition):
+    if _try_skip_existing(cp=cp, seg=seg, tool="ik", app=app, args=args):
+        return
     ik_model = resolve_model_path(rp, condition, app, "ik",
                                   must_exist=not args.dry_run)
     _log(f"[RUN ] seg={seg}  tool=ik  app={app}  "
@@ -198,6 +252,8 @@ def _run_ik(*, cp, rp, seg, app, args, condition):
 
 
 def _run_so(*, cp, rp, seg, app, args, condition):
+    if _try_skip_existing(cp=cp, seg=seg, tool="so", app=app, args=args):
+        return
     so_model = resolve_model_path(rp, condition, app, "so",
                                   must_exist=not args.dry_run)
     _log(f"[RUN ] seg={seg}  tool=so  app={app}  "
@@ -219,6 +275,8 @@ def _run_so(*, cp, rp, seg, app, args, condition):
 
 
 def _run_bk(*, cp, rp, seg, args):
+    if _try_skip_existing(cp=cp, seg=seg, tool="bk", app=None, args=args):
+        return
     _log(f"[RUN ] seg={seg}  tool=bk  "
          f"model={os.path.basename(rp.model_path(''))}")
     bk_xml = prepare_bk_setup(cp=cp, rp=rp, seg=seg,
@@ -234,6 +292,8 @@ def _run_bk(*, cp, rp, seg, args):
 
 
 def _run_jr(*, cp, rp, seg, app, args, condition):
+    if _try_skip_existing(cp=cp, seg=seg, tool="jr", app=app, args=args):
+        return
     jr_model = resolve_model_path(rp, condition, app, "jr",
                                   must_exist=not args.dry_run)
     _log(f"[RUN ] seg={seg}  tool=jr  app={app}  "
@@ -393,6 +453,7 @@ def _run_one_condition(
     _log(f"  tools     : {tools}")
     _log(f"  apps      : {apps}")
     _log(f"  dry_run   : {args.dry_run}")
+    _log(f"  skip_existing : {args.skip_existing}")
     _log(f"  workers   : {workers}  "
          f"(OpenSim-heavy; keep below core count if RAM-limited)")
     _log(f"  segments  : {len(segments)} selected")
@@ -471,7 +532,7 @@ def _run_one_condition(
         try:
             sub_n = sub_number_for_namecode(namecode)
             out = refresh_progress_sheet([sub_n])
-            _log(f"[TROUBLE] Detail mark=☒ refreshed → {out}")
+            _log(f"[TROUBLE] Detail sheet refreshed → {out}")
         except Exception as exc:
             _log(
                 f"[TROUBLE] sheet refresh failed: "
@@ -517,6 +578,12 @@ def main() -> None:
     parser.add_argument("--sections", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--dry-run", action="store_true",
                         help="No file execution; only print planned actions")
+    parser.add_argument(
+        "--skip-existing", action="store_true",
+        help="Skip a tool step when its pipeline output already exists "
+             "(ExtLoad: SETUP_*.xml; IK: .mot; SO force / BK pos_global / "
+             "JR ReactionLoads .sto). Missing outputs are still run.",
+    )
     parser.add_argument(
         "--workers", type=int, default=1,
         help="Parallel segment workers (default: 1 = sequential). "
@@ -577,6 +644,7 @@ def main() -> None:
     _log(f"  segments  : {raw_segments!r}  (None → all segments per condition)")
     _log(f"  workers   : {args.workers}  (0 → cpu_count; clamped per job)")
     _log(f"  dry_run   : {args.dry_run}")
+    _log(f"  skip_existing : {args.skip_existing}")
     for i, (nc, cond) in enumerate(jobs, start=1):
         _log(f"    ({i}/{len(jobs)}) {nc} / {cond}")
 
