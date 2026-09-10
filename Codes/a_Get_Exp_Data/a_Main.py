@@ -52,8 +52,8 @@ print("Available subjects:", _path.DATA_SUB_NAMECODE_li)
 # %matplotlib qt
 # % matplotlib tk
 
-dry_run  = True            # True: tap_onset_check.png 만 저장,  False: 실제 TRC/MOT 생성
-namecode = "260306_KTY"    # TODO: 필요 시 변경
+dry_run  = False            # True: tap_onset_check.png 만 저장,  False: 실제 TRC/MOT 생성
+namecode = "260526_PJM"    # TODO: 필요 시 변경
 
 # condition 별로 다른 초기 offset 을 주는 예시.
 # (인터랙티브 1회 후 콘솔에 출력되는 effective offset 을 채워넣고 재실행하면
