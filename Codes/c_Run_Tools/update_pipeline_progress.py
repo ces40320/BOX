@@ -8,7 +8,7 @@ Writes:
 
 Runtime tool failures from ``run_opensim_pipeline.py`` are stored in a
 sidecar JSON (``pipeline_trouble.json``) and merged into Detail/Matrix as
-``mark=[x]`` so they survive a full sheet refresh.
+``mark=☒`` so they survive a full sheet refresh.
 
 Usage
 -----
@@ -53,7 +53,7 @@ SHARED_DETAIL_TOOLS: tuple[str, ...] = ("ik", "bk")
 MARK_DONE = "☑"
 MARK_PARTIAL = "◐"
 MARK_EMPTY = "☐"
-MARK_TROUBLE = "[x]"
+MARK_TROUBLE = "☒"
 
 FILL_DONE = PatternFill("solid", fgColor="C6EFCE")
 FILL_PARTIAL = PatternFill("solid", fgColor="FFEB9C")
@@ -275,7 +275,7 @@ def _troubles_by_detail_key(
 
 
 def apply_troubles_to_report(report: dict, troubles: list[dict]) -> dict:
-    """Override marks with ``[x]`` where runtime troubles exist."""
+    """Override marks with ``☒`` where runtime troubles exist."""
     by_key = _troubles_by_detail_key(troubles)
 
     for row in report["detail"]:
@@ -752,7 +752,7 @@ def _print_console_summary(report: dict) -> None:
         1 for r in report["detail"] if r.get("mark") == MARK_TROUBLE
     )
     if n_trouble:
-        print(f"  trouble mark [x] cells: {n_trouble}")
+        print(f"  trouble mark {MARK_TROUBLE} cells: {n_trouble}")
 
 
 def main() -> None:

@@ -354,7 +354,7 @@ def _handle_segment_result(
         _log(
             f"[TROUBLE] recorded  section={entry['section']}  "
             f"tool={entry['tool']}  app={entry['app']}  "
-            f"seg={entry['segment']}  mark=[x]"
+            f"seg={entry['segment']}  mark=☒"
         )
     except Exception as exc:
         _log(f"[TROUBLE] failed to record: {type(exc).__name__}: {exc}")
@@ -471,7 +471,7 @@ def _run_one_condition(
         try:
             sub_n = sub_number_for_namecode(namecode)
             out = refresh_progress_sheet([sub_n])
-            _log(f"[TROUBLE] Detail mark=[x] refreshed → {out}")
+            _log(f"[TROUBLE] Detail mark=☒ refreshed → {out}")
         except Exception as exc:
             _log(
                 f"[TROUBLE] sheet refresh failed: "
@@ -525,7 +525,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--no-trouble-sheet", action="store_true",
-        help="Do not write pipeline_trouble.json / Detail [x] on failures",
+        help="Do not write pipeline_trouble.json / Detail ☒ on failures",
     )
     parser.add_argument(
         "--extload-template",
