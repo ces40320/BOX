@@ -390,6 +390,15 @@ def apply_troubles_to_report(report: dict, troubles: list[dict]) -> dict:
         )
         if by_key.get(ik_key):
             row["IK"] = MARK_TROUBLE
+        bk_key = (
+            str(row["namecode"]),
+            str(row["condition"]),
+            str(row["section"]),
+            "(shared)",
+            "bk",
+        )
+        if by_key.get(bk_key):
+            row["BK"] = MARK_TROUBLE
         for app in APPS:
             for tool in TOOLS_PER_APP:
                 tkey = (
@@ -493,6 +502,8 @@ def scan_progress(
                 bk_p, bk_e, bk_miss = _count_present(
                     rp, cond, segs, "bk", APPS[0]
                 )
+                cell["BK"] = _mark(bk_p, bk_e)
+                cell["BK_count"] = f"{bk_p}/{bk_e}"
                 rows_detail.append({
                     "SUB": sub_n,
                     "namecode": namecode,
@@ -578,8 +589,8 @@ def _summary_from_matrix(matrix_rows: list[dict]) -> list[dict]:
                 "conds_complete": set(),
             },
         )
-        # Count every status cell: IK + 3 tools × 4 apps
-        marks = [row["IK"]]
+        # Count every status cell: IK + BK + 3 tools × 4 apps
+        marks = [row["IK"], row["BK"]]
         for app in APPS:
             for tool in TOOLS_PER_APP:
                 marks.append(row[f"{app}_{tool}"])
@@ -597,7 +608,7 @@ def _summary_from_matrix(matrix_rows: list[dict]) -> list[dict]:
     for (sub, cond), rows in by_sub_cond.items():
         ok = True
         for row in rows:
-            marks = [row["IK"]] + [
+            marks = [row["IK"], row["BK"]] + [
                 row[f"{app}_{tool}"]
                 for app in APPS
                 for tool in TOOLS_PER_APP
@@ -715,14 +726,15 @@ def write_workbook(report: dict, out_path: str) -> str:
     # ── Matrix ────────────────────────────────────────────────
     ws = wb.create_sheet("Matrix")
     # Row 1: group headers; Row 2: tool headers
-    # Columns: SUB | namecode | condition | section | n_exp | IK |
+    # Columns: SUB | namecode | condition | section | n_exp | IK | BK |
     #          then per app: ExtLoad | SO | JR
-    meta = ["SUB", "namecode", "condition", "section", "n_exp", "IK"]
+    meta = ["SUB", "namecode", "condition", "section", "n_exp", "IK", "BK"]
+    shared_labels = {"IK": "IK (shared)", "BK": "BK (shared)"}
     app_tools = [(app, tool) for app in APPS for tool in TOOLS_PER_APP]
 
     # header row 1
     for c, h in enumerate(meta, start=1):
-        cell = ws.cell(row=1, column=c, value=h if h != "IK" else "IK (shared)")
+        cell = ws.cell(row=1, column=c, value=shared_labels.get(h, h))
         _style_header(cell)
         ws.merge_cells(start_row=1, start_column=c, end_row=2, end_column=c)
 
@@ -756,22 +768,23 @@ def write_workbook(report: dict, out_path: str) -> str:
             cell.alignment = CENTER
             cell.border = THIN
         _write_status_cell(ws, r, 6, row["IK"], row["IK_count"])
-        c = 7
+        _write_status_cell(ws, r, 7, row["BK"], row["BK_count"])
+        c = 8
         for app, tool in app_tools:
             key = f"{app}_{tool}"
             _write_status_cell(ws, r, c, row[key], row[f"{key}_count"])
             c += 1
 
     widths = {
-        "A": 6, "B": 16, "C": 14, "D": 8, "E": 8, "F": 10,
+        "A": 6, "B": 16, "C": 14, "D": 8, "E": 8, "F": 10, "G": 10,
     }
     for letter, w in widths.items():
         ws.column_dimensions[letter].width = w
-    for c in range(7, 7 + len(app_tools)):
+    for c in range(8, 8 + len(app_tools)):
         ws.column_dimensions[get_column_letter(c)].width = 10
     ws.row_dimensions[1].height = 22
     ws.row_dimensions[2].height = 18
-    ws.freeze_panes = "G3"
+    ws.freeze_panes = "H3"
 
     # ── Detail ────────────────────────────────────────────────
     ws_d = wb.create_sheet("Detail")
