@@ -79,7 +79,7 @@ subjects = {
         "height"             : 1730,
         "body_mass"          : 66.74,
         "sex"                : "M",
-        "age"                : 22,     # 수정 필요
+        "age"                : 22,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     11,
@@ -119,7 +119,7 @@ subjects = {
         "height"             : 1652,
         "body_mass"          : 75.82,
         "sex"                : "M",
-        "age"                : 22,     # 수정 필요
+        "age"                : 28,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     11,
@@ -145,7 +145,7 @@ subjects = {
         "height"             : 1680,
         "body_mass"          : 58.28,
         "sex"                : "M",
-        "age"                : 22,     # 수정 필요
+        "age"                : 27,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     10,
@@ -171,15 +171,15 @@ subjects = {
         "height"             : 1702,
         "body_mass"          : 67.6,
         "sex"                : "F",
-        "age"                : 22,     # 수정 필요
+        "age"                : 28,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     11,
                                                "error_log":  ['2AB'],
                                             },
                                 "10kg_10bpm": {"order":      2,
-                                              "cycles":      12,
-                                              "error_log":   ['7AB', '11AB', '11CA'],
+                                              "cycles":      13,
+                                              "error_log":   ['7AB', '8AB', '8BC', '8CA', '12AB', '12CA'],
                                               # RWRB 마커 덜렁거려서 중간보수-> 이후에도 다시 떨어짐 (1바퀴 타이밍 맞춰서 다시 진행하긴 함).
                                             },
                                 "7kg_16bpm":  {"order":      3,
@@ -198,14 +198,14 @@ subjects = {
         "height"             : 1582,
         "body_mass"          : 55.1,
         "sex"                : "F",
-        "age"                : 22,     # 수정 필요
+        "age"                : 23,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     14,
                                                "error_log":  ['1CA', '3AB', '9CA', '10AB'],
                                             },
                                 "10kg_10bpm": {"order":      2,
-                                              "cycles":      11,
+                                              "cycles":      12,
                                               "error_log":   ['8AB'],
                                             },
                                 "7kg_16bpm":  {"order":      3,
@@ -224,7 +224,7 @@ subjects = {
         "height"             : 1542,
         "body_mass"          : 46.9,
         "sex"                : "F",
-        "age"                : 22,     # 수정 필요
+        "age"                : 25,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     10,
@@ -250,7 +250,7 @@ subjects = {
         "height"             : 1633,
         "body_mass"          : 50.6,
         "sex"                : "F",
-        "age"                : 22,     # 수정 필요
+        "age"                : 23,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     11,
@@ -277,7 +277,7 @@ subjects = {
         "height"             : 1757,
         "body_mass"          : 71.8,
         "sex"                : "M",
-        "age"                : 22,     # 수정 필요
+        "age"                : 27,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     13,
@@ -303,7 +303,7 @@ subjects = {
         "height"             : 1796,
         "body_mass"          : 93.8,
         "sex"                : "M",
-        "age"                : 22,     # 수정 필요
+        "age"                : 29,
         "protocol"           : "Asymmetric",
         "conditions"         : {"7kg_10bpm":  {"order":      1,
                                                "cycles":     10,
