@@ -49,8 +49,11 @@ def build_box_models(namecode: str,
     rp = ResultPaths(namecode)
     src = rp.model_path()
     if not os.path.exists(src):
-        raise FileNotFoundError(
-            f"Base model not found: {src}. rename_AddBiomech_model.py 선행 필요.")
+        # rename_AddBiomech_model 과 동일: 일괄 실행에서 없는 피험자는
+        # 중단하지 않고 스킵 (예: Symmetric SUB1 raw/scaled 미준비).
+        print(f"[MISSING] {namecode}: base model not found -> {src} "
+              f"(rename_AddBiomech_model.py 선행 필요)")
+        return []
 
     mesh_dir = mesh_dir or DEFAULT_MESH_DIR
 
