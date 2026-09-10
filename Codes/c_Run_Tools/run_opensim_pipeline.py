@@ -1,6 +1,9 @@
 import argparse
 import os
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import get_context
+from types import SimpleNamespace
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +27,11 @@ from pipeline_rules import (
     jr_suffixes,
     resolve_model_path,
 )
+from update_pipeline_progress import (
+    record_trouble,
+    refresh_progress_sheet,
+    sub_number_for_namecode,
+)
 
 
 VALID_TOOLS: tuple[str, ...] = ("extload", "ik", "so", "bk", "jr")
@@ -32,6 +40,13 @@ VALID_TOOLS: tuple[str, ...] = ("extload", "ik", "so", "bk", "jr")
 def _log(msg: str) -> None:
     """Print and flush immediately so Jupyter / subprocess streaming can show progress."""
     print(msg, flush=True)
+
+
+def _parse_csv(raw: str | None) -> list[str] | None:
+    """Comma-separated tokens, or None when the flag was omitted (→ full list)."""
+    if raw is None:
+        return None
+    return [t.strip() for t in raw.split(",") if t.strip()]
 
 
 def _parse_tools(raw_tools: str) -> list[str]:
@@ -45,21 +60,33 @@ def _parse_tools(raw_tools: str) -> list[str]:
     return [t for t in VALID_TOOLS if t in tools]
 
 
-def _pick_namecode(raw: str | None) -> str:
-    if raw:
-        if raw not in subjects:
-            raise KeyError(f"Unknown namecode: {raw}")
-        return raw
-    return next(iter(subjects.keys()))
+def _pick_namecodes(raw: str | None) -> list[str]:
+    """Resolve --namecode. Omitted → all SUB_Info subjects (dict order)."""
+    all_codes = list(subjects.keys())
+    selected = _parse_csv(raw)
+    if selected is None:
+        return all_codes
+    unknown = [c for c in selected if c not in subjects]
+    if unknown:
+        raise KeyError(
+            f"Unknown namecode(s): {unknown}. Available: {all_codes}"
+        )
+    return selected
 
 
-def _pick_condition(namecode: str, raw: str | None) -> str:
+def _pick_conditions(namecode: str, raw: str | None) -> list[str]:
+    """Resolve --condition for one subject. Omitted → all of that subject's conditions."""
     cond_keys = list(subjects[namecode]["conditions"].keys())
-    if raw:
-        if raw not in cond_keys:
-            raise KeyError(f"Unknown condition: {raw}. Available: {cond_keys}")
-        return raw
-    return cond_keys[0]
+    selected = _parse_csv(raw)
+    if selected is None:
+        return cond_keys
+    unknown = [c for c in selected if c not in cond_keys]
+    if unknown:
+        raise KeyError(
+            f"Unknown condition(s) for {namecode}: {unknown}. "
+            f"Available: {cond_keys}"
+        )
+    return selected
 
 
 def _pick_apps(cp, raw_apps: str | None) -> list[str]:
@@ -82,6 +109,29 @@ def _pick_segments(cp, raw_segments: str | None) -> list[str]:
             raise ValueError(f"Unknown segments: {unknown}. Available sample: {all_segments[:10]}")
         return selected
     return all_segments
+
+
+def _run_flags_from_args(args) -> dict:
+    """Plain dict for spawn-safe worker payloads (no argparse.Namespace)."""
+    return {
+        "dry_run": bool(args.dry_run),
+        "extload_template": args.extload_template,
+        "ik_template_default": args.ik_template_default,
+        "ik_template_addbox": args.ik_template_addbox,
+        "bk_ik_app": args.bk_ik_app,
+        "no_run_so": bool(args.no_run_so),
+        "no_run_bk": bool(args.no_run_bk),
+        "no_run_jr": bool(args.no_run_jr),
+    }
+
+
+def _resolve_workers(requested: int, n_segments: int) -> int:
+    """``0`` → cpu_count; always clamp to ``[1, n_segments]``."""
+    if n_segments <= 0:
+        return 1
+    if requested == 0:
+        requested = os.cpu_count() or 1
+    return max(1, min(int(requested), n_segments))
 
 
 def _print_structure_validation_sample(rp, cp, apps: list[str],
@@ -202,22 +252,281 @@ def _run_jr(*, cp, rp, seg, app, args, condition):
          f"-> {cp.jr_dir(cp.seg_to_section(seg), app)}")
 
 
+def _fail_result(seg: str, tool: str, app: str | None, exc: BaseException) -> dict:
+    return {
+        "ok": False,
+        "seg": seg,
+        "tool": tool,
+        "app": app if app is not None else "(shared)",
+        "error": f"{type(exc).__name__}: {exc}",
+    }
+
+
+def _run_one_segment(
+    namecode: str,
+    condition: str,
+    seg: str,
+    tools: list[str],
+    apps: list[str],
+    run_flags: dict,
+) -> dict:
+    """Run all selected tools for one segment. Spawn-safe top-level worker.
+
+    Returns ``{"ok": True, "seg": ...}`` or a structured failure dict.
+    Worker process should exit after this returns (``max_tasks_per_child=1``)
+    so OpenSim native memory is reclaimed by the OS.
+    """
+    args = SimpleNamespace(**run_flags)
+    try:
+        rp = ResultPaths(namecode)
+        cp = rp.for_condition(condition)
+
+        for app in apps:
+            if "extload" in tools:
+                try:
+                    _run_extload(cp=cp, seg=seg, app=app, args=args)
+                except Exception as exc:
+                    return _fail_result(seg, "extload", app, exc)
+
+            if "ik" in tools:
+                try:
+                    _run_ik(cp=cp, rp=rp, seg=seg, app=app,
+                            args=args, condition=condition)
+                except Exception as exc:
+                    return _fail_result(seg, "ik", app, exc)
+
+            if "so" in tools:
+                try:
+                    _run_so(cp=cp, rp=rp, seg=seg, app=app,
+                            args=args, condition=condition)
+                except Exception as exc:
+                    return _fail_result(seg, "so", app, exc)
+
+            if "jr" in tools:
+                try:
+                    _run_jr(cp=cp, rp=rp, seg=seg, app=app,
+                            args=args, condition=condition)
+                except Exception as exc:
+                    return _fail_result(seg, "jr", app, exc)
+
+        if "bk" in tools:
+            try:
+                _run_bk(cp=cp, rp=rp, seg=seg, args=args)
+            except Exception as exc:
+                return _fail_result(seg, "bk", "(shared)", exc)
+
+        return {"ok": True, "seg": seg}
+    except Exception as exc:
+        return _fail_result(seg, "setup", None, exc)
+
+
+def _handle_segment_result(
+    *,
+    namecode: str,
+    condition: str,
+    result: dict,
+    update_trouble_sheet: bool,
+    dry_run: bool,
+) -> bool:
+    """Log result; record trouble if failed. Returns True if ok."""
+    seg = result.get("seg", "?")
+    if result.get("ok"):
+        _log(f"[OK  ] seg={seg}")
+        return True
+
+    tool = result.get("tool", "?")
+    app = result.get("app", "(shared)")
+    err = result.get("error", "")
+    _log(f"[FAIL] seg={seg}  tool={tool}  app={app}  {err}")
+
+    if dry_run or not update_trouble_sheet:
+        return False
+
+    try:
+        entry = record_trouble(
+            namecode=namecode,
+            condition=condition,
+            segment=seg,
+            tool=str(tool),
+            app=str(app),
+            error=str(err),
+        )
+        _log(
+            f"[TROUBLE] recorded  section={entry['section']}  "
+            f"tool={entry['tool']}  app={entry['app']}  "
+            f"seg={entry['segment']}  mark=[x]"
+        )
+    except Exception as exc:
+        _log(f"[TROUBLE] failed to record: {type(exc).__name__}: {exc}")
+    return False
+
+
+def _run_one_condition(
+    *,
+    namecode: str,
+    condition: str,
+    tools: list[str],
+    args,
+    raw_apps: str | None,
+    raw_segments: str | None,
+) -> list[dict]:
+    """Run the full tool/app/segment loop for one (namecode, condition).
+
+    Returns the list of failed segment result dicts (empty if all ok).
+    """
+    rp = ResultPaths(namecode)
+    cp = rp.for_condition(condition)
+    apps = _pick_apps(cp, raw_apps)
+    segments = _pick_segments(cp, raw_segments)
+    error_log = set(cp.error_log or [])
+    run_flags = _run_flags_from_args(args)
+    workers = _resolve_workers(args.workers, len(segments))
+
+    cp.build_tree()
+
+    _log("\n" + "=" * 60)
+    _log("[OpenSim Pipeline]")
+    _log(f"  namecode  : {namecode}")
+    _log(f"  subject   : {rp.sub_label}")
+    _log(f"  protocol  : {rp.protocol}")
+    _log(f"  condition : {condition}")
+    _log(f"  tools     : {tools}")
+    _log(f"  apps      : {apps}")
+    _log(f"  dry_run   : {args.dry_run}")
+    _log(f"  workers   : {workers}  "
+         f"(OpenSim-heavy; keep below core count if RAM-limited)")
+    _log(f"  segments  : {len(segments)} selected")
+    if error_log:
+        _log(f"  error_log : {sorted(error_log)}")
+
+    runnable = [s for s in segments if s not in error_log]
+    skipped = [s for s in segments if s in error_log]
+    for seg in skipped:
+        _log(f"[SKIP] seg={seg} (in error_log)")
+
+    if not runnable:
+        _log(f"[OpenSim Pipeline] DONE  {namecode} / {condition}  (no segments)")
+        return []
+
+    _print_structure_validation_sample(rp, cp, apps, runnable)
+
+    failures: list[dict] = []
+    n_seg = len(runnable)
+
+    if workers == 1:
+        for i_seg, seg in enumerate(runnable, start=1):
+            _log(f"\n===== ({i_seg}/{n_seg}) seg={seg}  START =====")
+            result = _run_one_segment(
+                namecode, condition, seg, tools, apps, run_flags,
+            )
+            ok = _handle_segment_result(
+                namecode=namecode,
+                condition=condition,
+                result=result,
+                update_trouble_sheet=not args.no_trouble_sheet,
+                dry_run=args.dry_run,
+            )
+            if ok:
+                _log(f"===== ({i_seg}/{n_seg}) seg={seg}  COMPLETE =====")
+            else:
+                failures.append(result)
+                _log(f"===== ({i_seg}/{n_seg}) seg={seg}  FAILED =====")
+    else:
+        _log(f"\n[OpenSim Pipeline] parallel segments  workers={workers}")
+        ctx = get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=workers,
+            mp_context=ctx,
+            max_tasks_per_child=1,
+        ) as pool:
+            futures = {
+                pool.submit(
+                    _run_one_segment,
+                    namecode, condition, seg, tools, apps, run_flags,
+                ): seg
+                for seg in runnable
+            }
+            done_n = 0
+            for fut in as_completed(futures):
+                seg = futures[fut]
+                done_n += 1
+                try:
+                    result = fut.result()
+                except Exception as exc:
+                    result = _fail_result(seg, "worker", None, exc)
+                ok = _handle_segment_result(
+                    namecode=namecode,
+                    condition=condition,
+                    result=result,
+                    update_trouble_sheet=not args.no_trouble_sheet,
+                    dry_run=args.dry_run,
+                )
+                if ok:
+                    _log(f"===== ({done_n}/{n_seg}) seg={seg}  COMPLETE =====")
+                else:
+                    failures.append(result)
+                    _log(f"===== ({done_n}/{n_seg}) seg={seg}  FAILED =====")
+
+    if failures and (not args.dry_run) and (not args.no_trouble_sheet):
+        try:
+            sub_n = sub_number_for_namecode(namecode)
+            out = refresh_progress_sheet([sub_n])
+            _log(f"[TROUBLE] Detail mark=[x] refreshed → {out}")
+        except Exception as exc:
+            _log(
+                f"[TROUBLE] sheet refresh failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    _log(
+        f"[OpenSim Pipeline] DONE  {namecode} / {condition}  "
+        f"failures={len(failures)}"
+    )
+    return failures
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="OpenSim pipeline (ExtLoad / IK / SO / BK / JR)"
     )
-    parser.add_argument("--namecode", default=None, help="Subject namecode key from SUB_Info.subjects")
-    parser.add_argument("--condition", default=None, help="Condition key in the selected subject")
+    parser.add_argument(
+        "--namecode", default=None,
+        help="Comma-separated SUB_Info namecode(s). "
+             "Omit to run all subjects.",
+    )
+    parser.add_argument(
+        "--condition", default=None,
+        help="Comma-separated condition key(s) per selected subject. "
+             "Omit to run all conditions of each subject.",
+    )
     parser.add_argument(
         "--tools", default="extload,ik",
         help=f"Comma-separated subset of {list(VALID_TOOLS)} "
              "(execution order is fixed regardless of input order)",
     )
-    parser.add_argument("--apps", default=None, help="Comma-separated app names; default is all protocol apps")
-    parser.add_argument("--segments", default=None, help="Comma-separated segment labels (e.g., 1AB,1BC,1CA)")
+    parser.add_argument(
+        "--apps", default=None,
+        help="Comma-separated app names; default is all protocol apps",
+    )
+    parser.add_argument(
+        "--segments", default=None,
+        help="Comma-separated segment labels (e.g., 1AB,1BC,1CA); "
+             "default is all segments",
+    )
     # Backward-compat alias in case old cells still use --sections.
     parser.add_argument("--sections", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--dry-run", action="store_true", help="No file execution; only print planned actions")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="No file execution; only print planned actions")
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Parallel segment workers (default: 1 = sequential). "
+             "Use 0 for os.cpu_count(). Each worker exits after one "
+             "segment to reclaim OpenSim memory. Keep modest if RAM-limited.",
+    )
+    parser.add_argument(
+        "--no-trouble-sheet", action="store_true",
+        help="Do not write pipeline_trouble.json / Detail [x] on failures",
+    )
     parser.add_argument(
         "--extload-template",
         default=r"E:\Dropbox\SEL\BOX\OpenSim\_Main_\SETUP_ExtLoad.xml",
@@ -246,59 +555,58 @@ def main() -> None:
                         help="Only write JR setup XMLs, do not execute the tool")
     args = parser.parse_args()
 
-    namecode = _pick_namecode(args.namecode)
-    rp = ResultPaths(namecode)
-    condition = _pick_condition(namecode, args.condition)
-    cp = rp.for_condition(condition)
+    if args.workers < 0:
+        raise ValueError("--workers must be >= 0")
+
+    namecodes = _pick_namecodes(args.namecode)
     tools = _parse_tools(args.tools)
-    apps = _pick_apps(cp, args.apps)
-    raw_segments = args.segments if args.segments is not None else args.sections
-    segments = _pick_segments(cp, raw_segments)
-    error_log = set(cp.error_log or [])
+    raw_segments = (
+        args.segments if args.segments is not None else args.sections
+    )
 
-    cp.build_tree()
+    jobs: list[tuple[str, str]] = []
+    for namecode in namecodes:
+        for condition in _pick_conditions(namecode, args.condition):
+            jobs.append((namecode, condition))
 
-    _log("[OpenSim Pipeline]")
-    _log(f"  namecode  : {namecode}")
-    _log(f"  subject   : {rp.sub_label}")
-    _log(f"  protocol  : {rp.protocol}")
-    _log(f"  condition : {condition}")
+    _log("[OpenSim Pipeline] JOB PLAN")
+    _log(f"  namecodes : {namecodes}")
+    _log(f"  jobs      : {len(jobs)}  (namecode × condition)")
     _log(f"  tools     : {tools}")
-    _log(f"  apps      : {apps}")
+    _log(f"  apps arg  : {args.apps!r}  (None → all protocol apps per condition)")
+    _log(f"  segments  : {raw_segments!r}  (None → all segments per condition)")
+    _log(f"  workers   : {args.workers}  (0 → cpu_count; clamped per job)")
     _log(f"  dry_run   : {args.dry_run}")
-    _log(f"  segments  : {len(segments)} selected")
-    if error_log:
-        _log(f"  error_log : {sorted(error_log)}")
+    for i, (nc, cond) in enumerate(jobs, start=1):
+        _log(f"    ({i}/{len(jobs)}) {nc} / {cond}")
 
-    _print_structure_validation_sample(rp, cp, apps, segments)
+    all_failures: list[tuple[str, str, dict]] = []
+    for i, (namecode, condition) in enumerate(jobs, start=1):
+        _log(f"\n######## JOB ({i}/{len(jobs)}) {namecode} / {condition} ########")
+        fails = _run_one_condition(
+            namecode=namecode,
+            condition=condition,
+            tools=tools,
+            args=args,
+            raw_apps=args.apps,
+            raw_segments=raw_segments,
+        )
+        for fr in fails:
+            all_failures.append((namecode, condition, fr))
 
-    n_seg = len(segments)
-    for i_seg, seg in enumerate(segments, start=1):
-        if seg in error_log:
-            _log(f"[SKIP] ({i_seg}/{n_seg}) seg={seg} (in error_log)")
-            continue
-
-        _log(f"\n===== ({i_seg}/{n_seg}) seg={seg}  START =====")
-        for app in apps:
-            if "extload" in tools:
-                _run_extload(cp=cp, seg=seg, app=app, args=args)
-
-            if "ik" in tools:
-                _run_ik(cp=cp, rp=rp, seg=seg, app=app,
-                        args=args, condition=condition)
-
-            if "so" in tools:
-                _run_so(cp=cp, rp=rp, seg=seg, app=app,
-                        args=args, condition=condition)
-
-            if "jr" in tools:
-                _run_jr(cp=cp, rp=rp, seg=seg, app=app,
-                        args=args, condition=condition)
-
-        if "bk" in tools:
-            _run_bk(cp=cp, rp=rp, seg=seg, args=args)
-
-        _log(f"===== ({i_seg}/{n_seg}) seg={seg}  COMPLETE =====")
+    if all_failures:
+        _log("\n[OpenSim Pipeline] FAILURE SUMMARY")
+        for namecode, condition, fr in all_failures:
+            _log(
+                f"  {namecode} / {condition} / seg={fr.get('seg')}  "
+                f"tool={fr.get('tool')}  app={fr.get('app')}  "
+                f"{fr.get('error')}"
+            )
+        _log(
+            f"[OpenSim Pipeline] COMPLETED WITH FAILURES  "
+            f"n={len(all_failures)}"
+        )
+        sys.exit(1)
 
     _log("\n[OpenSim Pipeline] ALL REQUESTED WORK COMPLETE")
 
