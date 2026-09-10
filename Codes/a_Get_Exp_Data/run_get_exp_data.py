@@ -405,17 +405,14 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
     seg_labels : list[str] or None
         segment 라벨 (예: ``["1AB","1BC","1CA","2AB",…]``). 스케줄 순서 유지.
     """
+    # pyplot 을 거치지 않고 Figure + Agg 캔버스를 직접 생성한다.
+    # 이유: Jupyter 에서 ``%matplotlib tk`` / ``qt`` 를 켜면 interactive
+    # mode 가 되어 ``plt.subplots()`` 만으로도 GUI 창이 즉시 뜨고, 바로
+    # ``savefig`` → ``close`` 되면서 창이 깜빡이며 열리고 닫힌다.  Agg 캔버스에
+    # 직접 그리면 backend / interactive 상태와 무관하게 파일만 저장된다.
     import matplotlib
-    # GUI backend 가 이미 초기화된 세션(인터랙티브 선택을 먼저 사용한 경우 등)
-    # 에선 matplotlib.use("Agg") 가 경고를 내거나 무시될 수 있다.  pyplot
-    # 모듈이 아직 import 되지 않았을 때만 안전하게 Agg 로 강제하여 헤드리스
-    # 환경에서도 PNG 저장이 가능하도록 한다.
-    if "matplotlib.pyplot" not in sys.modules:
-        try:
-            matplotlib.use("Agg")
-        except Exception:
-            pass
-    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.lines import Line2D
 
     side = tap_info["side"]
@@ -426,7 +423,9 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
     peak_idx = tap_info["peak_idx"]
     peak_val = tap_info["peak_value"]
 
-    fig, ax = plt.subplots(figsize=(11.0, 4.5))
+    fig = Figure(figsize=(11.0, 4.5))
+    FigureCanvasAgg(fig)                 # pyplot 미등록 → GUI 창 안 뜸
+    ax = fig.subplots()
     ax.plot(force_time, norm3, color="#1f77b4", lw=0.7, alpha=0.7,
             label="‖F3‖ (left)")
     ax.plot(force_time, norm4, color="#d62728", lw=0.7, alpha=0.7,
@@ -470,7 +469,7 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
         y_label = y_max * 1.08
 
         # phase suffix → 색 매핑 (등장 순서대로 tab10 할당).
-        cmap = plt.get_cmap("tab10")
+        cmap = matplotlib.colormaps["tab10"]
         phase_colors: dict[str, tuple] = {}
         for label in seg_labels:
             phase = re.sub(r"^\d+", "", str(label))
@@ -523,7 +522,7 @@ def _plot_tap_onset_check(out_path, force_time, norm3, norm4,
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     fig.savefig(out_path, dpi=120)
-    plt.close(fig)
+    # pyplot 에 등록되지 않은 Figure 라 close() 불필요 — 참조 해제로 정리됨.
 
 
 def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
@@ -776,8 +775,19 @@ def _select_t_tap_interactive(force_time, norm3, norm4, tap_info_auto, *,
     ax.grid(False)
     fig.tight_layout()
 
-    # blocking call — 창이 닫힐 때까지 대기.
-    plt.show()
+    # ── 창이 닫힐 때까지 대기 (반드시 blocking 이어야 함) ─────────
+    # 일반 python 스크립트: ``plt.show(block=True)`` 가 mainloop 를 돌려 차단.
+    # Jupyter (``%matplotlib tk`` / ``qt``): 매직이 interactive mode 를 켜므로
+    # 기본 ``plt.show()`` 는 즉시 반환된다 → 사용자가 클릭하기도 전에
+    # 초깃값이 반환되어 TRC/MOT 생성이 시작되는 버그의 원인.  이 경우엔
+    # 이 figure 가 살아 있는 동안 GUI 이벤트 루프를 짧게 반복 실행하며
+    # 대기한다 (Enter → ``plt.close`` / 창 X → destroy 모두 루프 종료).
+    if plt.isinteractive():
+        plt.show(block=False)
+        while plt.fignum_exists(fig.number):
+            plt.pause(0.05)
+    else:
+        plt.show(block=True)
 
     return state["t_tap"]
 
