@@ -29,6 +29,7 @@ from pipeline_rules import (
     resolve_model_path,
 )
 from update_pipeline_progress import (
+    prune_resolved_troubles,
     record_trouble,
     refresh_progress_sheet,
     sub_number_for_namecode,
@@ -528,11 +529,18 @@ def _run_one_condition(
                     failures.append(result)
                     _log(f"===== ({done_n}/{n_seg}) seg={seg}  FAILED =====")
 
-    if failures and (not args.dry_run) and (not args.no_trouble_sheet):
+    if (not args.dry_run) and (not args.no_trouble_sheet):
         try:
-            sub_n = sub_number_for_namecode(namecode)
-            out = refresh_progress_sheet([sub_n])
-            _log(f"[TROUBLE] Detail sheet refreshed → {out}")
+            _, removed = prune_resolved_troubles()
+            if removed:
+                _log(
+                    f"[TROUBLE] pruned {len(removed)} resolved "
+                    f"(result files present again)"
+                )
+            if failures or removed:
+                sub_n = sub_number_for_namecode(namecode)
+                out = refresh_progress_sheet([sub_n])
+                _log(f"[TROUBLE] Detail sheet refreshed → {out}")
         except Exception as exc:
             _log(
                 f"[TROUBLE] sheet refresh failed: "

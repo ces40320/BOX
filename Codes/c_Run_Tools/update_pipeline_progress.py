@@ -8,7 +8,9 @@ Writes:
 
 Runtime tool failures from ``run_opensim_pipeline.py`` are stored in a
 sidecar JSON (``pipeline_trouble.json``) and merged into Detail/Matrix as
-``mark=☒`` so they survive a full sheet refresh.
+``mark=☒`` so they survive a full sheet refresh. When the canonical result
+file reappears on disk, ``refresh_progress_sheet`` / this script prune that
+entry so ``failed_segments`` and ``☒`` clear automatically.
 
 Usage
 -----
@@ -41,6 +43,10 @@ if CODES_DIR not in sys.path:
 from SUB_Info import subjects  # noqa: E402
 from PATH_RULE import OPENSIM_DIR, ResultPaths  # noqa: E402
 import config_methods as _cfg  # noqa: E402
+
+if THIS_DIR not in sys.path:
+    sys.path.insert(0, THIS_DIR)
+from pipeline_rules import jr_suffixes as _jr_suffixes  # noqa: E402
 
 
 PROTOCOL = "Asymmetric"
@@ -250,6 +256,88 @@ def record_trouble(
     return entry
 
 
+def _paths_for_trouble_entry(entry: dict) -> list[str]:
+    """Canonical outputs that mean this trouble is resolved on disk."""
+    namecode = str(entry["namecode"])
+    cond = str(entry["condition"])
+    seg = str(entry["segment"])
+    tool = str(entry["tool"]).strip().lower()
+    app = str(entry.get("app") or "(shared)")
+    rp = ResultPaths(namecode)
+
+    if tool == "extload":
+        # Pipeline output is SETUP XML (``.mot`` is experimental input).
+        if app == "(shared)":
+            raise ValueError(f"extload trouble missing app: {entry!r}")
+        return [rp.for_condition(cond).setup_extload_path(seg, app)]
+    if tool == "ik":
+        return [_result_file(rp, cond, seg, "ik", APPS[0])]
+    if tool == "bk":
+        return [_result_file(rp, cond, seg, "bk", APPS[0])]
+    if tool in ("so", "jr"):
+        if app == "(shared)":
+            raise ValueError(f"{tool} trouble missing app: {entry!r}")
+        if tool == "so":
+            return [_result_file(rp, cond, seg, "so", app)]
+        # JR: require all expected suffixes (AddBox includes ground).
+        cp = rp.for_condition(cond)
+        return [cp.jr_path(seg, app, sfx) for sfx in _jr_suffixes(app)]
+    raise ValueError(f"Unknown trouble tool: {tool!r}")
+
+
+def trouble_entry_resolved(entry: dict) -> bool:
+    """True when every canonical result for this trouble exists on disk."""
+    try:
+        paths = _paths_for_trouble_entry(entry)
+    except Exception:
+        return False
+    return bool(paths) and all(os.path.isfile(p) for p in paths)
+
+
+def prune_resolved_troubles(
+    path: str | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """Drop sidecar entries whose results now exist.
+
+    Returns ``(kept, removed)``. Rewrites the JSON only when something is
+    removed so ``failed_segments`` / ``☒`` clear on the next sheet refresh.
+    """
+    path = path or default_trouble_path()
+    entries = load_troubles(path)
+    kept: list[dict] = []
+    removed: list[dict] = []
+    for e in entries:
+        if trouble_entry_resolved(e):
+            removed.append(e)
+        else:
+            kept.append(e)
+    if removed:
+        save_troubles(kept, path)
+    return kept, removed
+
+
+def clear_trouble(
+    *,
+    namecode: str,
+    condition: str,
+    segment: str,
+    tool: str,
+    app: str | None = None,
+    path: str | None = None,
+) -> bool:
+    """Remove one trouble entry by key. Returns True if something was removed."""
+    path = path or default_trouble_path()
+    tool_l = tool.strip().lower()
+    app_n = _normalize_trouble_app(tool_l, app)
+    key = (namecode, condition, segment, app_n, tool_l)
+    entries = load_troubles(path)
+    kept = [e for e in entries if _trouble_entry_key(e) != key]
+    if len(kept) == len(entries):
+        return False
+    save_troubles(kept, path)
+    return True
+
+
 def _troubles_by_detail_key(
     troubles: list[dict],
 ) -> dict[tuple[str, str, str, str, str], list[str]]:
@@ -324,13 +412,28 @@ def refresh_progress_sheet(
     out_path: str | None = None,
     trouble_path: str | None = None,
 ) -> str:
-    """Rescan disk, merge trouble sidecar, write workbook. Returns path."""
+    """Rescan disk, prune resolved troubles, merge remainder, write workbook."""
     subs = list(sub_numbers) if sub_numbers is not None else list(
         DEFAULT_SUB_NUMBERS
     )
     report = scan_progress(subs)
-    troubles = load_troubles(trouble_path)
-    apply_troubles_to_report(report, troubles)
+    kept, removed = prune_resolved_troubles(trouble_path)
+    if removed:
+        print(
+            f"[pipeline_progress] pruned {len(removed)} resolved trouble(s) "
+            f"(result files present again)",
+            flush=True,
+        )
+        for e in removed[:20]:
+            print(
+                f"  - {e.get('namecode')} / {e.get('condition')} / "
+                f"seg={e.get('segment')}  tool={e.get('tool')}  "
+                f"app={e.get('app')}",
+                flush=True,
+            )
+        if len(removed) > 20:
+            print(f"  ... and {len(removed) - 20} more", flush=True)
+    apply_troubles_to_report(report, kept)
     path = write_workbook(report, out_path or default_sheet_path())
     return path
 
@@ -752,7 +855,7 @@ def _print_console_summary(report: dict) -> None:
         1 for r in report["detail"] if r.get("mark") == MARK_TROUBLE
     )
     if n_trouble:
-        print(f"  trouble mark {MARK_TROUBLE} cells: {n_trouble}")
+        print(f"  trouble mark [x] cells: {n_trouble}")
 
 
 def main() -> None:
