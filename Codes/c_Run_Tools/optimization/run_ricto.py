@@ -9,17 +9,23 @@ python run_ricto.py --synthetic --box-mass 7 --modes pre,post
 # Legacy OneCycle (requires OpenSim data on disk)
 python run_ricto.py --legacy --task 1 --box-mass 15 --solver least_squares
 
-# Modern tree (OpenSim_Process)
-python run_ricto.py --namecode SUB2 --protocol Asymmetric \\
-    --condition 7kg_10bpm --segments 1AB,1BC --box-mass 7
+# Modern tree (OpenSim_Process) — one subject / condition
+python run_ricto.py --namecode 260512_KCH --condition 7kg_10bpm \\
+    --segments 1AB,1BC --box-mass 7
+
+# All Asymmetric subjects / conditions / segments (Anaconda window)
+python run_ricto.py --all --modes pre,post --solver least_squares
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
+import traceback
 from pathlib import Path
+from typing import Iterable, Optional
 
 import numpy as np
 import pandas as pd
@@ -381,25 +387,166 @@ def run_modern_segment(
     return {"mots": written, "summary_csv": sum_path, "timeseries_csv": ts_path, "qc": qc}
 
 
+def box_mass_from_condition(condition: str, default: float = 7.0) -> float:
+    """Parse leading ``Nkg`` from condition names like ``15kg_10bpm`` / ``7kg_10bpm_trial1``."""
+    m = re.match(r"(\d+)\s*kg", condition, flags=re.IGNORECASE)
+    return float(m.group(1)) if m else float(default)
+
+
+def _csv_set(raw: Optional[str]) -> Optional[set[str]]:
+    if raw is None or not str(raw).strip():
+        return None
+    return {x.strip() for x in str(raw).split(",") if x.strip()}
+
+
+def iter_modern_jobs(
+    *,
+    namecodes: Optional[Iterable[str]] = None,
+    protocols: Optional[Iterable[str]] = None,
+    conditions: Optional[Iterable[str]] = None,
+    segments: Optional[Iterable[str]] = None,
+) -> list[tuple[str, str, str, float]]:
+    """Enumerate ``(namecode, condition, seg, box_mass_kg)`` from ``SUB_Info``."""
+    import SUB_Info as si
+
+    want_nc = set(namecodes) if namecodes is not None else None
+    want_proto = set(protocols) if protocols is not None else None
+    want_cond = set(conditions) if conditions is not None else None
+    want_seg = set(segments) if segments is not None else None
+
+    jobs: list[tuple[str, str, str, float]] = []
+    for namecode, meta in si.subjects.items():
+        if want_nc is not None and namecode not in want_nc:
+            continue
+        protocol = meta.get("protocol")
+        if want_proto is not None and protocol not in want_proto:
+            continue
+        rp = _path.ResultPaths(namecode)
+        for cond in rp.conditions:
+            if want_cond is not None and cond not in want_cond:
+                continue
+            mass = box_mass_from_condition(cond)
+            cp = rp.for_condition(cond)
+            for segs in cp.section_segments().values():
+                for seg in segs:
+                    if want_seg is not None and seg not in want_seg:
+                        continue
+                    jobs.append((namecode, cond, seg, mass))
+    return jobs
+
+
+def run_all_modern(
+    *,
+    modes: list[str],
+    solver: str,
+    namecodes: Optional[Iterable[str]] = None,
+    protocols: Optional[Iterable[str]] = None,
+    conditions: Optional[Iterable[str]] = None,
+    segments: Optional[Iterable[str]] = None,
+    continue_on_error: bool = True,
+    dry_run: bool = False,
+) -> dict:
+    """Batch RiCTO over subjects / conditions / segments."""
+    jobs = iter_modern_jobs(
+        namecodes=namecodes,
+        protocols=protocols,
+        conditions=conditions,
+        segments=segments,
+    )
+    ok, fail = 0, 0
+    print(f"[all] {len(jobs)} jobs | modes={modes} solver={solver}")
+    for namecode, cond, seg, mass in jobs:
+        tag = f"{namecode} {cond} {seg} ({mass:g}kg)"
+        if dry_run:
+            print(f"[dry-run] {tag}")
+            ok += 1
+            continue
+        try:
+            res = run_modern_segment(
+                namecode=namecode,
+                condition=cond,
+                seg=seg,
+                box_mass_kg=mass,
+                modes=modes,
+                solver=solver,
+            )
+            print(f"[ok] {tag} -> {res['mots']}")
+            ok += 1
+        except Exception as e:
+            fail += 1
+            print(f"[fail] {tag}: {e}")
+            if not continue_on_error:
+                traceback.print_exc()
+                raise
+    summary = {"n_jobs": len(jobs), "ok": ok, "fail": fail}
+    print(f"[all] done {summary}")
+    return summary
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate preRiCTO / postRiCTO ExtLoad MOT")
     ap.add_argument("--synthetic", action="store_true", help="Run fully synthetic demo")
     ap.add_argument("--legacy", action="store_true", help="Legacy OneCycle half-split mode")
+    ap.add_argument(
+        "--all",
+        action="store_true",
+        help="Batch all modern subjects/conditions/segments from SUB_Info",
+    )
     ap.add_argument("--task", type=int, default=1)
     ap.add_argument("--namecode", default=None, help="Modern: SUB_Info namecode e.g. 260512_KCH")
+    ap.add_argument(
+        "--namecodes",
+        default=None,
+        help="Comma filter for --all (e.g. 260512_KCH,260519_SHY)",
+    )
+    ap.add_argument(
+        "--protocols",
+        default="Asymmetric",
+        help="Comma filter for --all (default: Asymmetric; empty = all)",
+    )
     ap.add_argument("--condition", default=None)
+    ap.add_argument(
+        "--conditions",
+        default=None,
+        help="Comma filter for --all (e.g. 7kg_10bpm,15kg_10bpm)",
+    )
     ap.add_argument("--segments", default=None, help="Comma-separated e.g. 1AB,1BC")
-    ap.add_argument("--box-mass", type=float, default=7.0)
+    ap.add_argument(
+        "--box-mass",
+        type=float,
+        default=None,
+        help="Box mass kg (single-run). For --all, mass is parsed from condition name.",
+    )
     ap.add_argument("--modes", default="pre,post")
     ap.add_argument("--solver", default=cfg.DEFAULT_SOLVER, choices=list(cfg.SOLVERS))
+    ap.add_argument(
+        "--stop-on-error",
+        action="store_true",
+        help="For --all: abort on first failure (default: continue)",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     modes = _parse_modes(args.modes)
+    box_mass = 7.0 if args.box_mass is None else float(args.box_mass)
 
-    if args.dry_run:
+    if args.dry_run and not args.all:
         print("[dry-run] modes=", modes, "solver=", args.solver)
         print("[dry-run] ANALYSIS_DIR=", _path.ANALYSIS_DIR)
         print("[dry-run] OPENSIM_DIR=", _path.OPENSIM_DIR)
+        return
+
+    if args.all:
+        proto = _csv_set(args.protocols)
+        run_all_modern(
+            modes=modes,
+            solver=args.solver,
+            namecodes=_csv_set(args.namecodes) or (_csv_set(args.namecode) if args.namecode else None),
+            protocols=proto,
+            conditions=_csv_set(args.conditions) or (_csv_set(args.condition) if args.condition else None),
+            segments=_csv_set(args.segments),
+            continue_on_error=not args.stop_on_error,
+            dry_run=args.dry_run,
+        )
         return
 
     if args.synthetic or (
@@ -408,22 +555,27 @@ def main() -> None:
         # default to synthetic when no data args given
         if not args.legacy and not (args.namecode and args.condition and args.segments):
             print("[run_ricto] no data args → synthetic demo")
-        res = run_synthetic(args.box_mass, modes, args.solver)
+        res = run_synthetic(box_mass, modes, args.solver)
         print("[synthetic]", res)
         return
 
     if args.legacy:
-        res = run_legacy_task(args.task, args.box_mass, modes, args.solver)
+        res = run_legacy_task(args.task, box_mass, modes, args.solver)
         print("[legacy]", res)
         return
 
+    mass = (
+        args.box_mass
+        if args.box_mass is not None
+        else box_mass_from_condition(args.condition, default=7.0)
+    )
     segs = [s.strip() for s in args.segments.split(",") if s.strip()]
     for seg in segs:
         res = run_modern_segment(
             namecode=args.namecode,
             condition=args.condition,
             seg=seg,
-            box_mass_kg=args.box_mass,
+            box_mass_kg=mass,
             modes=modes,
             solver=args.solver,
         )
