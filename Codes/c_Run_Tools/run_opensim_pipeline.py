@@ -26,6 +26,7 @@ from opensim_pipeline_handlers import (
     run_so,
 )
 from pipeline_rules import (
+    DEFAULT_ANALYZE_TIMEOUT_S,
     ID_APP,
     ik_suffix,
     jr_suffixes,
@@ -131,6 +132,7 @@ def _run_flags_from_args(args) -> dict:
         "no_run_bk": bool(args.no_run_bk),
         "no_run_jr": bool(args.no_run_jr),
         "no_run_id": bool(args.no_run_id),
+        "tool_timeout": args.tool_timeout,
     }
 
 
@@ -306,7 +308,8 @@ def _run_so(*, cp, rp, seg, app, args, condition):
     # module docstring) — required to avoid the OpenSim SET+RUN in-process
     # silent-skip bug that the OLD pipeline worked around by splitting
     # ``*_SET.py`` and ``*_RUN.py`` into separate files.
-    run_so(cp=cp, rp=rp, seg=seg, app=app, dry_run=False)
+    run_so(cp=cp, rp=rp, seg=seg, app=app, dry_run=False,
+           timeout_s=args.tool_timeout)
     _log(f"[DONE] seg={seg}  tool=so  app={app}  "
          f"-> {cp.so_dir(cp.seg_to_section(seg), app)}")
 
@@ -323,7 +326,8 @@ def _run_bk(*, cp, rp, seg, args):
     if args.no_run_bk or args.dry_run:
         _log(f"[DONE] seg={seg}  tool=bk  (setup only; run skipped)")
         return
-    run_bk(cp=cp, rp=rp, seg=seg, dry_run=False)
+    run_bk(cp=cp, rp=rp, seg=seg, dry_run=False,
+           timeout_s=args.tool_timeout)
     _log(f"[DONE] seg={seg}  tool=bk  "
          f"-> {cp.bk_dir(cp.seg_to_section(seg))}")
 
@@ -344,7 +348,8 @@ def _run_jr(*, cp, rp, seg, app, args, condition):
              f"(setup only; run skipped)")
         return
     # RUN dispatched to a fresh subprocess (see opensim_pipeline_handlers).
-    run_jr(cp=cp, rp=rp, seg=seg, app=app, dry_run=False)
+    run_jr(cp=cp, rp=rp, seg=seg, app=app, dry_run=False,
+           timeout_s=args.tool_timeout)
     _log(f"[DONE] seg={seg}  tool=jr  app={app}  "
          f"-> {cp.jr_dir(cp.seg_to_section(seg), app)}")
 
@@ -508,6 +513,7 @@ def _run_one_condition(
     _log(f"  skip_existing : {args.skip_existing}")
     _log(f"  workers   : {workers}  "
          f"(OpenSim-heavy; keep below core count if RAM-limited)")
+    _log(f"  tool_timeout : {args.tool_timeout}")
     _log(f"  segments  : {len(segments)} selected")
     if error_log:
         _log(f"  error_log : {sorted(error_log)}")
@@ -687,6 +693,13 @@ def main() -> None:
         help="Which app's IK / ExtLoad to bind into the (segment-level) BK setup "
              "(default: MeasuredEHF — kinematics-only, mass-independent)",
     )
+    parser.add_argument(
+        "--tool-timeout", type=float, default=DEFAULT_ANALYZE_TIMEOUT_S,
+        help="Wall-clock seconds for each SO/BK/JR AnalyzeTool subprocess "
+             f"(default: {DEFAULT_ANALYZE_TIMEOUT_S:.0f} = 30 min). "
+             "Kills frozen OpenSim optimizations and records trouble. "
+             "Use 0 to disable the timeout.",
+    )
     parser.add_argument("--no-run-id", action="store_true",
                         help="Only write ID setup XMLs, do not execute the tool")
     parser.add_argument("--no-run-so", action="store_true",
@@ -699,6 +712,10 @@ def main() -> None:
 
     if args.workers < 0:
         raise ValueError("--workers must be >= 0")
+    if args.tool_timeout < 0:
+        raise ValueError("--tool-timeout must be >= 0 (0 disables)")
+    if args.tool_timeout == 0:
+        args.tool_timeout = None
 
     namecodes = _pick_namecodes(args.namecode)
     tools = _parse_tools(args.tools)

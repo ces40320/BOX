@@ -34,6 +34,7 @@ import tempfile
 from lxml import etree
 
 from pipeline_rules import (
+    DEFAULT_ANALYZE_TIMEOUT_S,
     ik_suffix as _ik_suffix,
     ik_template as _ik_template,
     jr_suffixes as _jr_suffixes,
@@ -59,7 +60,11 @@ def _maybe_add_opensim_dll_dir() -> None:
 # ──────────────────────────────────────────────────────────────────
 # Subprocess-isolated RUN dispatcher
 # ──────────────────────────────────────────────────────────────────
-def _run_analyze_jobs(jobs: list[dict]) -> None:
+def _run_analyze_jobs(
+    jobs: list[dict],
+    *,
+    timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
+) -> None:
     """Execute one or more ``AnalyzeTool`` jobs in an isolated subprocess.
 
     Each job dict must carry: ``tool``, ``setup_xml``, ``model_path``.
@@ -68,8 +73,14 @@ def _run_analyze_jobs(jobs: list[dict]) -> None:
     ``..._ReactionLoads.sto`` to ``..._ReactionLoads_ground.sto`` before
     the subsequent child run overwrites it).
 
-    Raises ``RuntimeError`` on non-zero subprocess exit; the JSON manifest
-    is preserved on failure for inspection (deleted only on success).
+    ``timeout_s`` is a wall-clock limit on the AnalyzeTool grandchild
+    process (default ``DEFAULT_ANALYZE_TIMEOUT_S`` = 1800 s). Pass
+    ``None`` to disable. On expiry the subprocess is killed and
+    ``RuntimeError`` is raised so the pool worker can record trouble and
+    continue — the worker itself is not killed (avoids BrokenProcessPool).
+
+    Raises ``RuntimeError`` on non-zero exit or timeout; the JSON
+    manifest is preserved on failure (deleted only on success).
     """
     if not jobs:
         return
@@ -84,10 +95,21 @@ def _run_analyze_jobs(jobs: list[dict]) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(jobs, f, indent=2)
 
-        result = subprocess.run(
-            [sys.executable, _SUBPROC_SCRIPT, "--manifest", manifest],
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [sys.executable, _SUBPROC_SCRIPT, "--manifest", manifest],
+                check=False,
+                timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired as exc:
+            tools = ",".join(str(j.get("tool", "?")) for j in jobs)
+            limit = f"{timeout_s:.0f}" if timeout_s is not None else "?"
+            raise RuntimeError(
+                f"AnalyzeTool subprocess killed after {limit}s timeout "
+                f"(tool={tools}; suspected frozen optimization).\n"
+                f"  Manifest preserved at: {manifest}"
+            ) from exc
+
         if result.returncode != 0:
             raise RuntimeError(
                 f"AnalyzeTool subprocess failed (exit {result.returncode}).\n"
@@ -102,6 +124,7 @@ def _run_analyze_jobs(jobs: list[dict]) -> None:
                 os.remove(manifest)
             except OSError:
                 pass
+
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -503,6 +526,7 @@ def run_so(
     seg: str,
     app: str,
     dry_run: bool = False,
+    timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
 ) -> str:
     """Run a previously prepared ``SETUP_SO_*.xml`` for one (segment, app).
 
@@ -524,7 +548,7 @@ def run_so(
         "tool": "so",
         "setup_xml": setup_so_xml,
         "model_path": model_path,
-    }])
+    }], timeout_s=timeout_s)
     return setup_so_xml
 
 
@@ -605,6 +629,7 @@ def run_bk(
     rp,
     seg: str,
     dry_run: bool = False,
+    timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
 ) -> str:
     """Run a previously prepared ``SETUP_BK_*.xml`` for one segment."""
     setup_bk_xml = cp.setup_bk_path(seg)
@@ -621,7 +646,7 @@ def run_bk(
         "tool": "bk",
         "setup_xml": setup_bk_xml,
         "model_path": base_model_path,
-    }])
+    }], timeout_s=timeout_s)
     return setup_bk_xml
 
 
@@ -750,6 +775,7 @@ def run_jr(
     seg: str,
     app: str,
     dry_run: bool = False,
+    timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
 ) -> list[str]:
     """Run all JR setup XMLs for one (segment, app), renaming ground output.
 
@@ -785,5 +811,5 @@ def run_jr(
             job["rename_after"] = [[canonical_jr_sto, suffixed]]
         jobs.append(job)
 
-    _run_analyze_jobs(jobs)
+    _run_analyze_jobs(jobs, timeout_s=timeout_s)
     return setup_paths
