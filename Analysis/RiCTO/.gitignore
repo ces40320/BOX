@@ -1,0 +1,6 @@
+# Keep directory; large MOT/CSV outputs may be regenerated.
+_validation/
+_synthetic/
+**/timeseries/
+**/plots/
+!**/.gitkeep
