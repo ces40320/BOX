@@ -15,6 +15,9 @@ COWORK_ROOT_DIR = r"E:\Dropbox\SEL\BOX"         # TODO: 추후 config 파일로 
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(CODE_DIR)
 DATA_DIR = os.path.join(COWORK_ROOT_DIR, "Experiment")
+# RiCTO / 논문용 분석 산출물 (OpenSim ExtLoad.mot 와 분리)
+ANALYSIS_DIR = os.path.join(ROOT_DIR, "Analysis")
+os.makedirs(ANALYSIS_DIR, exist_ok=True)
 
 if prototype is not None:
     OPENSIM_DIR        = os.path.join(ROOT_DIR,         "OpenSim_Process", str(prototype))
@@ -269,6 +272,17 @@ class ResultPaths:
             raise KeyError(f"{cond!r} not in conditions of {self.namecode!r}")
         return ConditionPaths(self, cond)
 
+    # ── Analysis (RiCTO 등) ──────────────────────────────────
+
+    def analysis_dir(self, *parts: str) -> str:
+        """``Analysis/RiCTO/<protocol>/<SUB>/...`` 하위 디렉토리.
+
+        OpenSim ExtLoad 입력과 분리된 논문·검증 산출물 경로.
+        """
+        base = [ANALYSIS_DIR, "RiCTO", self.protocol, self.sub_label]
+        base.extend(parts)
+        return _ensure_dir(*base)
+
 
 # ═══════════════════════════════════════════════════════════════
 #  ConditionPaths — condition 바인딩 하위 context
@@ -349,6 +363,28 @@ class ConditionPaths:
 
     def jr_dir(self, section: str, app: str) -> str:
         return self._p.jr_dir(self.cond, section, app)
+
+    def analysis_dir(self, *parts: str) -> str:
+        """``Analysis/RiCTO/<protocol>/<SUB>/<cond>/...``"""
+        return self._p.analysis_dir(self.cond, *parts)
+
+    def ricto_summary_path(self) -> str:
+        return os.path.join(
+            self.analysis_dir(),
+            f"{self.sub_label}_{self.cond}_RiCTO_summary.csv",
+        )
+
+    def ricto_timeseries_path(self, seg: str) -> str:
+        return os.path.join(
+            self.analysis_dir("timeseries"),
+            f"{self.sub_label}_{self.cond}_{seg}_RiCTO_timeseries.csv",
+        )
+
+    def ricto_plot_path(self, seg: str, tag: str = "overview") -> str:
+        return os.path.join(
+            self.analysis_dir("plots"),
+            f"{self.sub_label}_{self.cond}_{seg}_RiCTO_{tag}.png",
+        )
 
     # ── 전체 경로 (seg → section 자동 추출) ─────────────────────
 
