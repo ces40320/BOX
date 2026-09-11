@@ -16,14 +16,17 @@ from PATH_RULE import ResultPaths
 from opensim_pipeline_handlers import (
     prepare_bk_setup,
     prepare_extload_setup,
+    prepare_id_setup,
     prepare_jr_setup,
     prepare_so_setup,
     run_bk,
+    run_id,
     run_ik,
     run_jr,
     run_so,
 )
 from pipeline_rules import (
+    ID_APP,
     ik_suffix,
     jr_suffixes,
     resolve_model_path,
@@ -36,7 +39,9 @@ from update_pipeline_progress import (
 )
 
 
-VALID_TOOLS: tuple[str, ...] = ("extload", "ik", "so", "bk", "jr")
+VALID_TOOLS: tuple[str, ...] = ("extload", "ik", "id", "so", "bk", "jr")
+# Tools that iterate the selected app list. ID is excluded — HeavyHand only.
+_APP_LOOP_TOOLS: tuple[str, ...] = ("extload", "ik", "so", "jr")
 
 
 def _log(msg: str) -> None:
@@ -125,6 +130,7 @@ def _run_flags_from_args(args) -> dict:
         "no_run_so": bool(args.no_run_so),
         "no_run_bk": bool(args.no_run_bk),
         "no_run_jr": bool(args.no_run_jr),
+        "no_run_id": bool(args.no_run_id),
     }
 
 
@@ -147,6 +153,10 @@ def _canonical_result_paths(cp, seg: str, tool: str, app: str | None) -> list[st
         if app is None:
             raise ValueError("ik requires app")
         return [cp.ik_path(seg, ik_suffix(app))]
+    if tool == "id":
+        if app is None:
+            raise ValueError("id requires app")
+        return [cp.id_path(seg, app)]
     if tool == "so":
         if app is None:
             raise ValueError("so requires app")
@@ -192,6 +202,8 @@ def _print_structure_validation_sample(rp, cp, apps: list[str],
     sample_section = cp.seg_to_section(sample_seg)
     sample_ik_model = resolve_model_path(rp, cp.cond, sample_app, "ik",
                                          must_exist=False)
+    sample_id_model = resolve_model_path(rp, cp.cond, ID_APP, "id",
+                                         must_exist=False)
     sample_so_model = resolve_model_path(rp, cp.cond, sample_app, "so",
                                          must_exist=False)
     sample_jr_model = resolve_model_path(rp, cp.cond, sample_app, "jr",
@@ -204,12 +216,16 @@ def _print_structure_validation_sample(rp, cp, apps: list[str],
     print(f"  markers     : {cp.markers_dir(sample_section)}", flush=True)
     print(f"  extload dir : {cp.extload_dir(sample_section)}", flush=True)
     print(f"  ik dir      : {cp.ik_dir(sample_section)}", flush=True)
+    print(f"  id dir      : {cp.id_dir(sample_section, ID_APP)}  "
+          f"(HeavyHand only)", flush=True)
     print(f"  bk dir      : {cp.bk_dir(sample_section)}", flush=True)
     print(f"  so dir      : {cp.so_dir(sample_section, sample_app)}", flush=True)
     print(f"  jr dir      : {cp.jr_dir(sample_section, sample_app)}", flush=True)
     print(f"  trc_path    : {cp.trc_path(sample_seg)}", flush=True)
     print(f"  ext_xml     : {cp.setup_extload_path(sample_seg, sample_app)}", flush=True)
     print(f"  ik_xml      : {cp.setup_ik_path(sample_seg)}", flush=True)
+    print(f"  id_xml      : {cp.setup_id_path(sample_seg, ID_APP)}  "
+          f"(HeavyHand only)", flush=True)
     print(f"  bk_xml      : {cp.setup_bk_path(sample_seg)}", flush=True)
     print(f"  so_xml      : {cp.setup_so_path(sample_seg, sample_app)}", flush=True)
     for sfx in jr_suffixes(sample_app):
@@ -217,6 +233,8 @@ def _print_structure_validation_sample(rp, cp, apps: list[str],
         print(f"  jr_xml[{tag}] : {cp.setup_jr_path(sample_seg, sample_app, sfx)}",
               flush=True)
     print(f"  model(ik)   : {os.path.basename(sample_ik_model)}", flush=True)
+    print(f"  model(id)   : {os.path.basename(sample_id_model)}  "
+          f"({ID_APP})", flush=True)
     print(f"  model(so)   : {os.path.basename(sample_so_model)}", flush=True)
     print(f"  model(jr)   : {os.path.basename(sample_jr_model)}", flush=True)
     print( "  (reserve/residual/torque actuators are baked into the above "
@@ -250,6 +268,24 @@ def _run_ik(*, cp, rp, seg, app, args, condition):
         dry_run=args.dry_run,
     )
     _log(f"[DONE] seg={seg}  tool=ik  app={app}  -> {ik_path}")
+
+
+def _run_id(*, cp, rp, seg, app, args, condition):
+    if _try_skip_existing(cp=cp, seg=seg, tool="id", app=app, args=args):
+        return
+    id_model = resolve_model_path(rp, condition, app, "id",
+                                  must_exist=not args.dry_run)
+    _log(f"[RUN ] seg={seg}  tool=id  app={app}  "
+         f"model={os.path.basename(id_model)}")
+    id_xml = prepare_id_setup(cp=cp, rp=rp, seg=seg, app=app,
+                              dry_run=args.dry_run)
+    _log(f"[OK  ] seg={seg}  tool=id  app={app}  setup={id_xml}")
+    if args.no_run_id or args.dry_run:
+        _log(f"[DONE] seg={seg}  tool=id  app={app}  "
+             f"(setup only; run skipped)")
+        return
+    id_sto = run_id(cp=cp, rp=rp, seg=seg, app=app, dry_run=False)
+    _log(f"[DONE] seg={seg}  tool=id  app={app}  -> {id_sto}")
 
 
 def _run_so(*, cp, rp, seg, app, args, condition):
@@ -342,33 +378,43 @@ def _run_one_segment(
         rp = ResultPaths(namecode)
         cp = rp.for_condition(condition)
 
-        for app in apps:
-            if "extload" in tools:
-                try:
-                    _run_extload(cp=cp, seg=seg, app=app, args=args)
-                except Exception as exc:
-                    return _fail_result(seg, "extload", app, exc)
+        # App loop only when a selected tool actually varies by app.
+        # ID is not in this loop — it runs once for HeavyHand below.
+        if any(t in tools for t in _APP_LOOP_TOOLS):
+            for app in apps:
+                if "extload" in tools:
+                    try:
+                        _run_extload(cp=cp, seg=seg, app=app, args=args)
+                    except Exception as exc:
+                        return _fail_result(seg, "extload", app, exc)
 
-            if "ik" in tools:
-                try:
-                    _run_ik(cp=cp, rp=rp, seg=seg, app=app,
-                            args=args, condition=condition)
-                except Exception as exc:
-                    return _fail_result(seg, "ik", app, exc)
+                if "ik" in tools:
+                    try:
+                        _run_ik(cp=cp, rp=rp, seg=seg, app=app,
+                                args=args, condition=condition)
+                    except Exception as exc:
+                        return _fail_result(seg, "ik", app, exc)
 
-            if "so" in tools:
-                try:
-                    _run_so(cp=cp, rp=rp, seg=seg, app=app,
-                            args=args, condition=condition)
-                except Exception as exc:
-                    return _fail_result(seg, "so", app, exc)
+                if "so" in tools:
+                    try:
+                        _run_so(cp=cp, rp=rp, seg=seg, app=app,
+                                args=args, condition=condition)
+                    except Exception as exc:
+                        return _fail_result(seg, "so", app, exc)
 
-            if "jr" in tools:
-                try:
-                    _run_jr(cp=cp, rp=rp, seg=seg, app=app,
-                            args=args, condition=condition)
-                except Exception as exc:
-                    return _fail_result(seg, "jr", app, exc)
+                if "jr" in tools:
+                    try:
+                        _run_jr(cp=cp, rp=rp, seg=seg, app=app,
+                                args=args, condition=condition)
+                    except Exception as exc:
+                        return _fail_result(seg, "jr", app, exc)
+
+        if "id" in tools and ID_APP in apps:
+            try:
+                _run_id(cp=cp, rp=rp, seg=seg, app=ID_APP,
+                        args=args, condition=condition)
+            except Exception as exc:
+                return _fail_result(seg, "id", ID_APP, exc)
 
         if "bk" in tools:
             try:
@@ -453,6 +499,11 @@ def _run_one_condition(
     _log(f"  condition : {condition}")
     _log(f"  tools     : {tools}")
     _log(f"  apps      : {apps}")
+    if "id" in tools:
+        if ID_APP in apps:
+            _log(f"  id        : {ID_APP} only (not looped over other apps)")
+        else:
+            _log(f"  id        : skipped ({ID_APP} not in selected apps)")
     _log(f"  dry_run   : {args.dry_run}")
     _log(f"  skip_existing : {args.skip_existing}")
     _log(f"  workers   : {workers}  "
@@ -468,6 +519,16 @@ def _run_one_condition(
 
     if not runnable:
         _log(f"[OpenSim Pipeline] DONE  {namecode} / {condition}  (no segments)")
+        return []
+
+    run_app_loop = any(t in tools for t in _APP_LOOP_TOOLS)
+    run_id = "id" in tools and ID_APP in apps
+    run_bk = "bk" in tools
+    if not (run_app_loop or run_id or run_bk):
+        _log(
+            f"[OpenSim Pipeline] DONE  {namecode} / {condition}  "
+            f"(no selected tool applies to apps={apps})"
+        )
         return []
 
     _print_structure_validation_sample(rp, cp, apps, runnable)
@@ -556,7 +617,9 @@ def _run_one_condition(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="OpenSim pipeline (ExtLoad / IK / SO / BK / JR)"
+        description="OpenSim pipeline (ExtLoad / IK / ID / SO / BK / JR). "
+                    "SO cases that only run from 0.05 s are a separate "
+                    "retry: retry_so_edge.py"
     )
     parser.add_argument(
         "--namecode", default=None,
@@ -571,7 +634,8 @@ def main() -> None:
     parser.add_argument(
         "--tools", default="extload,ik",
         help=f"Comma-separated subset of {list(VALID_TOOLS)} "
-             "(execution order is fixed regardless of input order)",
+             "(execution order is fixed regardless of input order). "
+             f"id runs only for {ID_APP}, once per segment.",
     )
     parser.add_argument(
         "--apps", default=None,
@@ -589,8 +653,9 @@ def main() -> None:
     parser.add_argument(
         "--skip-existing", action="store_true",
         help="Skip a tool step when its pipeline output already exists "
-             "(ExtLoad: SETUP_*.xml; IK: .mot; SO force / BK pos_global / "
-             "JR ReactionLoads .sto). Missing outputs are still run.",
+             "(ExtLoad: SETUP_*.xml; IK: .mot; ID InverseDynamics / "
+             "SO force / BK pos_global / JR ReactionLoads .sto). "
+             "Missing outputs are still run.",
     )
     parser.add_argument(
         "--workers", type=int, default=1,
@@ -622,6 +687,8 @@ def main() -> None:
         help="Which app's IK / ExtLoad to bind into the (segment-level) BK setup "
              "(default: MeasuredEHF — kinematics-only, mass-independent)",
     )
+    parser.add_argument("--no-run-id", action="store_true",
+                        help="Only write ID setup XMLs, do not execute the tool")
     parser.add_argument("--no-run-so", action="store_true",
                         help="Only write SO setup XMLs, do not execute the tool")
     parser.add_argument("--no-run-bk", action="store_true",

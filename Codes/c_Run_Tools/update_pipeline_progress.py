@@ -46,7 +46,7 @@ import config_methods as _cfg  # noqa: E402
 
 if THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
-from pipeline_rules import jr_suffixes as _jr_suffixes  # noqa: E402
+from pipeline_rules import ID_APP, jr_suffixes as _jr_suffixes  # noqa: E402
 
 
 PROTOCOL = "Asymmetric"
@@ -55,6 +55,17 @@ APPS: tuple[str, ...] = ("MeasuredEHF", "HeavyHand", "preRiCTO", "postRiCTO")
 SECTIONS: tuple[str, ...] = ("AB", "BC", "CA")
 TOOLS_PER_APP: tuple[str, ...] = ("extload", "so", "jr")  # IK/BK are app-shared
 SHARED_DETAIL_TOOLS: tuple[str, ...] = ("ik", "bk")
+
+
+def tools_for_app(app: str) -> tuple[str, ...]:
+    """Tools scanned for one app. ID is HeavyHand-only (not a full app loop)."""
+    if app == ID_APP:
+        return ("extload", "id", "so", "jr")
+    return TOOLS_PER_APP
+
+
+def iter_app_tools() -> list[tuple[str, str]]:
+    return [(app, tool) for app in APPS for tool in tools_for_app(app)]
 
 MARK_DONE = "☑"
 MARK_PARTIAL = "◐"
@@ -136,6 +147,10 @@ def _result_file(rp: ResultPaths, cond: str, seg: str, tool: str,
         )
     if tool == "extload":
         return os.path.join(base, "ExtLoad", rp.extload_name(cond, seg, app))
+    if tool == "id":
+        return os.path.join(
+            base, f"ID_{app}", rp.id_name(cond, seg, app)
+        )
     if tool == "so":
         return os.path.join(
             base, f"SO_{app}", rp.so_name(cond, seg, app, "force")
@@ -274,11 +289,13 @@ def _paths_for_trouble_entry(entry: dict) -> list[str]:
         return [_result_file(rp, cond, seg, "ik", APPS[0])]
     if tool == "bk":
         return [_result_file(rp, cond, seg, "bk", APPS[0])]
-    if tool in ("so", "jr"):
+    if tool in ("so", "jr", "id"):
         if app == "(shared)":
             raise ValueError(f"{tool} trouble missing app: {entry!r}")
         if tool == "so":
             return [_result_file(rp, cond, seg, "so", app)]
+        if tool == "id":
+            return [_result_file(rp, cond, seg, "id", app)]
         # JR: require all expected suffixes (AddBox includes ground).
         cp = rp.for_condition(cond)
         return [cp.jr_path(seg, app, sfx) for sfx in _jr_suffixes(app)]
@@ -399,17 +416,16 @@ def apply_troubles_to_report(report: dict, troubles: list[dict]) -> dict:
         )
         if by_key.get(bk_key):
             row["BK"] = MARK_TROUBLE
-        for app in APPS:
-            for tool in TOOLS_PER_APP:
-                tkey = (
-                    str(row["namecode"]),
-                    str(row["condition"]),
-                    str(row["section"]),
-                    app,
-                    tool,
-                )
-                if by_key.get(tkey):
-                    row[f"{app}_{tool}"] = MARK_TROUBLE
+        for app, tool in iter_app_tools():
+            tkey = (
+                str(row["namecode"]),
+                str(row["condition"]),
+                str(row["section"]),
+                app,
+                tool,
+            )
+            if by_key.get(tkey):
+                row[f"{app}_{tool}"] = MARK_TROUBLE
 
     report["troubles"] = troubles
     return report
@@ -530,40 +546,39 @@ def scan_progress(
                         "expected": bk_e,
                     })
 
-                for app in APPS:
-                    for tool in TOOLS_PER_APP:
-                        p, e, miss = _count_present(
-                            rp, cond, segs, tool, app
-                        )
-                        key = f"{app}_{tool}"
-                        mark = _mark(p, e)
-                        cell[key] = mark
-                        cell[f"{key}_count"] = f"{p}/{e}"
-                        rows_detail.append({
+                for app, tool in iter_app_tools():
+                    p, e, miss = _count_present(
+                        rp, cond, segs, tool, app
+                    )
+                    key = f"{app}_{tool}"
+                    mark = _mark(p, e)
+                    cell[key] = mark
+                    cell[f"{key}_count"] = f"{p}/{e}"
+                    rows_detail.append({
+                        "SUB": sub_n,
+                        "namecode": namecode,
+                        "condition": cond,
+                        "section": section,
+                        "app": app,
+                        "tool": tool,
+                        "mark": mark,
+                        "present": p,
+                        "expected": e,
+                        "count": f"{p}/{e}",
+                        "failed_segments": "",
+                    })
+                    if miss:
+                        missing_rows.append({
                             "SUB": sub_n,
                             "namecode": namecode,
                             "condition": cond,
                             "section": section,
                             "app": app,
-                            "tool": tool,
-                            "mark": mark,
+                            "tool": tool.upper(),
+                            "missing": ", ".join(miss),
                             "present": p,
                             "expected": e,
-                            "count": f"{p}/{e}",
-                            "failed_segments": "",
                         })
-                        if miss:
-                            missing_rows.append({
-                                "SUB": sub_n,
-                                "namecode": namecode,
-                                "condition": cond,
-                                "section": section,
-                                "app": app,
-                                "tool": tool.upper(),
-                                "missing": ", ".join(miss),
-                                "present": p,
-                                "expected": e,
-                            })
                 rows_matrix.append(cell)
 
     return {
@@ -589,11 +604,10 @@ def _summary_from_matrix(matrix_rows: list[dict]) -> list[dict]:
                 "conds_complete": set(),
             },
         )
-        # Count every status cell: IK + BK + 3 tools × 4 apps
+        # Count every status cell: IK + BK + tools_for_app(app)
         marks = [row["IK"], row["BK"]]
-        for app in APPS:
-            for tool in TOOLS_PER_APP:
-                marks.append(row[f"{app}_{tool}"])
+        for app, tool in iter_app_tools():
+            marks.append(row[f"{app}_{tool}"])
         done = sum(1 for m in marks if m == MARK_DONE)
         total = sum(1 for m in marks if m != "—")
         bucket["cells_done"] += done
@@ -610,8 +624,7 @@ def _summary_from_matrix(matrix_rows: list[dict]) -> list[dict]:
         for row in rows:
             marks = [row["IK"], row["BK"]] + [
                 row[f"{app}_{tool}"]
-                for app in APPS
-                for tool in TOOLS_PER_APP
+                for app, tool in iter_app_tools()
             ]
             if any(m not in (MARK_DONE, "—") for m in marks):
                 ok = False
@@ -679,6 +692,7 @@ def write_workbook(report: dict, out_path: str) -> str:
         ("IK", "Shared across apps → …/<section>/IK/*_IK.mot"),
         ("BK", "Shared BodyKinematics → …/<section>/BK/*_pos_global.sto"),
         ("ExtLoad", "…/<section>/ExtLoad/*_ExtLoad_<app>.mot"),
+        ("ID", "HeavyHand only → …/<section>/ID_HeavyHand/*_InverseDynamics.sto"),
         ("SO", "…/<section>/SO_<app>/*_StaticOptimization_force.sto"),
         ("JR", "…/<section>/JR_<app>/*_JointReaction_ReactionLoads.sto"),
         ("", ""),
@@ -727,10 +741,10 @@ def write_workbook(report: dict, out_path: str) -> str:
     ws = wb.create_sheet("Matrix")
     # Row 1: group headers; Row 2: tool headers
     # Columns: SUB | namecode | condition | section | n_exp | IK | BK |
-    #          then per app: ExtLoad | SO | JR
+    #          then per app: ExtLoad | SO | JR, plus ID under HeavyHand only
     meta = ["SUB", "namecode", "condition", "section", "n_exp", "IK", "BK"]
     shared_labels = {"IK": "IK (shared)", "BK": "BK (shared)"}
-    app_tools = [(app, tool) for app in APPS for tool in TOOLS_PER_APP]
+    app_tools = iter_app_tools()
 
     # header row 1
     for c, h in enumerate(meta, start=1):
@@ -741,7 +755,7 @@ def write_workbook(report: dict, out_path: str) -> str:
     col = len(meta) + 1
     for app in APPS:
         start = col
-        for tool in TOOLS_PER_APP:
+        for tool in tools_for_app(app):
             cell = ws.cell(row=2, column=col, value=tool.upper())
             _style_header(cell, sub=True)
             col += 1

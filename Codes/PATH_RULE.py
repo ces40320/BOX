@@ -122,6 +122,10 @@ class ResultPaths:
     def bk_dir(self, cond: str, section: str) -> str:
         return self.result_dir(cond, section, "BK")
 
+    def id_dir(self, cond: str, section: str, app: str) -> str:
+        """e.g. ``…/Asymmetric/SUB2/7kg_10bpm/AB/ID_MeasuredEHF``"""
+        return self.result_dir(cond, section, f"ID_{app}")
+
     def so_dir(self, cond: str, section: str, app: str) -> str:
         return self.result_dir(cond, section, f"SO_{app}")
 
@@ -177,6 +181,14 @@ class ResultPaths:
         """e.g. ``'SETUP_BK_7kg_10bpm_1AB.xml'``"""
         return f"SETUP_BK_{cond}_{seg}.xml"
 
+    def id_name(self, cond: str, seg: str, app: str) -> str:
+        """e.g. ``'SUB2_7kg_10bpm_1AB_MeasuredEHF_InverseDynamics.sto'``"""
+        return f"{self.sub_label}_{cond}_{seg}_{app}_InverseDynamics.sto"
+
+    def setup_id_name(self, cond: str, seg: str, app: str) -> str:
+        """e.g. ``'SETUP_ID_7kg_10bpm_1AB_MeasuredEHF.xml'``"""
+        return f"SETUP_ID_{cond}_{seg}_{app}.xml"
+
     def so_name(self, cond: str, seg: str, app: str, so_type: str) -> str:
         """e.g. ``'SUB2_7kg_10bpm_1AB_HeavyHand_StaticOptimization_force.sto'``"""
         ext = "xml" if so_type == "control" else "sto"
@@ -225,6 +237,9 @@ class ResultPaths:
             self.extload_dir(cond, section)
             self.ik_dir(cond, section)
             self.bk_dir(cond, section)
+            # ID is HeavyHand-only (pipeline_rules.ID_APP). Do not mkdir ID_<other>/.
+            if "HeavyHand" in self.apps:
+                self.id_dir(cond, section, "HeavyHand")
             for app in self.apps:
                 self.so_dir(cond, section, app)
                 self.jr_dir(cond, section, app)
@@ -326,6 +341,9 @@ class ConditionPaths:
     def bk_dir(self, section: str) -> str:
         return self._p.bk_dir(self.cond, section)
 
+    def id_dir(self, section: str, app: str) -> str:
+        return self._p.id_dir(self.cond, section, app)
+
     def so_dir(self, section: str, app: str) -> str:
         return self._p.so_dir(self.cond, section, app)
 
@@ -368,6 +386,16 @@ class ConditionPaths:
         section = self.seg_to_section(seg)
         return os.path.join(self.bk_dir(section),
                             self._p.setup_bk_name(self.cond, seg))
+
+    def id_path(self, seg: str, app: str) -> str:
+        section = self.seg_to_section(seg)
+        return os.path.join(self.id_dir(section, app),
+                            self._p.id_name(self.cond, seg, app))
+
+    def setup_id_path(self, seg: str, app: str) -> str:
+        section = self.seg_to_section(seg)
+        return os.path.join(self.id_dir(section, app),
+                            self._p.setup_id_name(self.cond, seg, app))
 
     def so_path(self, seg: str, app: str, so_type: str) -> str:
         section = self.seg_to_section(seg)

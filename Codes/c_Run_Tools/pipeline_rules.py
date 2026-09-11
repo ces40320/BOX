@@ -5,6 +5,7 @@ Centralized policy for:
 - kg-aware OpenSim model variant selection per ``(app, stage)``
 - IK template / IK folder suffix per app
 - JR ground-frame option per app
+- ID app restriction (HeavyHand only)
 
 References (source of truth):
 
@@ -21,7 +22,11 @@ from __future__ import annotations
 import os
 
 
-VALID_STAGES: tuple[str, ...] = ("ik", "so", "jr")
+VALID_STAGES: tuple[str, ...] = ("ik", "so", "jr", "id")
+
+# ID consumes app-specific ExtLoad, but this project only runs it for
+# HeavyHand. Do not iterate other apps for ID (empty work, unused folders).
+ID_APP: str = "HeavyHand"
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -35,19 +40,20 @@ VALID_STAGES: tuple[str, ...] = ("ik", "so", "jr")
 #     geometry) needs a different model. ``HeavyHand`` only changes mass,
 #     so IK uses the base model — matches ``STRUCTURE_PLAN.md`` which
 #     only defines ``IK/`` and ``IK_AddBox/`` folders.
-#   - SO/JR depend on inertial properties:
+#   - SO/JR/ID depend on inertial properties:
 #       HeavyHand → HeavyHand_{w}kg
 #       AddBox    → SplitBox_{w}kg  (per user policy)
+#   - ID uses the same variant as SO/JR (dynamics, not IK kinematics).
 #   - preRiCTO / postRiCTO use the base model; their differentiation is
 #     handled at the ExtLoad / setup level, not the model level
 #     (see STRUCTURE_PLAN.md Notes table).
 # ──────────────────────────────────────────────────────────────────
 MODEL_VARIANT_BY_APP_STAGE: dict[str, dict[str, str]] = {
-    "MeasuredEHF": {"ik": "",                "so": "",                "jr": ""},
-    "HeavyHand":   {"ik": "",                "so": "HeavyHand_{w}kg", "jr": "HeavyHand_{w}kg"},
-    "AddBox":      {"ik": "WeldBox_{w}kg",   "so": "SplitBox_{w}kg",  "jr": "SplitBox_{w}kg"},
-    "preRiCTO":    {"ik": "",                "so": "",                "jr": ""},
-    "postRiCTO":   {"ik": "",                "so": "",                "jr": ""},
+    "MeasuredEHF": {"ik": "", "so": "", "jr": "", "id": ""},
+    "HeavyHand":   {"ik": "", "so": "HeavyHand_{w}kg", "jr": "HeavyHand_{w}kg", "id": "HeavyHand_{w}kg"},
+    "AddBox":      {"ik": "WeldBox_{w}kg", "so": "SplitBox_{w}kg", "jr": "SplitBox_{w}kg", "id": "SplitBox_{w}kg"},
+    "preRiCTO":    {"ik": "", "so": "", "jr": "", "id": ""},
+    "postRiCTO":   {"ik": "", "so": "", "jr": "", "id": ""},
 }
 
 
@@ -104,7 +110,7 @@ def resolve_model_path(rp, cond: str, app: str, stage: str,
         Condition key (e.g. ``'7kg_10bpm'``).
     app : str
         App label (``MeasuredEHF`` / ``HeavyHand`` / ``AddBox`` / ``preRiCTO`` / ``postRiCTO``).
-    stage : {'ik', 'so', 'jr'}
+    stage : {'ik', 'so', 'jr', 'id'}
     must_exist : bool, default True
         If True, raise ``FileNotFoundError`` when the resolved file is absent.
         Use ``False`` for dry-run / preview logging.
@@ -152,3 +158,15 @@ def ik_suffix(app: str) -> str:
 def ik_template(app: str, *, default: str, addbox: str) -> str:
     """Pick IK template path per app."""
     return addbox if app == "AddBox" else default
+
+
+def require_id_app(app: str) -> str:
+    """Return ``app`` if ID is allowed; otherwise raise.
+
+    ID is not looped over the protocol app list — only ``ID_APP``.
+    """
+    if app != ID_APP:
+        raise ValueError(
+            f"ID runs only for {ID_APP!r}, not {app!r}."
+        )
+    return app

@@ -6,6 +6,9 @@ Each handler is invoked once per ``(segment, app)`` (or per ``segment`` for
 selection goes through ``pipeline_rules`` so the kg-aware policy stays in a
 single source of truth (see ``REFAC_RUN_TOOLS_PLAN.md`` §3.4 / §4.3).
 
+ID uses ``InverseDynamicsTool`` (not ``AnalyzeTool``), so SET → RUN stays
+in-process, matching IK and the Rehab reference ``step5_bk_grf_id``.
+
 SET ↔ RUN isolation
 -------------------
 Reserve / residual / torque ``CoordinateActuator`` 의 모델 주입은 더 이상
@@ -34,6 +37,7 @@ from pipeline_rules import (
     ik_suffix as _ik_suffix,
     ik_template as _ik_template,
     jr_suffixes as _jr_suffixes,
+    require_id_app,
     resolve_model_path,
 )
 
@@ -203,6 +207,64 @@ def _read_trc_time_bounds(trc_path: str) -> tuple[float, float]:
     return float(trcdata[1, 1]), float(trcdata[-1, 1])
 
 
+def _resolve_analyze_window(
+    trc_path: str,
+    start_time: float | None = None,
+) -> tuple[float, float]:
+    """TRC window, optionally overriding the start.
+
+    End time stays the TRC end. ``start_time`` is the edge-retry hook
+    (see ``retry_so_edge.py``); the main pipeline passes ``None``.
+    """
+    t0, t1 = _read_trc_time_bounds(trc_path)
+    if start_time is None:
+        return t0, t1
+    t0 = float(start_time)
+    if not t0 < t1:
+        raise ValueError(
+            f"start_time {t0} must be < end time {t1} (trc={trc_path})"
+        )
+    return t0, t1
+
+
+def _read_motion_time_bounds(motion_path: str) -> tuple[float, float]:
+    """Return (start_time, end_time) from an OpenSim ``.mot`` / ``.sto``.
+
+    Reads the first column of the data table after ``endheader``. Used by ID
+    so the tool window matches the IK coordinates file it actually consumes
+    (same source as Rehab ``step5_bk_grf_id``).
+    """
+    with open(motion_path, "r", encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    start = 0
+    for i, line in enumerate(lines):
+        if line.strip().lower() == "endheader":
+            start = i + 1
+            break
+
+    data_rows: list[str] = []
+    header_skipped = False
+    for line in lines[start:]:
+        s = line.strip()
+        if not s:
+            continue
+        if not header_skipped:
+            header_skipped = True
+            continue
+        data_rows.append(s)
+    if not data_rows:
+        raise ValueError(f"No data rows in motion file: {motion_path}")
+
+    t0 = float(data_rows[0].split()[0])
+    t1 = float(data_rows[-1].split()[0])
+    if t1 < t0:
+        raise ValueError(
+            f"Motion time bounds inverted ({t0} > {t1}): {motion_path}"
+        )
+    return t0, t1
+
+
 def _new_analyze_tool(*, osim_mod, name: str, model_path: str, model,
                       coordinates_path: str, extload_xml: str,
                       results_dir: str, t0: float, t1: float,
@@ -240,6 +302,126 @@ def _ik_inputs_for_app(cp, seg: str, app: str) -> tuple[str, str]:
 
 
 # ══════════════════════════════════════════════════════════════════
+#  ID  (Inverse Dynamics — HeavyHand only)
+# ══════════════════════════════════════════════════════════════════
+#
+# Adapted from Rehab ``step5_bk_grf_id``:
+#   InverseDynamicsTool + IK coordinates + ExtLoad XML + exclude Muscles
+#   + 6 Hz low-pass + generalized-force .sto.
+#
+# Restricted to ``pipeline_rules.ID_APP`` (HeavyHand). The runner must not
+# call this once per protocol app. InverseDynamicsTool is not subject to
+# the AnalyzeTool SET↔RUN silent-skip bug, so RUN stays in-process (like IK).
+# ══════════════════════════════════════════════════════════════════
+
+def prepare_id_setup(
+    *,
+    cp,
+    rp,
+    seg: str,
+    app: str,
+    lowpass_cutoff: float = 6.0,
+    dry_run: bool = False,
+) -> str:
+    """Write ``SETUP_ID_*.xml`` for HeavyHand only.
+
+    Inputs
+    ------
+    - coordinates: HeavyHand IK motion (base IK, not AddBox)
+    - external loads: HeavyHand ExtLoad SETUP XML
+    - model: kg-aware HeavyHand osim (same variant as SO/JR)
+    """
+    app = require_id_app(app)
+    setup_id_xml = cp.setup_id_path(seg, app)
+    results_dir = cp.id_dir(cp.seg_to_section(seg), app)
+    output_sto = cp.id_path(seg, app)
+    model_path = resolve_model_path(rp, cp.cond, app, "id",
+                                    must_exist=not dry_run)
+
+    if dry_run:
+        return setup_id_xml
+
+    ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
+    missing = [p for p in (ik_mot, extload_xml) if not os.path.isfile(p)]
+    if missing:
+        raise FileNotFoundError(
+            "ID inputs missing:\n  " + "\n  ".join(missing) + "\n"
+            "  Run --tools extload,ik first."
+        )
+
+    _maybe_add_opensim_dll_dir()
+    import opensim as osim
+
+    t0, t1 = _read_motion_time_bounds(ik_mot)
+    model = osim.Model(model_path)
+    id_tool = osim.InverseDynamicsTool()
+    id_tool.setName(f"{rp.sub_label}_{cp.cond}_{seg}_{app}")
+    id_tool.setModel(model)
+    # InverseDynamicsTool uses setModelFileName (capital N). AnalyzeTool's
+    # setModelFilename does not exist on this class (OpenSim 4.5).
+    id_tool.setModelFileName(model_path)
+    id_tool.setCoordinatesFileName(ik_mot)
+    id_tool.setLowpassCutoffFrequency(lowpass_cutoff)
+    id_tool.setStartTime(t0)
+    id_tool.setEndTime(t1)
+    id_tool.setExternalLoadsFileName(extload_xml)
+    # Exclude muscle forces so the .sto is net generalized force (Rehab ID).
+    id_tool.setExcludedForces(osim.ArrayStr("Muscles", 1))
+    id_tool.setResultsDir(results_dir)
+    id_tool.setOutputGenForceFileName(os.path.basename(output_sto))
+
+    os.makedirs(os.path.dirname(setup_id_xml), exist_ok=True)
+    id_tool.printToXML(setup_id_xml)
+    return setup_id_xml
+
+
+def run_id(
+    *,
+    cp,
+    rp,
+    seg: str,
+    app: str,
+    dry_run: bool = False,
+) -> str:
+    """Run a previously prepared ``SETUP_ID_*.xml`` for one (segment, app).
+
+    Reloads the XML into a fresh ``InverseDynamicsTool`` and binds the model
+    again, so ``--no-run-id`` setup files can be executed later. Stays
+    in-process: this is not ``AnalyzeTool``. HeavyHand only.
+    """
+    app = require_id_app(app)
+    setup_id_xml = cp.setup_id_path(seg, app)
+    output_sto = cp.id_path(seg, app)
+    if dry_run:
+        return setup_id_xml
+    if not os.path.isfile(setup_id_xml):
+        raise FileNotFoundError(
+            f"ID setup missing: {setup_id_xml}\n"
+            "  Run with --tools id (setup is created on first invocation)."
+        )
+
+    model_path = resolve_model_path(rp, cp.cond, app, "id", must_exist=True)
+    _maybe_add_opensim_dll_dir()
+    import opensim as osim
+
+    model = osim.Model(model_path)
+    id_tool = osim.InverseDynamicsTool(setup_id_xml)
+    id_tool.setModel(model)
+    # InverseDynamicsTool uses setModelFileName (capital N). AnalyzeTool's
+    # setModelFilename does not exist on this class (OpenSim 4.5).
+    id_tool.setModelFileName(model_path)
+    ok = id_tool.run()
+    if ok is False:
+        raise RuntimeError(f"InverseDynamicsTool.run() returned False: {setup_id_xml}")
+    if not os.path.isfile(output_sto):
+        raise FileNotFoundError(
+            f"ID finished but output missing: {output_sto}\n"
+            f"  setup={setup_id_xml}"
+        )
+    return output_sto
+
+
+# ══════════════════════════════════════════════════════════════════
 #  SO  (Static Optimization)
 # ══════════════════════════════════════════════════════════════════
 
@@ -255,6 +437,7 @@ def prepare_so_setup(
     convergence_criterion: float = 1e-4,
     max_iterations: int = 100,
     dry_run: bool = False,
+    start_time: float | None = None,
 ) -> str:
     """Write ``SETUP_SO_*.xml`` for one (segment, app).
 
@@ -262,6 +445,10 @@ def prepare_so_setup(
     (``SUB{n}_Scaled[_HeavyHand_{w}kg|_SplitBox_{w}kg].osim``) — reserves
     are assumed to be baked in by ``b_Build_Model/add_reserve_actuators``.
     No ``_Actuator`` suffix is generated here.
+
+    ``start_time`` overrides the TRC start (default). Used by
+    ``retry_so_edge.py`` for the 0.05 s edge retry; the main pipeline
+    leaves it unset.
     """
     setup_so_xml = cp.setup_so_path(seg, app)
     results_dir = cp.so_dir(cp.seg_to_section(seg), app)
@@ -275,7 +462,7 @@ def prepare_so_setup(
     import opensim as osim
 
     trc_path = cp.trc_path(seg)
-    t0, t1 = _read_trc_time_bounds(trc_path)
+    t0, t1 = _resolve_analyze_window(trc_path, start_time)
     ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
 
     model = osim.Model(model_path)
@@ -485,11 +672,15 @@ def prepare_jr_setup(
     lowpass_cutoff: float = 6.0,
     step_interval: int = 1,
     dry_run: bool = False,
+    start_time: float | None = None,
 ) -> list[str]:
     """Write one or two ``SETUP_JR_*.xml`` files for one (segment, app).
 
     Returns the list of setup XML paths actually written / planned, in the
     fixed ``ground → child`` order.
+
+    ``start_time`` overrides the TRC start (default). Used by
+    ``retry_so_edge.py`` so JR matches the truncated SO window.
     """
     suffixes = _jr_suffix_order(app)
     setup_paths = [cp.setup_jr_path(seg, app, suffix) for suffix in suffixes]
@@ -503,7 +694,7 @@ def prepare_jr_setup(
     import opensim as osim
 
     trc_path = cp.trc_path(seg)
-    t0, t1 = _read_trc_time_bounds(trc_path)
+    t0, t1 = _resolve_analyze_window(trc_path, start_time)
     ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
 
     # SO outputs are mandatory inputs for JR (controls + forces).
