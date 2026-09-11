@@ -205,7 +205,7 @@ subjects = {
                                                "error_log":  ['1CA', '3AB', '9CA', '10AB'],
                                             },
                                 "10kg_10bpm": {"order":      2,
-                                              "cycles":      12,
+                                              "cycles":      11,
                                               "error_log":   ['8AB'],
                                             },
                                 "7kg_16bpm":  {"order":      3,
