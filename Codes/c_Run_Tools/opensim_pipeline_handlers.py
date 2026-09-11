@@ -541,12 +541,16 @@ def prepare_bk_setup(
     lowpass_cutoff: float = 6.0,
     step_interval: int = 1,
     dry_run: bool = False,
+    start_time: float | None = None,
 ) -> str:
     """Write ``SETUP_BK_*.xml`` for one segment (no app dimension).
 
     BodyKinematics is purely kinematic, so it uses the **base** osim
     (``SUB{n}_Scaled.osim``) and the ``IK`` (non-AddBox) motion by default.
     ``bk_ik_app`` lets callers override which IK / ExtLoad to bind to.
+
+    ``start_time`` overrides the TRC start (default). Used by
+    ``retry_so_edge.py`` so BK matches the truncated SO/JR window.
     """
     setup_bk_xml = cp.setup_bk_path(seg)
     results_dir = cp.bk_dir(cp.seg_to_section(seg))
@@ -566,7 +570,7 @@ def prepare_bk_setup(
     import opensim as osim
 
     trc_path = cp.trc_path(seg)
-    t0, t1 = _read_trc_time_bounds(trc_path)
+    t0, t1 = _resolve_analyze_window(trc_path, start_time)
     ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, bk_ik_app)
 
     model = osim.Model(base_model_path)
