@@ -375,8 +375,9 @@ def _run_one_segment(
     """Run all selected tools for one segment. Spawn-safe top-level worker.
 
     Returns ``{"ok": True, "seg": ...}`` or a structured failure dict.
-    Worker process should exit after this returns (``max_tasks_per_child=1``)
-    so OpenSim native memory is reclaimed by the OS.
+    Worker process exits after ``max_tasks_per_child`` segments
+    (CLI ``--max-tasks-per-child``) so OpenSim native memory is
+    reclaimed by the OS.
     """
     args = SimpleNamespace(**run_flags)
     try:
@@ -513,6 +514,8 @@ def _run_one_condition(
     _log(f"  skip_existing : {args.skip_existing}")
     _log(f"  workers   : {workers}  "
          f"(OpenSim-heavy; keep below core count if RAM-limited)")
+    _log(f"  max_tasks_per_child : {args.max_tasks_per_child}  "
+         f"(worker recycle after N segments; 1 = safest RAM)")
     _log(f"  tool_timeout : {args.tool_timeout}")
     _log(f"  segments  : {len(segments)} selected")
     if error_log:
@@ -566,7 +569,7 @@ def _run_one_condition(
         with ProcessPoolExecutor(
             max_workers=workers,
             mp_context=ctx,
-            max_tasks_per_child=1,
+            max_tasks_per_child=args.max_tasks_per_child,
         ) as pool:
             futures = {
                 pool.submit(
@@ -666,8 +669,16 @@ def main() -> None:
     parser.add_argument(
         "--workers", type=int, default=1,
         help="Parallel segment workers (default: 1 = sequential). "
-             "Use 0 for os.cpu_count(). Each worker exits after one "
-             "segment to reclaim OpenSim memory. Keep modest if RAM-limited.",
+             "Use 0 for os.cpu_count(). Keep modest if RAM-limited. "
+             "Worker recycle cadence is --max-tasks-per-child.",
+    )
+    parser.add_argument(
+        "--max-tasks-per-child", type=int, default=1,
+        help="How many segments a parallel worker runs before the "
+             "process is discarded and memory returned to the OS "
+             "(default: 1 = recycle every segment). Increase (e.g. 4–8) "
+             "to cut spawn overhead when RAM allows. Only applies when "
+             "--workers > 1. Pool is still rebuilt per condition.",
     )
     parser.add_argument(
         "--no-trouble-sheet", action="store_true",
@@ -712,6 +723,8 @@ def main() -> None:
 
     if args.workers < 0:
         raise ValueError("--workers must be >= 0")
+    if args.max_tasks_per_child < 1:
+        raise ValueError("--max-tasks-per-child must be >= 1")
     if args.tool_timeout < 0:
         raise ValueError("--tool-timeout must be >= 0 (0 disables)")
     if args.tool_timeout == 0:
@@ -735,6 +748,7 @@ def main() -> None:
     _log(f"  apps arg  : {args.apps!r}  (None → all protocol apps per condition)")
     _log(f"  segments  : {raw_segments!r}  (None → all segments per condition)")
     _log(f"  workers   : {args.workers}  (0 → cpu_count; clamped per job)")
+    _log(f"  max_tasks_per_child : {args.max_tasks_per_child}")
     _log(f"  dry_run   : {args.dry_run}")
     _log(f"  skip_existing : {args.skip_existing}")
     for i, (nc, cond) in enumerate(jobs, start=1):
