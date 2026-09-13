@@ -6,6 +6,11 @@ outputs already exist on disk (safe while a pipeline job is running).
 Writes:
   ``OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx``
 
+Also maintains ``pipeline_freeze_sim_times.json``: a sorted unique set of
+``freeze_sim_time`` values harvested from timeout troubles (for edge-retry
+analysis). Run ``--sync-freeze-times`` alone, or it runs automatically after
+a sheet refresh when new troubles carry freeze times.
+
 Runtime tool failures from ``run_opensim_pipeline.py`` are stored in a
 sidecar JSON (``pipeline_trouble.json``) and merged into Detail/Matrix as
 ``mark=☒`` so they survive a full sheet refresh. When the canonical result
@@ -19,6 +24,8 @@ Usage
     python update_pipeline_progress.py
     python update_pipeline_progress.py --sub 1,2,3
     python update_pipeline_progress.py --out D:/tmp/progress.xlsx
+    python update_pipeline_progress.py --sync-freeze-times
+    python update_pipeline_progress.py --sync-freeze-times --namecode 260521_JSY
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from typing import Iterable
@@ -95,6 +103,16 @@ def default_sheet_path() -> str:
 
 def default_trouble_path() -> str:
     return os.path.join(OPENSIM_DIR, PROTOCOL, "pipeline_trouble.json")
+
+
+def default_freeze_times_path() -> str:
+    return os.path.join(OPENSIM_DIR, PROTOCOL, "pipeline_freeze_sim_times.json")
+
+
+_FREEZE_IN_ERROR_RE = re.compile(
+    r"freeze_sim_time_s:\s*([0-9]+(?:\.[0-9]+)?)",
+    re.IGNORECASE,
+)
 
 
 def asymmetric_subjects(
@@ -237,6 +255,140 @@ def save_troubles(entries: list[dict], path: str | None = None) -> str:
     return path
 
 
+def extract_freeze_sim_time(entry: dict) -> float | None:
+    """Return freeze sim-time (s) from a trouble entry, if known."""
+    raw = entry.get("freeze_sim_time")
+    if raw is not None and raw != "":
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            pass
+    m = _FREEZE_IN_ERROR_RE.search(str(entry.get("error") or ""))
+    if m:
+        return float(m.group(1))
+    return None
+
+
+def load_freeze_sim_times(path: str | None = None) -> dict:
+    """Load accumulated freeze-time set JSON (empty scaffold if missing)."""
+    path = path or default_freeze_times_path()
+    if not os.path.isfile(path):
+        return {
+            "updated_at": None,
+            "freeze_sim_times_s": [],
+            "sources": [],
+        }
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"Freeze-times file must be a JSON object: {path}")
+    times = data.get("freeze_sim_times_s") or []
+    sources = data.get("sources") or []
+    if not isinstance(times, list) or not isinstance(sources, list):
+        raise ValueError(f"Malformed freeze-times file: {path}")
+    return {
+        "updated_at": data.get("updated_at"),
+        "freeze_sim_times_s": [float(t) for t in times],
+        "sources": list(sources),
+    }
+
+
+def save_freeze_sim_times(data: dict, path: str | None = None) -> str:
+    path = path or default_freeze_times_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return path
+
+
+def sync_freeze_sim_times_from_troubles(
+    *,
+    trouble_path: str | None = None,
+    out_path: str | None = None,
+    namecodes: Iterable[str] | None = None,
+) -> dict:
+    """Merge ``freeze_sim_time`` values from troubles into a sorted unique set.
+
+    Accumulates across runs: previously stored times/sources are kept, and
+    matching source keys are upserted when a newer trouble appears.
+    """
+    wanted = {n.strip() for n in namecodes} if namecodes is not None else None
+    if wanted is not None:
+        wanted = {n for n in wanted if n}
+
+    existing = load_freeze_sim_times(out_path)
+    times: set[float] = {float(t) for t in existing["freeze_sim_times_s"]}
+    by_key: dict[tuple, dict] = {}
+    for src in existing["sources"]:
+        try:
+            key = _trouble_entry_key(src)
+        except Exception:
+            continue
+        by_key[key] = src
+
+    n_new_times = 0
+    n_new_sources = 0
+    for entry in load_troubles(trouble_path):
+        if wanted is not None and str(entry.get("namecode")) not in wanted:
+            continue
+        freeze = extract_freeze_sim_time(entry)
+        if freeze is None:
+            continue
+        if freeze not in times:
+            times.add(freeze)
+            n_new_times += 1
+        key = _trouble_entry_key(entry)
+        src = {
+            "namecode": str(entry["namecode"]),
+            "condition": str(entry["condition"]),
+            "segment": str(entry["segment"]),
+            "section": str(entry.get("section") or ""),
+            "app": _normalize_trouble_app(
+                str(entry["tool"]), entry.get("app")
+            ),
+            "tool": str(entry["tool"]).strip().lower(),
+            "freeze_sim_time": float(freeze),
+            "ts": str(entry.get("ts") or ""),
+        }
+        if key not in by_key:
+            n_new_sources += 1
+        by_key[key] = src
+
+    data = {
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "freeze_sim_times_s": sorted(times),
+        "by_namecode": {},
+        "sources": sorted(
+            by_key.values(),
+            key=lambda s: (
+                s.get("namecode", ""),
+                s.get("condition", ""),
+                s.get("segment", ""),
+                s.get("app", ""),
+                s.get("tool", ""),
+            ),
+        ),
+    }
+    by_nc: dict[str, set[float]] = {}
+    for src in data["sources"]:
+        nc = str(src.get("namecode") or "")
+        by_nc.setdefault(nc, set()).add(float(src["freeze_sim_time"]))
+    data["by_namecode"] = {
+        nc: {
+            "freeze_sim_times_s": sorted(ts),
+            "n_sources": sum(
+                1 for s in data["sources"] if s.get("namecode") == nc
+            ),
+        }
+        for nc, ts in sorted(by_nc.items())
+    }
+    path = save_freeze_sim_times(data, out_path)
+    data["_path"] = path
+    data["_n_new_times"] = n_new_times
+    data["_n_new_sources"] = n_new_sources
+    return data
+
+
 def record_trouble(
     *,
     namecode: str,
@@ -245,9 +397,14 @@ def record_trouble(
     tool: str,
     app: str | None = None,
     error: str = "",
+    freeze_sim_time: float | None = None,
     path: str | None = None,
 ) -> dict:
-    """Append/upsert a runtime failure; returns the stored entry."""
+    """Append/upsert a runtime failure; returns the stored entry.
+
+    ``freeze_sim_time`` is the last OpenSim StaticOptimization simulation
+    time (seconds) observed before a timeout/hang, when known.
+    """
     tool_l = tool.strip().lower()
     app_n = _normalize_trouble_app(tool_l, app)
     rp = ResultPaths(namecode)
@@ -262,12 +419,20 @@ def record_trouble(
         "error": str(error),
         "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
+    if freeze_sim_time is not None:
+        entry["freeze_sim_time"] = float(freeze_sim_time)
     path = path or default_trouble_path()
     entries = load_troubles(path)
     key = _trouble_entry_key(entry)
     kept = [e for e in entries if _trouble_entry_key(e) != key]
     kept.append(entry)
     save_troubles(kept, path)
+    # Keep freeze-time set in sync whenever a timed-out SO/JR is recorded.
+    if "freeze_sim_time" in entry or extract_freeze_sim_time(entry) is not None:
+        try:
+            sync_freeze_sim_times_from_troubles(trouble_path=path)
+        except Exception:
+            pass
     return entry
 
 
@@ -899,7 +1064,43 @@ def main() -> None:
         help="Output xlsx path (default: "
              "OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx)",
     )
+    parser.add_argument(
+        "--sync-freeze-times", action="store_true",
+        help="Merge freeze_sim_time values from pipeline_trouble.json into "
+             "pipeline_freeze_sim_times.json (sorted unique set). "
+             "With this flag alone, skip the progress sheet refresh.",
+    )
+    parser.add_argument(
+        "--namecode", default=None,
+        help="With --sync-freeze-times: only harvest these namecode(s) "
+             "(comma-separated). Default: all troubles.",
+    )
+    parser.add_argument(
+        "--freeze-out", default=None,
+        help="Override pipeline_freeze_sim_times.json path",
+    )
     args = parser.parse_args()
+
+    if args.sync_freeze_times and args.sub is None and args.out is None:
+        # Freeze-only mode (monitor ticks / manual harvest).
+        namecodes = None
+        if args.namecode:
+            namecodes = [
+                x.strip() for x in args.namecode.split(",") if x.strip()
+            ]
+        data = sync_freeze_sim_times_from_troubles(
+            namecodes=namecodes,
+            out_path=args.freeze_out,
+        )
+        print(
+            f"[freeze_sim_times] wrote: {data['_path']}\n"
+            f"  set={data['freeze_sim_times_s']}\n"
+            f"  sources={len(data['sources'])}  "
+            f"(+{data['_n_new_sources']} new, "
+            f"+{data['_n_new_times']} new times)",
+            flush=True,
+        )
+        return
 
     if args.sub:
         sub_numbers = [int(x.strip()) for x in args.sub.split(",") if x.strip()]
@@ -913,6 +1114,22 @@ def main() -> None:
     apply_troubles_to_report(report, load_troubles())
     _print_console_summary(report)
     print(f"[pipeline_progress] wrote: {out_path}")
+
+    if args.sync_freeze_times:
+        namecodes = None
+        if args.namecode:
+            namecodes = [
+                x.strip() for x in args.namecode.split(",") if x.strip()
+            ]
+        data = sync_freeze_sim_times_from_troubles(
+            namecodes=namecodes,
+            out_path=args.freeze_out,
+        )
+        print(
+            f"[freeze_sim_times] wrote: {data['_path']}\n"
+            f"  set={data['freeze_sim_times_s']}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

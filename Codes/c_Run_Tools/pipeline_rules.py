@@ -28,11 +28,12 @@ VALID_STAGES: tuple[str, ...] = ("ik", "so", "jr", "id")
 # HeavyHand. Do not iterate other apps for ID (empty work, unused folders).
 ID_APP: str = "HeavyHand"
 
-# Wall-clock timeout for SO/BK/JR AnalyzeTool subprocesses.
-# Local SETUP→force.sto mtimes (n≈521): median ~12 min, p95 ~16 min,
-# normal max ~20 min; one ~77 min outlier treated as hung. 30 min kills
-# hangs without false-killing healthy jobs. Override via --tool-timeout.
-DEFAULT_ANALYZE_TIMEOUT_S: float = 1800.0
+# Stall interval for SO/BK/JR AnalyzeTool subprocesses.
+# Every this many seconds the worker's ``opensim.log`` fingerprint
+# (size + mtime) is checked; if unchanged, the job is treated as frozen
+# and killed. Healthy jobs keep writing Performance lines, so long but
+# progressing runs are not killed. Override via --tool-timeout; 0 disables.
+DEFAULT_ANALYZE_TIMEOUT_S: float = 300.0  # 5 min log-stall check
 
 
 # ──────────────────────────────────────────────────────────────────

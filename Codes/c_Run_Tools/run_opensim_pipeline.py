@@ -362,7 +362,8 @@ def _fail_result(
     *,
     condition: str,
 ) -> dict:
-    return {
+    freeze = getattr(exc, "freeze_sim_time", None)
+    out = {
         "ok": False,
         "seg": seg,
         "condition": condition,
@@ -370,6 +371,9 @@ def _fail_result(
         "app": app if app is not None else "(shared)",
         "error": f"{type(exc).__name__}: {exc}",
     }
+    if freeze is not None:
+        out["freeze_sim_time"] = float(freeze)
+    return out
 
 
 def _run_one_segment(
@@ -470,9 +474,15 @@ def _handle_segment_result(
     tool = result.get("tool", "?")
     app = result.get("app", "(shared)")
     err = result.get("error", "")
+    freeze = result.get("freeze_sim_time")
+    freeze_txt = (
+        f"  freeze_sim_time_s={float(freeze):.6g}"
+        if freeze is not None
+        else ""
+    )
     _log(
         f"[FAIL] condition={condition}  seg={seg}  "
-        f"tool={tool}  app={app}  {err}"
+        f"tool={tool}  app={app}{freeze_txt}  {err}"
     )
 
     if dry_run or not update_trouble_sheet:
@@ -486,11 +496,19 @@ def _handle_segment_result(
             tool=str(tool),
             app=str(app),
             error=str(err),
+            freeze_sim_time=(
+                float(freeze) if freeze is not None else None
+            ),
+        )
+        freeze_mark = (
+            f"  freeze_sim_time_s={entry['freeze_sim_time']}"
+            if "freeze_sim_time" in entry
+            else ""
         )
         _log(
             f"[TROUBLE] recorded  section={entry['section']}  "
             f"tool={entry['tool']}  app={entry['app']}  "
-            f"seg={entry['segment']}  mark=☒"
+            f"seg={entry['segment']}  mark=☒{freeze_mark}"
         )
     except Exception as exc:
         _log(f"[TROUBLE] failed to record: {type(exc).__name__}: {exc}")
@@ -526,7 +544,8 @@ def _collect_subject_work(
     _log(f"  tools     : {tools}")
     _log(f"  dry_run   : {args.dry_run}")
     _log(f"  skip_existing : {args.skip_existing}")
-    _log(f"  tool_timeout : {args.tool_timeout}")
+    _log(f"  tool_timeout : {args.tool_timeout}  "
+         f"(log-stall interval; None = disabled)")
 
     for condition in conditions:
         cp = rp.for_condition(condition)
@@ -781,10 +800,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--tool-timeout", type=float, default=DEFAULT_ANALYZE_TIMEOUT_S,
-        help="Wall-clock seconds for each SO/BK/JR AnalyzeTool subprocess "
-             f"(default: {DEFAULT_ANALYZE_TIMEOUT_S:.0f} = 30 min). "
-             "Kills frozen OpenSim optimizations and records trouble. "
-             "Use 0 to disable the timeout.",
+        help="Log-stall interval (seconds) for each SO/BK/JR AnalyzeTool "
+             f"subprocess (default: {DEFAULT_ANALYZE_TIMEOUT_S:.0f} = 5 min). "
+             "Every this many seconds the worker opensim.log is checked; "
+             "if size/mtime are unchanged the job is killed as frozen and "
+             "freeze_sim_time is recorded in pipeline_trouble.json / "
+             "pipeline_freeze_sim_times.json. Use 0 to disable.",
     )
     parser.add_argument("--no-run-id", action="store_true",
                         help="Only write ID setup XMLs, do not execute the tool")

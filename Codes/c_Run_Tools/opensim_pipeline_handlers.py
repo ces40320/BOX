@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -45,6 +47,57 @@ from pipeline_rules import (
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _SUBPROC_SCRIPT = os.path.join(_THIS_DIR, "_run_analyze_subprocess.py")
+
+# OpenSim StaticOptimization progress lines in opensim.log (cwd of the process).
+_OPENSIM_PERF_TIME_RE = re.compile(
+    r"time\s*=\s*([0-9]+(?:\.[0-9]+)?)\s+Performance",
+    re.IGNORECASE,
+)
+
+
+def _parse_last_opensim_sim_time(log_path: str) -> float | None:
+    """Return the last StaticOptimization sim-time (s) from an opensim.log.
+
+    Returns ``None`` when the file is missing or has no Performance lines.
+    """
+    if not log_path or not os.path.isfile(log_path):
+        return None
+    last: float | None = None
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = _OPENSIM_PERF_TIME_RE.search(line)
+                if m:
+                    last = float(m.group(1))
+    except OSError:
+        return None
+    return last
+
+
+def _opensim_log_fingerprint(log_path: str) -> tuple[int, int] | None:
+    """Return ``(size, mtime_ns)`` for stall detection, or ``None`` if missing."""
+    if not log_path:
+        return None
+    try:
+        st = os.stat(log_path)
+    except OSError:
+        return None
+    mtime_ns = getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
+    return (int(st.st_size), int(mtime_ns))
+
+
+def _kill_process(proc: subprocess.Popen) -> None:
+    """Best-effort terminate of an AnalyzeTool subprocess."""
+    if proc.poll() is not None:
+        return
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=30)
+    except (subprocess.TimeoutExpired, OSError):
+        pass
 
 
 def _maybe_add_opensim_dll_dir() -> None:
@@ -73,14 +126,22 @@ def _run_analyze_jobs(
     ``..._ReactionLoads.sto`` to ``..._ReactionLoads_ground.sto`` before
     the subsequent child run overwrites it).
 
-    ``timeout_s`` is a wall-clock limit on the AnalyzeTool grandchild
-    process (default ``DEFAULT_ANALYZE_TIMEOUT_S`` = 1800 s). Pass
-    ``None`` to disable. On expiry the subprocess is killed and
-    ``RuntimeError`` is raised so the pool worker can record trouble and
-    continue — the worker itself is not killed (avoids BrokenProcessPool).
+    ``timeout_s`` is the **log-stall interval** (default
+    ``DEFAULT_ANALYZE_TIMEOUT_S`` = 300 s). Every that many seconds the
+    worker's ``opensim.log`` fingerprint (size + mtime) is compared to the
+    previous check; if unchanged the AnalyzeTool is treated as frozen,
+    killed, and ``RuntimeError`` is raised so the pool worker can record
+    trouble and continue — the worker itself is not killed (avoids
+    BrokenProcessPool). Pass ``None`` to disable stall detection (no
+    absolute wall-clock limit).
 
-    Raises ``RuntimeError`` on non-zero exit or timeout; the JSON
+    Raises ``RuntimeError`` on non-zero exit or stall timeout; the JSON
     manifest is preserved on failure (deleted only on success).
+
+    Each AnalyzeTool runs in a **unique cwd** so its ``opensim.log`` is not
+    interleaved with sibling workers. On stall the last
+    ``time = <sim> Performance`` value is attached as
+    ``RuntimeError.freeze_sim_time`` for trouble / freeze-times JSON.
     """
     if not jobs:
         return
@@ -89,39 +150,87 @@ def _run_analyze_jobs(
             f"Subprocess RUN script missing: {_SUBPROC_SCRIPT}"
         )
 
-    fd, manifest = tempfile.mkstemp(prefix="opensim_jobs_", suffix=".json")
+    workdir = tempfile.mkdtemp(prefix="opensim_run_")
+    fd, manifest = tempfile.mkstemp(
+        prefix="opensim_jobs_", suffix=".json", dir=workdir,
+    )
     success = False
+    opensim_log = os.path.join(workdir, "opensim.log")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(jobs, f, indent=2)
 
+        proc = subprocess.Popen(
+            [sys.executable, _SUBPROC_SCRIPT, "--manifest", manifest],
+            cwd=workdir,
+        )
+        returncode: int | None = None
+        stalled = False
         try:
-            result = subprocess.run(
-                [sys.executable, _SUBPROC_SCRIPT, "--manifest", manifest],
-                check=False,
-                timeout=timeout_s,
-            )
-        except subprocess.TimeoutExpired as exc:
+            if timeout_s is None:
+                returncode = proc.wait()
+            else:
+                stall_s = float(timeout_s)
+                last_fp = _opensim_log_fingerprint(opensim_log)
+                while True:
+                    try:
+                        returncode = proc.wait(timeout=stall_s)
+                        break
+                    except subprocess.TimeoutExpired:
+                        fp = _opensim_log_fingerprint(opensim_log)
+                        if fp == last_fp:
+                            stalled = True
+                            _kill_process(proc)
+                            returncode = proc.returncode
+                            break
+                        last_fp = fp
+        except Exception:
+            _kill_process(proc)
+            raise
+
+        if stalled:
             tools = ",".join(str(j.get("tool", "?")) for j in jobs)
             limit = f"{timeout_s:.0f}" if timeout_s is not None else "?"
-            raise RuntimeError(
-                f"AnalyzeTool subprocess killed after {limit}s timeout "
-                f"(tool={tools}; suspected frozen optimization).\n"
+            freeze_sim = _parse_last_opensim_sim_time(opensim_log)
+            # Keep log + manifest for debugging (workdir not deleted).
+            preserved_log = opensim_log if os.path.isfile(opensim_log) else None
+            freeze_txt = (
+                f"{freeze_sim:.6g}" if freeze_sim is not None else "unknown"
+            )
+            err = RuntimeError(
+                f"AnalyzeTool subprocess killed after {limit}s log stall "
+                f"(opensim.log unchanged; tool={tools}; "
+                f"suspected frozen optimization).\n"
+                f"  freeze_sim_time_s: {freeze_txt}\n"
                 f"  Manifest preserved at: {manifest}"
-            ) from exc
+                + (
+                    f"\n  opensim.log preserved at: {preserved_log}"
+                    if preserved_log
+                    else ""
+                )
+            )
+            err.freeze_sim_time = freeze_sim  # type: ignore[attr-defined]
+            raise err
 
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"AnalyzeTool subprocess failed (exit {result.returncode}).\n"
+        if returncode != 0:
+            freeze_sim = _parse_last_opensim_sim_time(opensim_log)
+            freeze_txt = (
+                f"{freeze_sim:.6g}" if freeze_sim is not None else "unknown"
+            )
+            err = RuntimeError(
+                f"AnalyzeTool subprocess failed (exit {returncode}).\n"
+                f"  freeze_sim_time_s: {freeze_txt}\n"
                 f"  Manifest preserved at: {manifest}\n"
                 f"  Re-run manually for debugging:\n"
                 f"    {sys.executable} {_SUBPROC_SCRIPT} --manifest {manifest}"
             )
+            err.freeze_sim_time = freeze_sim  # type: ignore[attr-defined]
+            raise err
         success = True
     finally:
         if success:
             try:
-                os.remove(manifest)
+                shutil.rmtree(workdir, ignore_errors=True)
             except OSError:
                 pass
 
