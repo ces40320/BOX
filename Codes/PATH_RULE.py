@@ -274,12 +274,33 @@ class ResultPaths:
 
     # ── Analysis (RiCTO 등) ──────────────────────────────────
 
-    def analysis_dir(self, *parts: str) -> str:
-        """``Analysis/RiCTO/<protocol>/<SUB>/...`` 하위 디렉토리.
+    def ricto_root(self) -> str:
+        """``Analysis/<protocol>/RiCTO`` (예: Analysis/Asymmetric/RiCTO)."""
+        return _ensure_dir(ANALYSIS_DIR, self.protocol, "RiCTO")
 
-        OpenSim ExtLoad 입력과 분리된 논문·검증 산출물 경로.
+    def ricto_summary_dir(self) -> str:
+        """Flat Summary workbook dir (no SUB/cond subfolders)."""
+        return _ensure_dir(self.ricto_root(), "Summary")
+
+    def ricto_timeseries_dir(self, cond: str) -> str:
+        """``…/TimeSeries/SUB{n}/{cond}/``."""
+        return _ensure_dir(self.ricto_root(), "TimeSeries", self.sub_label, cond)
+
+    def ricto_validation_dir(self) -> str:
+        return _ensure_dir(self.ricto_root(), "_validation")
+
+    def ricto_report_path(self) -> str:
+        return os.path.join(
+            self.ricto_summary_dir(), f"{self.sub_label}_RiCTO_report.xlsx"
+        )
+
+    def analysis_dir(self, *parts: str) -> str:
+        """Deprecated layout helper → prefer ``ricto_*`` paths.
+
+        Kept for callers that pass ``cond`` as first part via ConditionPaths.
+        New layout: ``Analysis/<protocol>/RiCTO/...``.
         """
-        base = [ANALYSIS_DIR, "RiCTO", self.protocol, self.sub_label]
+        base = [self.ricto_root()]
         base.extend(parts)
         return _ensure_dir(*base)
 
@@ -365,26 +386,24 @@ class ConditionPaths:
         return self._p.jr_dir(self.cond, section, app)
 
     def analysis_dir(self, *parts: str) -> str:
-        """``Analysis/RiCTO/<protocol>/<SUB>/<cond>/...``"""
-        return self._p.analysis_dir(self.cond, *parts)
-
-    def ricto_summary_path(self) -> str:
-        return os.path.join(
-            self.analysis_dir(),
-            f"{self.sub_label}_{self.cond}_RiCTO_summary.csv",
-        )
+        """Compat helper → prefer ``ricto_*`` paths."""
+        return self._p.analysis_dir(*parts)
 
     def ricto_timeseries_path(self, seg: str) -> str:
         return os.path.join(
-            self.analysis_dir("timeseries"),
+            self._p.ricto_timeseries_dir(self.cond),
             f"{self.sub_label}_{self.cond}_{seg}_RiCTO_timeseries.csv",
         )
 
     def ricto_plot_path(self, seg: str, tag: str = "overview") -> str:
         return os.path.join(
-            self.analysis_dir("plots"),
+            self._p.ricto_timeseries_dir(self.cond),
+            "plots",
             f"{self.sub_label}_{self.cond}_{seg}_RiCTO_{tag}.png",
         )
+
+    def ricto_report_path(self) -> str:
+        return self._p.ricto_report_path()
 
     # ── 전체 경로 (seg → section 자동 추출) ─────────────────────
 

@@ -391,6 +391,30 @@ def validate_modern_segment(
     return row
 
 
+def _is_error_log_seg(namecode: str, condition: str, seg: str) -> bool:
+    """True if segment is listed in SUB_Info error_log (pipeline skips these)."""
+    try:
+        cp = _path.ResultPaths(namecode).for_condition(condition)
+    except Exception:
+        return False
+    err = {str(x).strip() for x in (cp.error_log or []) if str(x).strip()}
+    return str(seg).strip() in err
+
+
+def _drop_error_log_validation_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop validation rows for error_log segments (no FALSE placeholders)."""
+    if df is None or df.empty:
+        return df
+    need = {"namecode", "condition", "seg"}
+    if not need.issubset(df.columns):
+        return df
+    mask = [
+        not _is_error_log_seg(str(nc), str(cond), str(seg))
+        for nc, cond, seg in zip(df["namecode"], df["condition"], df["seg"])
+    ]
+    return df.loc[mask].reset_index(drop=True)
+
+
 def _default_all_summary_path(analysis: Path, fy_thresh_n: float) -> Path:
     """``realdata_all_summary_fy5.csv`` — thresh in name so runs do not clobber."""
     tag = f"{fy_thresh_n:g}".replace(".", "p")
@@ -418,7 +442,7 @@ def validate_all_modern(
         conditions=conditions,
         segments=segments,
     )
-    analysis = Path(out_dir) if out_dir else Path(_path.ANALYSIS_DIR) / "RiCTO" / "_validation"
+    analysis = Path(out_dir) if out_dir else Path(_path.ANALYSIS_DIR) / "Asymmetric" / "RiCTO" / "_validation"
     analysis.mkdir(parents=True, exist_ok=True)
 
     rows: list[dict] = []
@@ -452,6 +476,10 @@ def validate_all_modern(
             )
             ok += 1
         except Exception as e:
+            # error_log segs are excluded from jobs; never persist FALSE rows for them
+            if _is_error_log_seg(namecode, cond, seg):
+                print(f"[skip] {tag}: error_log ({e})")
+                continue
             fail += 1
             rows.append(
                 {
@@ -470,13 +498,35 @@ def validate_all_modern(
 
     summary = {"n_jobs": len(jobs), "ok": ok, "fail": fail, "summary_csv": None}
     if not dry_run:
-        df = pd.DataFrame(rows)
+        batch_df = _drop_error_log_validation_rows(pd.DataFrame(rows))
         out = Path(out_csv) if out_csv else _default_all_summary_path(analysis, fy_thresh_n)
         out.parent.mkdir(parents=True, exist_ok=True)
+        # Merge into existing all-subjects table when filtering a subset
+        if out.is_file() and not batch_df.empty and "namecode" in batch_df.columns:
+            prev = _drop_error_log_validation_rows(pd.read_csv(out))
+            drop_nc = set(batch_df["namecode"].astype(str).unique())
+            if "namecode" in prev.columns:
+                prev = prev[~prev["namecode"].astype(str).isin(drop_nc)]
+            df = pd.concat([prev, batch_df], ignore_index=True)
+        elif out.is_file() and batch_df.empty:
+            df = _drop_error_log_validation_rows(pd.read_csv(out))
+        else:
+            df = batch_df
+        df = _drop_error_log_validation_rows(df)
         save_csv(out, df)
+        # Also write subject-scoped copies for convenience
+        if not batch_df.empty and "namecode" in batch_df.columns:
+            for nc, g in batch_df.groupby("namecode"):
+                sub_out = analysis / f"realdata_{nc}_fy{fy_thresh_n:g}.csv"
+                save_csv(sub_out, _drop_error_log_validation_rows(g))
+                print(f"[all] wrote {sub_out}")
         summary["summary_csv"] = str(out)
         if ok and "corr_fy_sum" in df.columns:
             good = df.loc[df["ok"].eq(True)]
+            # stats only for this batch's namecodes when possible
+            batch_nc = set(batch_df["namecode"].astype(str)) if not batch_df.empty else set()
+            if batch_nc and "namecode" in good.columns:
+                good = good[good["namecode"].astype(str).isin(batch_nc)]
             if len(good):
                 print(
                     f"[all] corr_fy_sum median={good['corr_fy_sum'].median():.3f} "
@@ -605,7 +655,7 @@ def main() -> None:
                 "namecode", "condition", "seg", "corr_fy_sum", "rmse_fy_sum",
                 "err_onset_s", "err_offset_s", "fy_sign_ok",
             )})
-        analysis = Path(_path.ANALYSIS_DIR) / "RiCTO" / "_validation"
+        analysis = Path(_path.ANALYSIS_DIR) / "Asymmetric" / "RiCTO" / "_validation"
         analysis.mkdir(parents=True, exist_ok=True)
         out = analysis / f"realdata_{args.namecode}_{args.condition}.csv"
         save_csv(out, pd.DataFrame(rows))
@@ -616,7 +666,7 @@ def main() -> None:
         args.dummy = True
         args.solvers = True
 
-    analysis = Path(_path.ANALYSIS_DIR) / "RiCTO" / "_validation"
+    analysis = Path(_path.ANALYSIS_DIR) / "Asymmetric" / "RiCTO" / "_validation"
     analysis.mkdir(parents=True, exist_ok=True)
 
     if args.dummy:

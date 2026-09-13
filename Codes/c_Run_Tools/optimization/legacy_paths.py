@@ -42,7 +42,7 @@ def legacy_onecycle_dirs(
         "id": os.path.join(trial, "ID_Results"),
         "extload_dir": os.path.join(root, sub, "OneCycle_TrcMot"),
         "analysis": _path._ensure_dir(
-            _path.ANALYSIS_DIR, "RiCTO", "Symmetric", sub, trial_folder
+            _path.ANALYSIS_DIR, "Symmetric", "RiCTO", "Summary"
         ),
     }
 

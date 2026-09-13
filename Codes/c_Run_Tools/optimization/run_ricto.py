@@ -93,7 +93,11 @@ def _make_heavyhand_template(n: int = 6000, dt: float = 0.001, grf_y: float = 35
 
 
 def run_synthetic(box_mass_kg: float, modes: list[str], solver: str) -> dict:
-    """End-to-end synthetic demo → Analysis + local MOT under Analysis/."""
+    """In-memory synthetic smoke test (no Analysis/_synthetic write).
+
+    Writes only ``_validation/solver_compare_synthetic.csv`` via validate_ricto
+    when that CLI is used. This helper returns dict results for console QC.
+    """
     T, dt = 6.0, 0.01
     t = np.arange(0.0, T + 1e-12, dt)
     B = baseline_theory(box_mass_kg)
@@ -102,7 +106,6 @@ def run_synthetic(box_mass_kg: float, modes: list[str], solver: str) -> dict:
     rng = np.random.default_rng(1)
     residual = B * (1.0 - w) + rng.normal(0, 1.0, size=t.shape)
 
-    # synthetic hand motion: gentle vertical accel during contact
     pos_r = np.zeros((len(t), 3))
     pos_l = np.zeros((len(t), 3))
     pos_r[:, 1] = 0.9 + 0.05 * np.sin(2 * np.pi * t / T)
@@ -124,10 +127,7 @@ def run_synthetic(box_mass_kg: float, modes: list[str], solver: str) -> dict:
     ric = optimize_ricto(t, residual, box_mass_kg, solver=solver)
     ehf, hands, qc = ehf_from_bk_pos(pos_df, box_mass_kg)
 
-    out_dir = Path(_path.ANALYSIS_DIR) / "RiCTO" / "_synthetic"
-    out_dir.mkdir(parents=True, exist_ok=True)
     hh = _make_heavyhand_template(n=len(t), dt=float(np.median(np.diff(t))))
-    # upsample template time already matches t
     hh["time"] = t
     meta = {
         "header_lines": [
@@ -139,54 +139,26 @@ def run_synthetic(box_mass_kg: float, modes: list[str], solver: str) -> dict:
         ]
     }
 
+    # Build MOT in memory / temp only for leak checks — do not keep _synthetic/
+    import tempfile
+
     written = []
-    for mode in modes:
-        mot_path = out_dir / f"synthetic_ExtLoad_{mode}RiCTO.mot"
-        write_ricto_mot(str(mot_path), hh, meta, ehf, hands, ric, mode=mode)
-        written.append(str(mot_path))
-
-    ts = pd.DataFrame(
-        {
-            "time": t,
-            "residual": residual,
-            "w_smooth": ric["smooth_w"],
-            "w_rect": ric["rect_w"],
-            "fy_r": ehf["fy_r"],
-            "fy_l": ehf["fy_l"],
-        }
-    )
-    ts_path = save_csv(out_dir / "synthetic_timeseries.csv", ts)
-    summary = pd.DataFrame(
-        [
-            {
-                "solver": ric["solver"],
-                "success": ric["success"],
-                "cost": ric["cost"],
-                "t1": ric["t1"],
-                "d1": ric["d1"],
-                "t2": ric["t2"],
-                "d2": ric["d2"],
-                "B": ric["B"],
-                "B_theory": ric["B_theory"],
-                "B_edge_over_theory": ric["B_edge_over_theory"],
-                "nfev": ric["nfev"],
-                "truth_t1": truth[0],
-                "truth_t2": truth[2],
-                "qc_warning": qc.get("warning", ""),
-            }
-        ]
-    )
-    sum_path = save_csv(out_dir / "synthetic_summary.csv", summary)
-
-    leak = assert_no_measured_leak(_mot_to_df(written[0]), None)
+    with tempfile.TemporaryDirectory(prefix="ricto_syn_") as tmp:
+        for mode in modes:
+            mot_path = Path(tmp) / f"synthetic_ExtLoad_{mode}RiCTO.mot"
+            write_ricto_mot(str(mot_path), hh, meta, ehf, hands, ric, mode=mode)
+            written.append(str(mot_path))
+        leak = assert_no_measured_leak(_mot_to_df(written[0]), None)
 
     return {
-        "summary_csv": sum_path,
-        "timeseries_csv": ts_path,
-        "mots": written,
+        "summary_csv": None,
+        "timeseries_csv": None,
+        "mots": [],
         "ric": {k: ric[k] for k in ("t1", "d1", "t2", "d2", "cost", "solver", "B")},
+        "truth": {"t1": truth[0], "t2": truth[2]},
         "qc": qc,
         "leak_checks": leak,
+        "note": "synthetic artifacts not written (use validate_ricto --solvers for CSV)",
     }
 
 
@@ -359,32 +331,44 @@ def run_modern_segment(
         }
     )
     ts_path = save_csv(cp.ricto_timeseries_path(seg), ts)
-    summary = pd.DataFrame(
-        [
-            {
-                "seg": seg,
-                "residual_source": tag,
-                "solver": ric["solver"],
-                "success": ric["success"],
-                "cost": ric["cost"],
-                "t1": ric["t1"],
-                "d1": ric["d1"],
-                "t2": ric["t2"],
-                "d2": ric["d2"],
-                "B": ric["B"],
-                "B_theory": ric["B_theory"],
-                "B_edge_over_theory": ric["B_edge_over_theory"],
-                "nfev": ric["nfev"],
-                "qc_warning": qc.get("warning", ""),
-            }
-        ]
-    )
-    sum_path = cp.ricto_summary_path()
-    if os.path.isfile(sum_path):
-        prev = pd.read_csv(sum_path)
-        summary = pd.concat([prev, summary], ignore_index=True)
-    save_csv(sum_path, summary)
-    return {"mots": written, "summary_csv": sum_path, "timeseries_csv": ts_path, "qc": qc}
+    opt_row = {
+        "seg": seg,
+        "residual_source": tag,
+        "solver": ric["solver"],
+        "success": ric["success"],
+        "cost": ric["cost"],
+        "t1": ric["t1"],
+        "d1": ric["d1"],
+        "t2": ric["t2"],
+        "d2": ric["d2"],
+        "B": ric["B"],
+        "nfev": ric["nfev"],
+        "qc_warning": qc.get("warning", ""),
+    }
+    # Summary xlsx (no Results/ CSV). Import is local to avoid hard dep cycles.
+    report_path = None
+    try:
+        _d_results = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "d_Results_Analysis",
+        )
+        if _d_results not in sys.path:
+            sys.path.insert(0, _d_results)
+        from run_ricto_report_sheets import upsert_optimize_row  # noqa: WPS433
+
+        report_path = str(
+            upsert_optimize_row(namecode, condition, opt_row)
+        )
+    except Exception as e:
+        print(f"[warn] Summary xlsx upsert failed ({namecode} {condition} {seg}): {e}")
+
+    return {
+        "mots": written,
+        "summary_xlsx": report_path,
+        "timeseries_csv": ts_path,
+        "qc": qc,
+        "opt_row": opt_row,
+    }
 
 
 def box_mass_from_condition(condition: str, default: float = 7.0) -> float:
@@ -406,7 +390,10 @@ def iter_modern_jobs(
     conditions: Optional[Iterable[str]] = None,
     segments: Optional[Iterable[str]] = None,
 ) -> list[tuple[str, str, str, float]]:
-    """Enumerate ``(namecode, condition, seg, box_mass_kg)`` from ``SUB_Info``."""
+    """Enumerate ``(namecode, condition, seg, box_mass_kg)`` from ``SUB_Info``.
+
+    Segments listed in ``error_log`` are omitted (no OpenSim outputs expected).
+    """
     import SUB_Info as si
 
     want_nc = set(namecodes) if namecodes is not None else None
@@ -427,8 +414,11 @@ def iter_modern_jobs(
                 continue
             mass = box_mass_from_condition(cond)
             cp = rp.for_condition(cond)
+            err = {str(x).strip() for x in (cp.error_log or []) if str(x).strip()}
             for segs in cp.section_segments().values():
                 for seg in segs:
+                    if seg in err:
+                        continue
                     if want_seg is not None and seg not in want_seg:
                         continue
                     jobs.append((namecode, cond, seg, mass))
@@ -454,6 +444,7 @@ def run_all_modern(
         segments=segments,
     )
     ok, fail = 0, 0
+    touched_namecodes: set[str] = set()
     print(f"[all] {len(jobs)} jobs | modes={modes} solver={solver}")
     for namecode, cond, seg, mass in jobs:
         tag = f"{namecode} {cond} {seg} ({mass:g}kg)"
@@ -471,6 +462,7 @@ def run_all_modern(
                 solver=solver,
             )
             print(f"[ok] {tag} -> {res['mots']}")
+            touched_namecodes.add(namecode)
             ok += 1
         except Exception as e:
             fail += 1
@@ -478,6 +470,24 @@ def run_all_modern(
             if not continue_on_error:
                 traceback.print_exc()
                 raise
+    # Final Summary refresh (GT timing merge) per subject
+    if touched_namecodes and not dry_run:
+        _d_results = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "d_Results_Analysis",
+        )
+        if _d_results not in sys.path:
+            sys.path.insert(0, _d_results)
+        try:
+            from run_ricto_report_sheets import build_subject_report
+
+            for nc in sorted(touched_namecodes):
+                try:
+                    build_subject_report(nc)
+                except Exception as e:
+                    print(f"[warn] report rebuild {nc}: {e}")
+        except Exception as e:
+            print(f"[warn] report module import failed: {e}")
     summary = {"n_jobs": len(jobs), "ok": ok, "fail": fail}
     print(f"[all] done {summary}")
     return summary
