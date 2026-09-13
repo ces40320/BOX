@@ -1,0 +1,16 @@
+# Proposed LMM formulas (multi-subject; do not fit on n_subject=1)
+
+# Python (statsmodels):
+# mixed = smf.mixedlm(
+#     "RMSE_full ~ C(app) * C(tempo_bpm) * C(mass_kg) + height_mm + body_mass_kg",
+#     data=df,
+#     groups=df["sub"],
+#     re_formula="~1",
+# )
+
+# R (lme4):
+# lmer(RMSE_full ~ app * tempo_bpm * mass_kg + height_mm + body_mass_kg
+#      + (1 | sub), data=df)
+
+n_rows_template = 3168
+n_subjects_in_template = 1

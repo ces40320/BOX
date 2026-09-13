@@ -1,0 +1,36 @@
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:              RMSE_full   R-squared:                       0.908
+Model:                            OLS   Adj. R-squared:                  0.907
+Method:                 Least Squares   F-statistic:                     643.7
+Date:                Sat, 12 Sep 2026   Prob (F-statistic):               0.00
+Time:                        22:53:11   Log-Likelihood:                -1913.0
+No. Observations:                 792   AIC:                             3852.
+Df Residuals:                     779   BIC:                             3913.
+Df Model:                          12                                         
+Covariance Type:            nonrobust                                         
+=============================================================================================================================
+                                                                coef    std err          t      P>|t|      [0.025      0.975]
+-----------------------------------------------------------------------------------------------------------------------------
+Intercept                                                    10.8473      0.336     32.265      0.000      10.187      11.507
+C(app)[T.postRiCTO]                                          -6.4596      0.455    -14.190      0.000      -7.353      -5.566
+C(app)[T.preRiCTO]                                           -1.3821      0.455     -3.036      0.002      -2.276      -0.488
+C(tempo_bpm)[T.16]                                            2.0189      0.477      4.229      0.000       1.082       2.956
+C(mass_kg)[T.15.0]                                           14.9066      0.455     32.747      0.000      14.013      15.800
+C(hand)[T.R]                                                  0.8743      0.194      4.504      0.000       0.493       1.255
+C(app)[T.postRiCTO]:C(tempo_bpm)[T.16]                       -1.0072      0.675     -1.492      0.136      -2.333       0.318
+C(app)[T.preRiCTO]:C(tempo_bpm)[T.16]                        -2.4305      0.675     -3.600      0.000      -3.756      -1.105
+C(app)[T.postRiCTO]:C(mass_kg)[T.15.0]                      -13.8845      0.644    -21.568      0.000     -15.148     -12.621
+C(app)[T.preRiCTO]:C(mass_kg)[T.15.0]                        -1.3229      0.644     -2.055      0.040      -2.587      -0.059
+C(tempo_bpm)[T.16]:C(mass_kg)[T.15.0]                         3.5750      0.675      5.295      0.000       2.250       4.900
+C(app)[T.postRiCTO]:C(tempo_bpm)[T.16]:C(mass_kg)[T.15.0]    -0.8208      0.955     -0.860      0.390      -2.695       1.054
+C(app)[T.preRiCTO]:C(tempo_bpm)[T.16]:C(mass_kg)[T.15.0]     -6.3626      0.955     -6.663      0.000      -8.237      -4.488
+==============================================================================
+Omnibus:                       94.335   Durbin-Watson:                   2.108
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              332.694
+Skew:                           0.530   Prob(JB):                     5.71e-73
+Kurtosis:                       5.993   Cond. No.                         26.1
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
