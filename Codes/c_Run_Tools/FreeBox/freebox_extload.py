@@ -1,4 +1,4 @@
-"""Write ExtLoad.mot for BoxWrench (pipeline-compatible).
+"""Write ExtLoad.mot for FreeBox (pipeline-compatible).
 
 Policy:
 - Template: HeavyHand MOT (GRF plates 1–2 kept).
@@ -34,9 +34,9 @@ from optimization.ricto_optimize import (  # noqa: E402
 )
 
 try:
-    from . import boxwrench_config as cfg
+    from . import freebox_config as cfg
 except ImportError:  # script / flat import path
-    import boxwrench_config as cfg
+    import freebox_config as cfg
 
 
 def apply_ricto_gate(
@@ -96,7 +96,7 @@ def resolve_ricto_weight(
     return rectangle_weight_curve(t_out, t1, d1, t2, d2)
 
 
-def build_boxwrench_extload(
+def build_freebox_extload(
     heavyhand_mot_df: pd.DataFrame,
     alloc: Dict[str, np.ndarray],
     *,
@@ -105,7 +105,7 @@ def build_boxwrench_extload(
     weight_mode: str = cfg.RICTO_WEIGHT_MODE,
     zero_torque: bool = cfg.FORCE_ZERO_HAND_TORQUE,
 ) -> Dict[str, np.ndarray]:
-    """Assemble ExtLoad dict: GRF from template + gated BoxWrench hands."""
+    """Assemble ExtLoad dict: GRF from template + gated FreeBox hands."""
     ext = mot_df_to_ext_dict(heavyhand_mot_df)
     t_out = ext["time"]
     w = resolve_ricto_weight(
@@ -131,7 +131,7 @@ def build_boxwrench_extload(
     return ext
 
 
-def write_boxwrench_mot(
+def write_freebox_mot(
     out_path: str,
     heavyhand_mot_df: pd.DataFrame,
     heavyhand_meta: dict,
@@ -141,8 +141,8 @@ def write_boxwrench_mot(
     timeseries_df: Optional[pd.DataFrame] = None,
     weight_mode: str = cfg.RICTO_WEIGHT_MODE,
 ) -> str:
-    """Write ``ExtLoad_BoxWrench.mot`` using HeavyHand template headers."""
-    ext = build_boxwrench_extload(
+    """Write ``ExtLoad_FreeBox.mot`` using HeavyHand template headers."""
+    ext = build_freebox_extload(
         heavyhand_mot_df,
         alloc,
         ric=ric,
@@ -163,27 +163,27 @@ def write_boxwrench_mot(
 
 
 def assert_no_measured_leak(
-    boxwrench_df: pd.DataFrame,
+    freebox_df: pd.DataFrame,
     measured_df: Optional[pd.DataFrame] = None,
     *,
     atol: float = 1e-6,
 ) -> Dict[str, bool]:
-    """QC: BoxWrench hand torques are zero; optional ≠ MeasuredEHF hands."""
+    """QC: FreeBox hand torques are zero; optional ≠ MeasuredEHF hands."""
     checks: Dict[str, bool] = {}
     for plate in (3, 4):
         for ax in ("x", "y", "z"):
             col = f"hand_torque{plate}_{ax}"
-            if col in boxwrench_df.columns:
+            if col in freebox_df.columns:
                 checks[f"zero_{col}"] = bool(
-                    np.allclose(boxwrench_df[col].to_numpy(dtype=float), 0.0, atol=atol)
+                    np.allclose(freebox_df[col].to_numpy(dtype=float), 0.0, atol=atol)
                 )
     if measured_df is not None:
         for plate in (3, 4):
             for ax in ("x", "y", "z"):
                 col = f"hand_force{plate}_v{ax}"
-                if col in boxwrench_df.columns and col in measured_df.columns:
+                if col in freebox_df.columns and col in measured_df.columns:
                     same = np.allclose(
-                        boxwrench_df[col].to_numpy(dtype=float),
+                        freebox_df[col].to_numpy(dtype=float),
                         measured_df[col].to_numpy(dtype=float),
                         atol=atol,
                     )

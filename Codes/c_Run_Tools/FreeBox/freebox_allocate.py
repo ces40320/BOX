@@ -21,11 +21,11 @@ import numpy as np
 from scipy.optimize import minimize
 
 try:
-    from . import boxwrench_config as cfg
-    from .boxwrench_kinematics import box_vector_to_ground
+    from . import freebox_config as cfg
+    from .freebox_kinematics import box_vector_to_ground
 except ImportError:  # script / flat import path
-    import boxwrench_config as cfg
-    from boxwrench_kinematics import box_vector_to_ground
+    import freebox_config as cfg
+    from freebox_kinematics import box_vector_to_ground
 
 
 def moment_balance_residual(x: np.ndarray, M: np.ndarray) -> np.ndarray:

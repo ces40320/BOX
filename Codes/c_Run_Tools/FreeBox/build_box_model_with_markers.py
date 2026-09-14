@@ -1,7 +1,7 @@
 """Attach CAD/ADDBOX box markers to free-joint BOX.osim (XML or OpenSim API).
 
 Writes ``models/BOX_with_markers.osim`` by default. Marker locations come from
-``boxwrench_markers.py`` (excel + ADDBOX / workflow step 8) — not invented.
+``freebox_markers.py`` (excel + ADDBOX / workflow step 8) — not invented.
 
 ASSUMPTION: free ``BOX`` body frame matches the welded left-half CAD frame used
 by ADDBOX (R corners transformed via weld offset Δ). Validate against a static
@@ -20,8 +20,8 @@ _THIS = os.path.dirname(os.path.abspath(__file__))
 if _THIS not in sys.path:
     sys.path.insert(0, _THIS)
 
-from boxwrench_config import DEFAULT_BOX_BODY_NAME, DEFAULT_BOX_OSIM, HANDLE_L_NOM, HANDLE_R_NOM
-from boxwrench_markers import markers_in_left_half_frame
+from freebox_config import DEFAULT_BOX_BODY_NAME, DEFAULT_BOX_OSIM, HANDLE_L_NOM, HANDLE_R_NOM
+from freebox_markers import markers_in_left_half_frame
 
 
 def _marker_xml(name: str, body: str, loc: Tuple[float, float, float]) -> str:

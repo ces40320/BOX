@@ -54,9 +54,9 @@ DEFAULT_ANALYZE_TIMEOUT_S: float = 300.0  # 5 min log-stall check
 #   - preRiCTO / postRiCTO use the base model; their differentiation is
 #     handled at the ExtLoad / setup level, not the model level
 #     (see STRUCTURE_PLAN.md Notes table).
-#   - BoxWrench (Approach-5-inspired, opt-in): same as RiCTO — base model;
-#     differentiation is ExtLoad (box wrench allocation × RiCTO timing).
-#     Not in default protocol APPs; see Codes/c_Run_Tools/BoxWrench/.
+#   - FreeBox (opt-in; document label LoadShare): same as RiCTO — base model;
+#     differentiation is ExtLoad (free-box dynamics + L/R allocation × RiCTO timing).
+#     Not in default protocol APPs; see Codes/c_Run_Tools/FreeBox/.
 # ──────────────────────────────────────────────────────────────────
 MODEL_VARIANT_BY_APP_STAGE: dict[str, dict[str, str]] = {
     "MeasuredEHF": {"ik": "", "so": "", "jr": "", "id": ""},
@@ -64,12 +64,12 @@ MODEL_VARIANT_BY_APP_STAGE: dict[str, dict[str, str]] = {
     "AddBox":      {"ik": "WeldBox_{w}kg", "so": "SplitBox_{w}kg", "jr": "SplitBox_{w}kg", "id": "SplitBox_{w}kg"},
     "preRiCTO":    {"ik": "", "so": "", "jr": "", "id": ""},
     "postRiCTO":   {"ik": "", "so": "", "jr": "", "id": ""},
-    "BoxWrench":   {"ik": "", "so": "", "jr": "", "id": ""},
+    "FreeBox":   {"ik": "", "so": "", "jr": "", "id": ""},
 }
 
 # Opt-in apps allowed via ``--apps`` even when absent from protocol APPs.
-# Keeps default Asymmetric runs unchanged until BoxWrench MOT generation exists.
-OPTIONAL_PIPELINE_APPS: tuple[str, ...] = ("BoxWrench",)
+# Keeps default Asymmetric runs unchanged until FreeBox MOT generation exists.
+OPTIONAL_PIPELINE_APPS: tuple[str, ...] = ("FreeBox",)
 
 
 def box_kg_from_cond(cond: str) -> int:
@@ -125,7 +125,7 @@ def resolve_model_path(rp, cond: str, app: str, stage: str,
         Condition key (e.g. ``'7kg_10bpm'``).
     app : str
         App label (``MeasuredEHF`` / ``HeavyHand`` / ``AddBox`` /
-        ``preRiCTO`` / ``postRiCTO`` / ``BoxWrench``).
+        ``preRiCTO`` / ``postRiCTO`` / ``FreeBox``).
     stage : {'ik', 'so', 'jr', 'id'}
     must_exist : bool, default True
         If True, raise ``FileNotFoundError`` when the resolved file is absent.

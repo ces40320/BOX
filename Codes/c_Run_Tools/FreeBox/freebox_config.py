@@ -1,7 +1,7 @@
-"""BoxWrench configuration constants and policies.
+"""FreeBox configuration constants and policies.
 
-App / folder name is ``BoxWrench`` (not APP5). Literature reference only:
-Akhavanfar et al. 2022 Approach 5 (vendor scripts under ``_vendor/``).
+Code / PATH_RULE / file names use ``FreeBox``.
+Document-facing labels (figure legends, titles, captions) use ``LoadShare``.
 """
 
 from __future__ import annotations
@@ -10,7 +10,9 @@ import os
 
 _THIS = os.path.dirname(os.path.abspath(__file__))
 
-APP_NAME: str = "BoxWrench"
+APP_NAME: str = "FreeBox"
+# Manuscript / plot legend label (not used in PATH_RULE paths).
+DISPLAY_NAME: str = "LoadShare"
 
 # ExtLoad hand mapping (same as RiCTO / SETUP XML): plate 3=L, 4=R
 HAND_L_FORCE_PREFIX = "hand_force3"
@@ -18,7 +20,7 @@ HAND_R_FORCE_PREFIX = "hand_force4"
 HAND_L_TORQUE_PREFIX = "hand_torque3"
 HAND_R_TORQUE_PREFIX = "hand_torque4"
 
-# Template MOT keeps measured GRF; hand columns replaced by BoxWrench.
+# Template MOT keeps measured GRF; hand columns replaced by FreeBox.
 EXTLOAD_TEMPLATE_APP: str = "HeavyHand"
 
 # Coupling to RiCTO timing (not MeasuredEHF).
@@ -69,7 +71,7 @@ BOX_IK_MARKER_NAMES: tuple[str, ...] = (
 
 # Handle / COP bounds in **CAD / BOX body** frame (m), relative to box center.
 # ML along body **Z** (±~0.160 m) — ADDBOX / STL import. Motive D3/D4 use ±X
-# in the rigid-body frame; see boxwrench_markers.py for both.
+# in the rigid-body frame; see freebox_markers.py for both.
 HANDLE_L_NOM: tuple[float, float, float] = (0.0, 0.0158, -0.16001)
 HANDLE_R_NOM: tuple[float, float, float] = (0.0, 0.0158, 0.16007)
 HANDLE_Z_NOM: float = 0.5 * (abs(HANDLE_L_NOM[2]) + abs(HANDLE_R_NOM[2]))
@@ -83,7 +85,7 @@ ALLOC_MAXITER: int = 200
 
 # Rotation: OpenSim BodyKinematics body-fixed XYZ (deg) → R_body_to_ground.
 # Vendor RotMat uses Rx@Ry@Rz; we keep the same composition but document it.
-ROTATION_MODE: str = "body_fixed_xyz_deg"  # see boxwrench_rotation.py
+ROTATION_MODE: str = "body_fixed_xyz_deg"  # see freebox_rotation.py
 
 PIPELINE_OPT_IN: bool = True
 

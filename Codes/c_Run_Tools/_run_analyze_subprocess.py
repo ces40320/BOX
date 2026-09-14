@@ -45,7 +45,7 @@ CLI
 ---
 ``python _run_analyze_subprocess.py --manifest <manifest.json>``
 
-App-agnostic: MeasuredEHF / HeavyHand / preRiCTO / postRiCTO / BoxWrench
+App-agnostic: MeasuredEHF / HeavyHand / preRiCTO / postRiCTO / FreeBox
 all flow through the same AnalyzeTool RUN path once SETUP XML + model
 paths are in the manifest.
 """

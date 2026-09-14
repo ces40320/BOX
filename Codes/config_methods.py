@@ -28,8 +28,8 @@ PROTOCOL_Candidates = {
     },
     "Asymmetric": {
         "APPs": ["MeasuredEHF", "HeavyHand", "preRiCTO", "postRiCTO"],
-        # BoxWrench is opt-in via pipeline --apps BoxWrench (see
-        # Codes/c_Run_Tools/BoxWrench/ and pipeline_rules.OPTIONAL_PIPELINE_APPS).
+        # FreeBox is opt-in via pipeline --apps FreeBox (see
+        # Codes/c_Run_Tools/FreeBox/ and pipeline_rules.OPTIONAL_PIPELINE_APPS).
         # Do not add to default APPs until ExtLoad generation is implemented.
         "result_root": "Asymmetric",
         "segment_style": "ABC",

@@ -14,7 +14,7 @@ Physical ML half-width ≈ 0.160 m. Axis label depends on frame:
 - **Motive RB / MeasuredEHF** (``D3/D4``): (±0.160, 0.016, 0) on **X**
 - **OpenSim BOX / ADDBOX body** (STL import): (0, 0.016, ±0.160) on **Z**
 
-BoxWrench allocation on OpenSim box BK uses the CAD body-frame handles.
+FreeBox allocation on OpenSim box BK uses the CAD body-frame handles.
 """
 
 from __future__ import annotations

@@ -26,11 +26,11 @@ for _p in (_CODES, _RUN_TOOLS, _THIS):
 _SUBPROC_SCRIPT = os.path.join(_RUN_TOOLS, "_run_analyze_subprocess.py")
 
 try:
-    from . import boxwrench_config as cfg
-    from . import boxwrench_paths as bpaths
+    from . import freebox_config as cfg
+    from . import freebox_paths as bpaths
 except ImportError:
-    import boxwrench_config as cfg
-    import boxwrench_paths as bpaths
+    import freebox_config as cfg
+    import freebox_paths as bpaths
 
 
 def _maybe_add_opensim_dll_dir() -> None:
@@ -60,7 +60,7 @@ def _run_analyze_subprocess(jobs: list[dict]) -> None:
         return
     if not os.path.isfile(_SUBPROC_SCRIPT):
         raise FileNotFoundError(f"Missing Analyze RUN helper: {_SUBPROC_SCRIPT}")
-    fd, manifest = tempfile.mkstemp(prefix="boxwrench_analyze_", suffix=".json")
+    fd, manifest = tempfile.mkstemp(prefix="freebox_analyze_", suffix=".json")
     os.close(fd)
     try:
         with open(manifest, "w", encoding="utf-8") as f:

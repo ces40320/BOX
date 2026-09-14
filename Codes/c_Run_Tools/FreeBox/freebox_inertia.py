@@ -8,9 +8,9 @@ import xml.etree.ElementTree as ET
 from typing import Dict, Optional, Tuple
 
 try:
-    from . import boxwrench_config as cfg
+    from . import freebox_config as cfg
 except ImportError:  # script / flat import path
-    import boxwrench_config as cfg
+    import freebox_config as cfg
 
 
 def _local(tag: str) -> str:

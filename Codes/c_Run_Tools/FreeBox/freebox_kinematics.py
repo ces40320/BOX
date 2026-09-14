@@ -33,13 +33,13 @@ for _p in (_CODES, _RUN_TOOLS):
 from optimization.ricto_io import read_opensim_storage  # noqa: E402
 
 try:
-    from . import boxwrench_config as cfg
-    from .boxwrench_inertia import principal_inertia_diag
-    from .boxwrench_rotation import batch_rotmats, rotmat_from_bk_angles
+    from . import freebox_config as cfg
+    from .freebox_inertia import principal_inertia_diag
+    from .freebox_rotation import batch_rotmats, rotmat_from_bk_angles
 except ImportError:  # script / flat import path
-    import boxwrench_config as cfg
-    from boxwrench_inertia import principal_inertia_diag
-    from boxwrench_rotation import batch_rotmats, rotmat_from_bk_angles
+    import freebox_config as cfg
+    from freebox_inertia import principal_inertia_diag
+    from freebox_rotation import batch_rotmats, rotmat_from_bk_angles
 
 
 def _pick_body_xyz_cols(columns: Sequence[str], *, kind: str) -> Tuple[str, str, str]:

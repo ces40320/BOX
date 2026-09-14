@@ -1,4 +1,4 @@
-"""Resolve BoxWrench / free-box Load paths (local OpenSim_Process vs Dropbox).
+"""Resolve FreeBox / free-box Load paths (local OpenSim_Process vs Dropbox).
 
 ``PATH_RULE.ResultPaths`` creates trees under the **repo** ``OpenSim_Process/_Main_``.
 Processed subject data often lives under ``COWORK_OPENSIM_DIR`` (Dropbox). This
@@ -21,9 +21,9 @@ for _p in (_CODES, _RUN_TOOLS, _THIS):
 import PATH_RULE as _path  # noqa: E402
 
 try:
-    from . import boxwrench_config as cfg
+    from . import freebox_config as cfg
 except ImportError:
-    import boxwrench_config as cfg
+    import freebox_config as cfg
 
 
 def _first_existing_file(candidates: Iterable[str]) -> Optional[str]:
@@ -128,8 +128,8 @@ def heavyhand_extload_path(namecode: str, condition: str, seg: str) -> str:
     return hit
 
 
-def boxwrench_extload_path(namecode: str, condition: str, seg: str) -> str:
-    """Write ExtLoad_BoxWrench next to the resolved HeavyHand MOT."""
+def freebox_extload_path(namecode: str, condition: str, seg: str) -> str:
+    """Write ExtLoad_FreeBox next to the resolved HeavyHand MOT."""
     hh = heavyhand_extload_path(namecode, condition, seg)
     rp = _path.ResultPaths(namecode)
     return os.path.join(
@@ -219,8 +219,8 @@ def load_states_paths(namecode: str, condition: str, seg: str) -> dict[str, str]
 def analysis_forces_csv(namecode: str, condition: str, seg: str) -> str:
     rp = _path.ResultPaths(namecode)
     return os.path.join(
-        rp.boxwrench_timeseries_dir(condition),
-        f"{rp.sub_label}_{condition}_{seg}_BoxWrench_forces.csv",
+        rp.freebox_timeseries_dir(condition),
+        f"{rp.sub_label}_{condition}_{seg}_FreeBox_forces.csv",
     )
 
 

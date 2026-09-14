@@ -1,15 +1,15 @@
-"""CLI for BoxWrench ExtLoad generation (Approach-5 allocation × RiCTO gate).
+"""CLI for FreeBox ExtLoad generation (Approach-5 allocation × RiCTO gate).
 
 Examples
 --------
 # Synthetic smoke test (no OpenSim box BK required)
-python run_boxwrench.py --synthetic --box-mass 7
+python run_freebox.py --synthetic --box-mass 7
 
 # Real sample (defaults: 260526_PJH / 7kg_10bpm / 1AB) — runs free-box IK+BK+States if needed
-python run_boxwrench.py --namecode 260526_PJH
+python run_freebox.py --namecode 260526_PJH
 
 # From existing box BK/States + RiCTO timeseries + HeavyHand ExtLoad template
-python run_boxwrench.py --namecode 260526_PJH --condition 7kg_10bpm --segment 1AB \\
+python run_freebox.py --namecode 260526_PJH --condition 7kg_10bpm --segment 1AB \\
     --bk-vel PATH/Load_BodyKinematics_vel_global.sto \\
     --bk-pos PATH/Load_BodyKinematics_pos_global.sto \\
     --states PATH/Load_StatesReporter_states.sto
@@ -37,8 +37,8 @@ for _p in (_CODES, _RUN_TOOLS, _THIS):
 import PATH_RULE as _path  # noqa: E402
 from optimization.ricto_io import read_opensim_storage, save_csv  # noqa: E402
 
-from boxwrench_allocate import allocate_hand_loads  # noqa: E402
-from boxwrench_config import (  # noqa: E402
+from freebox_allocate import allocate_hand_loads  # noqa: E402
+from freebox_config import (  # noqa: E402
     APP_NAME,
     DEFAULT_BOX_OSIM,
     DEFAULT_BOX_WITH_MARKERS_OSIM,
@@ -51,17 +51,17 @@ from boxwrench_config import (  # noqa: E402
     SAMPLE_NAMECODE,
     SAMPLE_SEGMENT,
 )
-from boxwrench_extload import (  # noqa: E402
+from freebox_extload import (  # noqa: E402
     assert_no_measured_leak,
-    write_boxwrench_mot,
+    write_freebox_mot,
 )
-from boxwrench_inertia import load_box_props_for_condition  # noqa: E402
-from boxwrench_kinematics import (  # noqa: E402
+from freebox_inertia import load_box_props_for_condition  # noqa: E402
+from freebox_kinematics import (  # noqa: E402
     compute_box_com_motion,
     compute_box_net_wrench,
 )
-from boxwrench_rotation import batch_rotmats  # noqa: E402
-import boxwrench_paths as bpaths  # noqa: E402
+from freebox_rotation import batch_rotmats  # noqa: E402
+import freebox_paths as bpaths  # noqa: E402
 
 
 def _synthetic_motion(n: int = 200, dt: float = 0.01, mass_kg: float = 7.0):
@@ -134,9 +134,9 @@ def run_synthetic(box_mass_kg: float, weight_mode: str) -> dict:
             "endheader\n",
         ]
     }
-    with tempfile.TemporaryDirectory(prefix="boxwrench_syn_") as tmp:
+    with tempfile.TemporaryDirectory(prefix="freebox_syn_") as tmp:
         out = Path(tmp) / f"synthetic_ExtLoad_{APP_NAME}.mot"
-        write_boxwrench_mot(
+        write_freebox_mot(
             str(out), hh, meta, alloc, ric=ric, weight_mode=weight_mode
         )
         df, _ = read_opensim_storage(out)
@@ -153,7 +153,7 @@ def run_synthetic(box_mass_kg: float, weight_mode: str) -> dict:
         "n_active": int(alloc["n_active"][0]),
         "fy_l_mean_active": float(np.mean(fy_l[w_rect > 0.5])) if np.any(w_rect > 0.5) else 0.0,
         "fy_r_mean_active": float(np.mean(fy_r[w_rect > 0.5])) if np.any(w_rect > 0.5) else 0.0,
-        "static_half_weight": float(-0.5 * props["mass"] * abs(__import__("boxwrench_config", fromlist=["GRAVITY_Y"]).GRAVITY_Y)),
+        "static_half_weight": float(-0.5 * props["mass"] * abs(__import__("freebox_config", fromlist=["GRAVITY_Y"]).GRAVITY_Y)),
         "torque_zero": FORCE_ZERO_HAND_TORQUE,
         "leak_checks": leak,
         "weight_mode": weight_mode,
@@ -216,7 +216,7 @@ def run_from_files(
     alloc = allocate_hand_loads(wrench, motion, active_mask=active)
     hh_df, hh_meta = read_opensim_storage(heavyhand_mot)
     os.makedirs(os.path.dirname(out_mot) or ".", exist_ok=True)
-    write_boxwrench_mot(
+    write_freebox_mot(
         out_mot,
         hh_df,
         hh_meta,
@@ -277,7 +277,7 @@ def run_modern_segment(
 
     kin: dict[str, str] = {}
     if ensure_kinematics and not (bk_vel and bk_pos and states):
-        from boxwrench_opensim import ensure_load_kinematics
+        from freebox_opensim import ensure_load_kinematics
 
         kin = ensure_load_kinematics(
             namecode=namecode,
@@ -309,7 +309,7 @@ def run_modern_segment(
         }
 
     hh = bpaths.heavyhand_extload_path(namecode, condition, seg)
-    out = bpaths.boxwrench_extload_path(namecode, condition, seg)
+    out = bpaths.freebox_extload_path(namecode, condition, seg)
     ts = bpaths.ricto_timeseries_path(namecode, condition, seg)
     ana = bpaths.analysis_forces_csv(namecode, condition, seg)
     rb = bpaths.rigidbody_csv(namecode, condition)

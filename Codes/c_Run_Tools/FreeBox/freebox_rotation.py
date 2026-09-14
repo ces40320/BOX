@@ -1,4 +1,4 @@
-"""Rotation helpers for BoxWrench (do not import vendor RotMat at runtime).
+"""Rotation helpers for FreeBox (do not import vendor RotMat at runtime).
 
 Vendor ``_vendor/General/RotMat.py`` builds::
 

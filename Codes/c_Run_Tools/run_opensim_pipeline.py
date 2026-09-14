@@ -754,7 +754,7 @@ def main() -> None:
     parser.add_argument(
         "--apps", default=None,
         help="Comma-separated app names; default is all protocol apps. "
-             "Opt-in apps (e.g. BoxWrench) are allowed explicitly even when "
+             "Opt-in apps (e.g. FreeBox) are allowed explicitly even when "
              "not listed in protocol APPs.",
     )
     parser.add_argument(
