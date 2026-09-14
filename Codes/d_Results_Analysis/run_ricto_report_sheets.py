@@ -50,6 +50,21 @@ BY_SEGMENT_COLS = [
     "gt_dur_s",
     "err_onset_s",
     "err_offset_s",
+    "marker_onset",
+    "marker_offset",
+    "marker_ok",
+    "err_marker_onset_s",
+    "err_marker_offset_s",
+    "overlap_gt_ricto_s",
+    "overlap_gt_marker_s",
+    "rmse101_fest_ricto_fy_l_full",
+    "rmse101_fest_ricto_fy_l_q1",
+    "rmse101_fest_ricto_fy_l_q2",
+    "rmse101_fest_ricto_fy_l_q3",
+    "rmse101_fest_ricto_fy_l_q4",
+    "rmse101_fest_ricto_fy_r_full",
+    "rmse101_post_fy_l_full",
+    "rmse101_post_fy_r_full",
     "B",
     "solver",
     "success",
@@ -139,6 +154,21 @@ def _load_validation_timing(
                     "gt_dur_s",
                     "err_onset_s",
                     "err_offset_s",
+                    "marker_onset",
+                    "marker_offset",
+                    "marker_ok",
+                    "err_marker_onset_s",
+                    "err_marker_offset_s",
+                    "overlap_gt_ricto_s",
+                    "overlap_gt_marker_s",
+                    "rmse101_fest_ricto_fy_l_full",
+                    "rmse101_fest_ricto_fy_l_q1",
+                    "rmse101_fest_ricto_fy_l_q2",
+                    "rmse101_fest_ricto_fy_l_q3",
+                    "rmse101_fest_ricto_fy_l_q4",
+                    "rmse101_fest_ricto_fy_r_full",
+                    "rmse101_post_fy_l_full",
+                    "rmse101_post_fy_r_full",
                     "n_gt_windows",
                     "fy_thresh_n",
                     "ok",
@@ -241,13 +271,28 @@ def _enrich_segment_df(
         out["ricto_contact_dur_s"] = out["ricto_offset"] - out["ricto_onset"]
 
     gt = _load_validation_timing(namecode, sub_label, protocol)
-    # drop old gt cols before merge to refresh
+    # drop old gt / marker / rmse101 cols before merge to refresh
     for c in (
         "gt_onset",
         "gt_offset",
         "gt_dur_s",
         "err_onset_s",
         "err_offset_s",
+        "marker_onset",
+        "marker_offset",
+        "marker_ok",
+        "err_marker_onset_s",
+        "err_marker_offset_s",
+        "overlap_gt_ricto_s",
+        "overlap_gt_marker_s",
+        "rmse101_fest_ricto_fy_l_full",
+        "rmse101_fest_ricto_fy_l_q1",
+        "rmse101_fest_ricto_fy_l_q2",
+        "rmse101_fest_ricto_fy_l_q3",
+        "rmse101_fest_ricto_fy_l_q4",
+        "rmse101_fest_ricto_fy_r_full",
+        "rmse101_post_fy_l_full",
+        "rmse101_post_fy_r_full",
         "n_gt_windows",
         "fy_thresh_n",
         "ok",
@@ -317,6 +362,14 @@ def _aggregates(sheet_all: pd.DataFrame, timing_err_qc_s: float):
             ("B", "B"),
             ("err_onset_s", "err_onset"),
             ("err_offset_s", "err_offset"),
+            ("err_marker_onset_s", "err_marker_onset"),
+            ("err_marker_offset_s", "err_marker_offset"),
+            ("rmse101_fest_ricto_fy_l_full", "rmse101_fy_l"),
+            ("rmse101_fest_ricto_fy_l_q1", "rmse101_fy_l_q1"),
+            ("rmse101_fest_ricto_fy_l_q2", "rmse101_fy_l_q2"),
+            ("rmse101_fest_ricto_fy_l_q3", "rmse101_fy_l_q3"),
+            ("rmse101_fest_ricto_fy_l_q4", "rmse101_fy_l_q4"),
+            ("rmse101_post_fy_l_full", "rmse101_post_fy_l"),
         ):
             if col in g.columns and g[col].notna().any():
                 s = pd.to_numeric(g[col], errors="coerce")
@@ -332,6 +385,13 @@ def _aggregates(sheet_all: pd.DataFrame, timing_err_qc_s: float):
             row["n_timing_qc_flag"] = int(
                 ((abs_on > timing_err_qc_s) | (abs_off > timing_err_qc_s)).fillna(False).sum()
             )
+        if "err_marker_onset_s" in g.columns and g["err_marker_onset_s"].notna().any():
+            abs_mon = pd.to_numeric(g["err_marker_onset_s"], errors="coerce").abs()
+            abs_moff = pd.to_numeric(g["err_marker_offset_s"], errors="coerce").abs()
+            row["abs_err_marker_onset_mean"] = float(abs_mon.mean())
+            row["abs_err_marker_offset_mean"] = float(abs_moff.mean())
+        if "marker_ok" in g.columns:
+            row["marker_ok_rate"] = float(pd.to_numeric(g["marker_ok"], errors="coerce").mean())
         agg_rows.append(row)
     by_condition = pd.DataFrame(agg_rows)
 
@@ -341,20 +401,33 @@ def _aggregates(sheet_all: pd.DataFrame, timing_err_qc_s: float):
             continue
         abs_on = pd.to_numeric(g["err_onset_s"], errors="coerce").abs()
         abs_off = pd.to_numeric(g["err_offset_s"], errors="coerce").abs()
-        te_rows.append(
-            {
-                "condition": condition,
-                "n": int(len(g)),
-                "abs_err_onset_mean": float(abs_on.mean()),
-                "abs_err_onset_std": float(abs_on.std(ddof=1)) if abs_on.notna().sum() > 1 else 0.0,
-                "abs_err_offset_mean": float(abs_off.mean()),
-                "abs_err_offset_std": float(abs_off.std(ddof=1)) if abs_off.notna().sum() > 1 else 0.0,
-                "timing_err_qc_s": timing_err_qc_s,
-                "n_qc_flag": int(
-                    ((abs_on > timing_err_qc_s) | (abs_off > timing_err_qc_s)).fillna(False).sum()
-                ),
-            }
-        )
+        te = {
+            "condition": condition,
+            "n": int(len(g)),
+            "abs_err_onset_mean": float(abs_on.mean()),
+            "abs_err_onset_std": float(abs_on.std(ddof=1)) if abs_on.notna().sum() > 1 else 0.0,
+            "abs_err_offset_mean": float(abs_off.mean()),
+            "abs_err_offset_std": float(abs_off.std(ddof=1)) if abs_off.notna().sum() > 1 else 0.0,
+            "timing_err_qc_s": timing_err_qc_s,
+            "n_qc_flag": int(
+                ((abs_on > timing_err_qc_s) | (abs_off > timing_err_qc_s)).fillna(False).sum()
+            ),
+        }
+        if "err_marker_onset_s" in g.columns and g["err_marker_onset_s"].notna().any():
+            abs_mon = pd.to_numeric(g["err_marker_onset_s"], errors="coerce").abs()
+            abs_moff = pd.to_numeric(g["err_marker_offset_s"], errors="coerce").abs()
+            te["abs_err_marker_onset_mean"] = float(abs_mon.mean())
+            te["abs_err_marker_offset_mean"] = float(abs_moff.mean())
+        if "rmse101_fest_ricto_fy_l_full" in g.columns and g["rmse101_fest_ricto_fy_l_full"].notna().any():
+            s = pd.to_numeric(g["rmse101_fest_ricto_fy_l_full"], errors="coerce")
+            te["rmse101_fy_l_full_mean"] = float(s.mean())
+            for qi in range(1, 5):
+                col = f"rmse101_fest_ricto_fy_l_q{qi}"
+                if col in g.columns and g[col].notna().any():
+                    te[f"rmse101_fy_l_q{qi}_mean"] = float(
+                        pd.to_numeric(g[col], errors="coerce").mean()
+                    )
+        te_rows.append(te)
     return by_condition, pd.DataFrame(te_rows)
 
 
