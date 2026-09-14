@@ -5,8 +5,11 @@ Examples
 # Synthetic smoke test (no OpenSim box BK required)
 python run_boxwrench.py --synthetic --box-mass 7
 
-# From box BK/States + RiCTO timeseries + HeavyHand ExtLoad template
-python run_boxwrench.py --namecode 260512_KCH --condition 7kg_10bpm --segment 1AB \\
+# Real sample (defaults: 260526_PJH / 7kg_10bpm / 1AB) — runs free-box IK+BK+States if needed
+python run_boxwrench.py --namecode 260526_PJH
+
+# From existing box BK/States + RiCTO timeseries + HeavyHand ExtLoad template
+python run_boxwrench.py --namecode 260526_PJH --condition 7kg_10bpm --segment 1AB \\
     --bk-vel PATH/Load_BodyKinematics_vel_global.sto \\
     --bk-pos PATH/Load_BodyKinematics_pos_global.sto \\
     --states PATH/Load_StatesReporter_states.sto
@@ -38,15 +41,18 @@ from boxwrench_allocate import allocate_hand_loads  # noqa: E402
 from boxwrench_config import (  # noqa: E402
     APP_NAME,
     DEFAULT_BOX_OSIM,
+    DEFAULT_BOX_WITH_MARKERS_OSIM,
     FORCE_ZERO_HAND_TORQUE,
     HANDLE_L_NOM,
     HANDLE_R_NOM,
     HANDLE_X_NOM,
     RICTO_WEIGHT_MODE,
+    SAMPLE_CONDITION,
+    SAMPLE_NAMECODE,
+    SAMPLE_SEGMENT,
 )
 from boxwrench_extload import (  # noqa: E402
     assert_no_measured_leak,
-    build_boxwrench_extload,
     write_boxwrench_mot,
 )
 from boxwrench_inertia import load_box_props_for_condition  # noqa: E402
@@ -55,6 +61,7 @@ from boxwrench_kinematics import (  # noqa: E402
     compute_box_net_wrench,
 )
 from boxwrench_rotation import batch_rotmats  # noqa: E402
+import boxwrench_paths as bpaths  # noqa: E402
 
 
 def _synthetic_motion(n: int = 200, dt: float = 0.01, mass_kg: float = 7.0):
@@ -179,7 +186,11 @@ def run_from_files(
     ric = None
     if ricto_timeseries and os.path.isfile(ricto_timeseries):
         ts_df = pd.read_csv(ricto_timeseries)
-        w_for_mask = ts_df["w_rect"].to_numpy(dtype=float) if "w_rect" in ts_df.columns else ts_df["w_smooth"].to_numpy(dtype=float)
+        w_for_mask = (
+            ts_df["w_rect"].to_numpy(dtype=float)
+            if "w_rect" in ts_df.columns
+            else ts_df["w_smooth"].to_numpy(dtype=float)
+        )
         t_w = ts_df["time"].to_numpy(dtype=float)
         active = np.interp(motion["time"], t_w, w_for_mask) > 0.5
     elif None not in (t1, d1, t2, d2):
@@ -191,8 +202,12 @@ def run_from_files(
             "t2": float(t2),
             "d2": float(d2),
             "time": motion["time"],
-            "smooth_w": smooth_weight_curve(motion["time"], float(t1), float(d1), float(t2), float(d2)),
-            "rect_w": rectangle_weight_curve(motion["time"], float(t1), float(d1), float(t2), float(d2)),
+            "smooth_w": smooth_weight_curve(
+                motion["time"], float(t1), float(d1), float(t2), float(d2)
+            ),
+            "rect_w": rectangle_weight_curve(
+                motion["time"], float(t1), float(d1), float(t2), float(d2)
+            ),
         }
         active = ric["rect_w"] > 0.5
     else:
@@ -200,6 +215,7 @@ def run_from_files(
 
     alloc = allocate_hand_loads(wrench, motion, active_mask=active)
     hh_df, hh_meta = read_opensim_storage(heavyhand_mot)
+    os.makedirs(os.path.dirname(out_mot) or ".", exist_ok=True)
     write_boxwrench_mot(
         out_mot,
         hh_df,
@@ -211,6 +227,7 @@ def run_from_files(
     )
 
     if analysis_csv:
+        os.makedirs(os.path.dirname(analysis_csv) or ".", exist_ok=True)
         save_csv(
             analysis_csv,
             pd.DataFrame(
@@ -233,6 +250,7 @@ def run_from_files(
         "n_success": int(alloc["n_success"][0]),
         "n_active": int(alloc["n_active"][0]),
         "mass": props["mass"],
+        "ricto_timeseries": ricto_timeseries,
     }
 
 
@@ -241,33 +259,62 @@ def run_modern_segment(
     namecode: str,
     condition: str,
     seg: str,
-    bk_vel: str,
-    bk_pos: str,
-    states: str,
     weight_mode: str,
     box_mass_kg: Optional[float] = None,
+    bk_vel: Optional[str] = None,
+    bk_pos: Optional[str] = None,
+    states: Optional[str] = None,
+    ensure_kinematics: bool = True,
+    force_kinematics: bool = False,
+    dry_run: bool = False,
 ) -> dict:
+    """End-to-end: free-box IK/BK/States (if needed) → allocate × RiCTO → ExtLoad."""
     rp = _path.ResultPaths(namecode)
-    cp = rp.for_condition(condition)
     if box_mass_kg is None:
         from optimization.run_ricto import box_mass_from_condition
 
         box_mass_kg = box_mass_from_condition(condition)
 
-    hh = cp.extload_path(seg, "HeavyHand")
-    out = cp.extload_path(seg, APP_NAME)
-    ts = cp.ricto_timeseries_path(seg) if hasattr(cp, "ricto_timeseries_path") else None
-    # ConditionPaths may expose via parent
-    if ts is None or not os.path.isfile(str(ts)):
-        ts = os.path.join(
-            rp.ricto_timeseries_dir(condition),
-            f"{rp.sub_label}_{condition}_{seg}_RiCTO_timeseries.csv",
+    kin: dict[str, str] = {}
+    if ensure_kinematics and not (bk_vel and bk_pos and states):
+        from boxwrench_opensim import ensure_load_kinematics
+
+        kin = ensure_load_kinematics(
+            namecode=namecode,
+            condition=condition,
+            seg=seg,
+            model_path=DEFAULT_BOX_WITH_MARKERS_OSIM,
+            force=force_kinematics,
+            dry_run=dry_run,
         )
-    ana = os.path.join(
-        rp.boxwrench_timeseries_dir(condition),
-        f"{rp.sub_label}_{condition}_{seg}_BoxWrench_forces.csv",
-    )
-    return run_from_files(
+        bk_vel = kin["bk_vel"]
+        bk_pos = kin["bk_pos"]
+        states = kin["states"]
+    elif not (bk_vel and bk_pos and states):
+        # Resolve previously written Load outputs
+        bkp = bpaths.load_bk_paths(namecode, condition, seg)
+        stp = bpaths.load_states_paths(namecode, condition, seg)
+        bk_vel, bk_pos, states = bkp["vel"], bkp["pos"], stp["states"]
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "namecode": namecode,
+            "condition": condition,
+            "segment": seg,
+            "bk_vel": bk_vel,
+            "bk_pos": bk_pos,
+            "states": states,
+            "kinematics": kin,
+        }
+
+    hh = bpaths.heavyhand_extload_path(namecode, condition, seg)
+    out = bpaths.boxwrench_extload_path(namecode, condition, seg)
+    ts = bpaths.ricto_timeseries_path(namecode, condition, seg)
+    ana = bpaths.analysis_forces_csv(namecode, condition, seg)
+    rb = bpaths.rigidbody_csv(namecode, condition)
+
+    res = run_from_files(
         bk_vel=bk_vel,
         bk_pos=bk_pos,
         states=states,
@@ -275,19 +322,38 @@ def run_modern_segment(
         out_mot=out,
         box_mass_kg=float(box_mass_kg),
         weight_mode=weight_mode,
-        ricto_timeseries=ts if os.path.isfile(ts) else None,
+        ricto_timeseries=ts,
         analysis_csv=ana,
     )
+    res.update(
+        {
+            "namecode": namecode,
+            "sub_label": rp.sub_label,
+            "protocol": rp.protocol,
+            "condition": condition,
+            "segment": seg,
+            "heavyhand_mot": hh,
+            "rigidbody_csv": rb,
+            "kinematics": kin,
+        }
+    )
+    return res
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description=f"{APP_NAME}: box wrench → L/R ExtLoad × RiCTO gate")
+    p = argparse.ArgumentParser(
+        description=f"{APP_NAME}: box wrench → L/R ExtLoad × RiCTO gate"
+    )
     p.add_argument("--synthetic", action="store_true")
-    p.add_argument("--box-mass", type=float, default=7.0)
+    p.add_argument("--box-mass", type=float, default=None,
+                   help="Override condition kg (default: parse from --condition)")
     p.add_argument("--ricto-weight", choices=("smooth", "rect"), default=RICTO_WEIGHT_MODE)
-    p.add_argument("--namecode", default=None)
-    p.add_argument("--condition", default=None)
-    p.add_argument("--segment", default=None)
+    p.add_argument("--namecode", default=None,
+                   help=f"SUB_Info key (sample default: {SAMPLE_NAMECODE})")
+    p.add_argument("--condition", default=None,
+                   help=f"Condition (sample default: {SAMPLE_CONDITION})")
+    p.add_argument("--segment", default=None,
+                   help=f"Segment label (sample default: {SAMPLE_SEGMENT})")
     p.add_argument("--bk-vel", default=None)
     p.add_argument("--bk-pos", default=None)
     p.add_argument("--states", default=None)
@@ -298,54 +364,84 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--d1", type=float, default=None)
     p.add_argument("--t2", type=float, default=None)
     p.add_argument("--d2", type=float, default=None)
+    p.add_argument(
+        "--no-ensure-kinematics",
+        action="store_true",
+        help="Do not run free-box IK/BK/States; require existing --bk-* / --states",
+    )
+    p.add_argument(
+        "--force-kinematics",
+        action="store_true",
+        help="Re-run free-box IK/BK/States even if outputs exist",
+    )
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args(argv)
 
-    if args.dry_run:
-        print(f"[{APP_NAME}] dry-run ok | osim={DEFAULT_BOX_OSIM} exists={os.path.isfile(DEFAULT_BOX_OSIM)}")
-        return 0
-
-    if args.synthetic or not (args.bk_vel and args.bk_pos and args.states):
-        if not args.synthetic and not (args.bk_vel and args.bk_pos and args.states):
-            print(f"[{APP_NAME}] no box BK/States → synthetic smoke test")
-        res = run_synthetic(args.box_mass, args.ricto_weight)
-        print(f"[synthetic] {res}")
-        # Sanity: mean vertical hand force should be near -mg/2 each when active & static-ish
-        return 0
-
-    if args.namecode and args.condition and args.segment:
-        res = run_modern_segment(
-            namecode=args.namecode,
-            condition=args.condition,
-            seg=args.segment,
-            bk_vel=args.bk_vel,
-            bk_pos=args.bk_pos,
-            states=args.states,
-            weight_mode=args.ricto_weight,
-            box_mass_kg=args.box_mass,
+    if args.dry_run and not args.namecode and not args.synthetic:
+        print(
+            f"[{APP_NAME}] dry-run ok | osim={DEFAULT_BOX_OSIM} "
+            f"exists={os.path.isfile(DEFAULT_BOX_OSIM)} | "
+            f"marked={DEFAULT_BOX_WITH_MARKERS_OSIM} "
+            f"exists={os.path.isfile(DEFAULT_BOX_WITH_MARKERS_OSIM)}"
         )
+        return 0
+
+    # Modern path: --namecode (condition/segment default to sample 7kg_10bpm / 1AB)
+    if args.namecode:
+        condition = args.condition or SAMPLE_CONDITION
+        segment = args.segment or SAMPLE_SEGMENT
+        try:
+            res = run_modern_segment(
+                namecode=args.namecode,
+                condition=condition,
+                seg=segment,
+                weight_mode=args.ricto_weight,
+                box_mass_kg=args.box_mass,
+                bk_vel=args.bk_vel,
+                bk_pos=args.bk_pos,
+                states=args.states,
+                ensure_kinematics=not args.no_ensure_kinematics,
+                force_kinematics=args.force_kinematics,
+                dry_run=args.dry_run,
+            )
+        except Exception as exc:
+            print(f"[{APP_NAME}] FAILED: {exc}", file=sys.stderr)
+            return 1
         print(f"[modern] {res}")
         return 0
 
-    if not args.heavyhand_mot or not args.out_mot:
-        print("Need --heavyhand-mot and --out-mot (or --namecode/--condition/--segment)")
-        return 2
+    # File-based path (explicit BK/States + HeavyHand template)
+    if args.bk_vel and args.bk_pos and args.states:
+        if not args.heavyhand_mot or not args.out_mot:
+            print(
+                "Need --heavyhand-mot and --out-mot "
+                "(or pass --namecode for ConditionPaths)"
+            )
+            return 2
+        mass = 7.0 if args.box_mass is None else float(args.box_mass)
+        res = run_from_files(
+            bk_vel=args.bk_vel,
+            bk_pos=args.bk_pos,
+            states=args.states,
+            heavyhand_mot=args.heavyhand_mot,
+            out_mot=args.out_mot,
+            box_mass_kg=mass,
+            weight_mode=args.ricto_weight,
+            ricto_timeseries=args.ricto_timeseries,
+            t1=args.t1,
+            d1=args.d1,
+            t2=args.t2,
+            d2=args.d2,
+        )
+        print(f"[files] {res}")
+        return 0
 
-    res = run_from_files(
-        bk_vel=args.bk_vel,
-        bk_pos=args.bk_pos,
-        states=args.states,
-        heavyhand_mot=args.heavyhand_mot,
-        out_mot=args.out_mot,
-        box_mass_kg=args.box_mass,
-        weight_mode=args.ricto_weight,
-        ricto_timeseries=args.ricto_timeseries,
-        t1=args.t1,
-        d1=args.d1,
-        t2=args.t2,
-        d2=args.d2,
-    )
-    print(f"[files] {res}")
+    # Default / --synthetic: smoke test without OpenSim box BK
+    if not args.synthetic:
+        print(f"[{APP_NAME}] no --namecode / box BK → synthetic smoke test")
+    mass = 7.0 if args.box_mass is None else float(args.box_mass)
+    res = run_synthetic(mass, args.ricto_weight)
+    print(f"[synthetic] {res}")
     return 0
 
 

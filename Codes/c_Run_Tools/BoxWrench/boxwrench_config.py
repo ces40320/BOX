@@ -34,9 +34,38 @@ GRAVITY_VEC = (0.0, GRAVITY_Y, 0.0)
 
 # Default box model shipped with this package (mass/inertia XML).
 DEFAULT_BOX_OSIM: str = os.path.join(_THIS, "models", "BOX.osim")
+DEFAULT_BOX_WITH_MARKERS_OSIM: str = os.path.join(
+    _THIS, "models", "BOX_with_markers.osim"
+)
 DEFAULT_BOX_BODY_NAME: str = "BOX"
 # Reference mass in shipped BOX.osim (~15.02 kg CAD). Condition kg scales inertia.
 REF_BOX_MASS_KG: float = 15.028443336486816
+
+# Free-box Analyze (vendor LoadBK/LoadStates used 3 Hz; human BK uses 6 Hz).
+LOAD_ANALYZE_CUTOFF_HZ: float = 6.0
+LOAD_IK_MARKER_WEIGHT: float = 1.0
+# OpenSim_Process folder suffixes (parallel to IK / IK_AddBox).
+LOAD_IK_FOLDER: str = "IK_Load"
+LOAD_BK_FOLDER: str = "BK_Load"
+LOAD_STATES_FOLDER: str = "States_Load"
+LOAD_FOLDER_SUFFIX: str = "Load"  # file-name tag: …_Load_IK.mot
+
+# Real-data sample defaults (not 260512_HSH).
+SAMPLE_NAMECODE: str = "260526_PJH"
+SAMPLE_CONDITION: str = "7kg_10bpm"
+SAMPLE_SEGMENT: str = "1AB"
+
+# Corner markers used for free-box IK (handles optional / often absent in TRC).
+BOX_IK_MARKER_NAMES: tuple[str, ...] = (
+    "LTA_BOX",
+    "LTP_BOX",
+    "LBA_BOX",
+    "LBP_BOX",
+    "RTA_BOX",
+    "RTP_BOX",
+    "RBA_BOX",
+    "RBP_BOX",
+)
 
 # Handle / COP bounds in **CAD / BOX body** frame (m), relative to box center.
 # ML along body **Z** (±~0.160 m) — ADDBOX / STL import. Motive D3/D4 use ±X

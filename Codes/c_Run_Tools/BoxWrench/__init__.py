@@ -1,6 +1,14 @@
 """BoxWrench: Approach-5-inspired box wrench → L/R ExtLoad, gated by RiCTO timing."""
 
-from .boxwrench_config import APP_NAME, HANDLE_L_NOM, HANDLE_R_NOM, HANDLE_X_NOM
+from .boxwrench_config import (
+    APP_NAME,
+    HANDLE_L_NOM,
+    HANDLE_R_NOM,
+    HANDLE_X_NOM,
+    SAMPLE_CONDITION,
+    SAMPLE_NAMECODE,
+    SAMPLE_SEGMENT,
+)
 from .boxwrench_allocate import allocate_hand_loads
 from .boxwrench_extload import build_boxwrench_extload, write_boxwrench_mot
 from .boxwrench_inertia import load_box_props_for_condition
@@ -12,6 +20,9 @@ __all__ = [
     "HANDLE_L_NOM",
     "HANDLE_R_NOM",
     "HANDLE_X_NOM",
+    "SAMPLE_NAMECODE",
+    "SAMPLE_CONDITION",
+    "SAMPLE_SEGMENT",
     "allocate_hand_loads",
     "build_boxwrench_extload",
     "write_boxwrench_mot",
