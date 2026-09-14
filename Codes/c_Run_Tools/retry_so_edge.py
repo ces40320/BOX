@@ -8,6 +8,8 @@ a failure on one app retries every protocol app that already has an
 ExtLoad SETUP XML (MeasuredEHF, HeavyHand, preRiCTO, postRiCTO). Apps
 without that XML are skipped. ``--manual`` ignores the sidecar and
 runs the named trials (SO already at 0.05 s is padded, then JR and BK).
+Pass ``--skip-bk`` when BodyKinematics was already run and should not be
+repeated after the SO/JR edge retry.
 
 After SO, JR, and BK finish, every result ``.sto`` gets rows at 0.01, 0.02,
 0.03, and 0.04 s, each a copy of the 0.05 s row. Downstream time grids
@@ -865,6 +867,10 @@ def main() -> None:
         help="Parallel cases (default 1). Use 0 for os.cpu_count().",
     )
     parser.add_argument(
+        "--skip-bk", action="store_true",
+        help="Skip the post-SO/JR BK pass (use when BK was already run).",
+    )
+    parser.add_argument(
         "--no-trouble-sheet", action="store_true",
         help="Do not refresh the progress workbook after the retry",
     )
@@ -957,25 +963,28 @@ def main() -> None:
                         f"{payload['app']}  {result.get('error')}"
                     )
 
-    seen_seg: set[tuple[str, str, str]] = set()
-    for payload in payloads:
-        key = (payload["namecode"], payload["condition"], payload["segment"])
-        if key in seen_seg:
-            continue
-        seen_seg.add(key)
-        _log(f"\n===== BK {payload['segment']} =====")
-        bk_result = retry_bk_for_segment(
-            namecode=payload["namecode"],
-            condition=payload["condition"],
-            segment=payload["segment"],
-            start_time=float(payload["start_time"]),
-            dry_run=args.dry_run,
-        )
-        if bk_result.get("ok"):
-            _log(f"[OK  ] BK {payload['segment']}")
-        else:
-            failures.append(bk_result)
-            _log(f"[FAIL] BK {payload['segment']}  {bk_result.get('error')}")
+    if args.skip_bk:
+        _log("[retry_so_edge] --skip-bk: skipping BK pass")
+    else:
+        seen_seg: set[tuple[str, str, str]] = set()
+        for payload in payloads:
+            key = (payload["namecode"], payload["condition"], payload["segment"])
+            if key in seen_seg:
+                continue
+            seen_seg.add(key)
+            _log(f"\n===== BK {payload['segment']} =====")
+            bk_result = retry_bk_for_segment(
+                namecode=payload["namecode"],
+                condition=payload["condition"],
+                segment=payload["segment"],
+                start_time=float(payload["start_time"]),
+                dry_run=args.dry_run,
+            )
+            if bk_result.get("ok"):
+                _log(f"[OK  ] BK {payload['segment']}")
+            else:
+                failures.append(bk_result)
+                _log(f"[FAIL] BK {payload['segment']}  {bk_result.get('error')}")
 
     if not args.dry_run and not args.no_trouble_sheet:
         for result in failures:

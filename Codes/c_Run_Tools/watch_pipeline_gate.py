@@ -13,6 +13,12 @@ Example
       --interval 600 ^
       --next-namecode 260521_KJA --next-tools so,jr --next-apps preRiCTO,postRiCTO ^
       --next-workers 12 --next-skip-existing
+
+    # Wait for multiple subjects (all must clear), then start next:
+    python watch_pipeline_gate.py ^
+      --wait-namecode 260519_KMJ,260521_JSY --wait-apps MeasuredEHF ^
+      --next-namecode 260519_KMJ --next-apps HeavyHand,preRiCTO,postRiCTO ^
+      --next-workers 18 --next-skip-existing
 """
 
 from __future__ import annotations
@@ -164,7 +170,10 @@ def main() -> int:
         description="Wait for a subject's tool/app cells to finish, "
                     "then start the next OpenSim pipeline run."
     )
-    p.add_argument("--wait-namecode", required=True)
+    p.add_argument(
+        "--wait-namecode", required=True,
+        help="One namecode, or comma-separated list (ALL must clear)",
+    )
     p.add_argument("--wait-tools", default="so,jr")
     p.add_argument("--wait-apps", required=True)
     p.add_argument("--interval", type=int, default=600,
@@ -186,49 +195,85 @@ def main() -> int:
         "--once", action="store_true",
         help="Check once and exit (no loop); exit 0 if started, 2 if waiting",
     )
+    p.add_argument(
+        "--wait-process-only", action="store_true",
+        help="Clear gate when wait pipeline process(es) exit; "
+             "do not require incomplete cells to reach 0 "
+             "(use when workers finishing is the trigger)",
+    )
     args = p.parse_args()
 
+    wait_namecodes = _split_csv(args.wait_namecode)
     wait_tools = _split_csv(args.wait_tools)
     wait_apps = _split_csv(args.wait_apps)
-    sub_n = sub_number_for_namecode(args.wait_namecode)
     next_cmd = _build_next_cmd(args)
 
-    _log(
-        f"GATE wait {args.wait_namecode} (SUB{sub_n}) "
-        f"tools={wait_tools} apps={wait_apps} every {args.interval}s"
-    )
+    for nc in wait_namecodes:
+        sub_n = sub_number_for_namecode(nc)
+        _log(
+            f"GATE wait {nc} (SUB{sub_n}) "
+            f"tools={wait_tools} apps={wait_apps} every {args.interval}s"
+        )
     _log(f"NEXT cmd: {' '.join(next_cmd)}")
 
     while True:
-        report = _refresh_or_scan(sub_n)
-        cells = _gate_cells(
-            report,
-            namecode=args.wait_namecode,
-            tools=wait_tools,
-            apps=wait_apps,
-        )
-        done, trouble, other, total = _summarize_cells(cells)
-        pids = _pipeline_pids(args.wait_namecode)
-        _log(
-            f"{args.wait_namecode} gate cells: "
-            f"{done}/{total} done, {trouble} trouble, {other} incomplete; "
-            f"pipeline_pids={pids or 'none'}"
-        )
+        all_gate_ok = True
+        any_trouble = 0
+        for wait_nc in wait_namecodes:
+            sub_n = sub_number_for_namecode(wait_nc)
+            report = _refresh_or_scan(sub_n)
+            cells = _gate_cells(
+                report,
+                namecode=wait_nc,
+                tools=wait_tools,
+                apps=wait_apps,
+            )
+            done, trouble, other, total = _summarize_cells(cells)
+            pids = _pipeline_pids(wait_nc)
+            _log(
+                f"{wait_nc} gate cells: "
+                f"{done}/{total} done, {trouble} trouble, {other} incomplete; "
+                f"pipeline_pids={pids or 'none'}"
+            )
 
-        if total == 0:
-            _log("ERROR: no matching gate cells — check apps/tools")
-            return 1
+            if total == 0:
+                _log(f"ERROR: no matching gate cells for {wait_nc} — check apps/tools")
+                return 1
 
-        # "Code finished": gate process gone and no still-generating cells.
-        # Trouble (x) alone does not block the next subject.
-        process_gone = not pids
-        no_inflight = other == 0
-        gate_ok = process_gone and no_inflight
+            # Default: process gone and no still-generating cells.
+            # Trouble (x) alone does not block. --wait-process-only: process only.
+            process_gone = not pids
+            no_inflight = other == 0
+            if args.wait_process_only:
+                gate_ok = process_gone
+            else:
+                gate_ok = process_gone and no_inflight
+            any_trouble += trouble
+            if not gate_ok:
+                all_gate_ok = False
+                if args.wait_process_only and not process_gone:
+                    _log(f"{wait_nc}: pipeline still running (process-only wait)")
+                elif process_gone and not no_inflight:
+                    _log(f"{wait_nc}: process exited but incomplete cells remain — wait")
+                elif (not process_gone) and no_inflight:
+                    _log(f"{wait_nc}: cells quiet but pipeline still running — wait")
+                else:
+                    samples = [
+                        c for c in cells
+                        if c.get("mark") != MARK_DONE
+                    ][:5]
+                    for c in samples:
+                        mark = _ascii_mark(str(c.get("mark", "")))
+                        _log(
+                            f"  incomplete: {c['condition']}/{c['section']} "
+                            f"{c['app']}/{c['tool']} {c.get('count')} "
+                            f"mark={mark}"
+                        )
 
-        if gate_ok:
-            if trouble:
+        if all_gate_ok:
+            if any_trouble:
                 _log(
-                    f"WARNING: {trouble} trouble cell(s) remain on gate; "
+                    f"WARNING: {any_trouble} trouble cell(s) remain on gate; "
                     "starting next subject anyway"
                 )
             # Avoid double-start if next job already launched.
@@ -262,24 +307,6 @@ def main() -> int:
             )
             _log(f"started pid={proc.pid}  log={log_path}")
             return 0
-
-        if process_gone and not no_inflight:
-            _log("gate process exited but incomplete cells remain — wait")
-        elif (not process_gone) and no_inflight:
-            _log("cells quiet but gate pipeline still running — wait")
-        else:
-            # Sample a few incomplete cells for the console.
-            samples = [
-                c for c in cells
-                if c.get("mark") != MARK_DONE
-            ][:5]
-            for c in samples:
-                mark = _ascii_mark(str(c.get("mark", "")))
-                _log(
-                    f"  incomplete: {c['condition']}/{c['section']} "
-                    f"{c['app']}/{c['tool']} {c.get('count')} "
-                    f"mark={mark}"
-                )
 
         if args.once:
             return 2
