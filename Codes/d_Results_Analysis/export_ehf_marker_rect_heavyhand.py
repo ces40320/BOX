@@ -26,7 +26,7 @@ import PATH_RULE as _path  # noqa: E402
 import SUB_Info as _sub_info  # noqa: E402
 
 from abc_marker_events import detect_abc_events_from_rigidbody  # noqa: E402
-from analysis_utils import list_segments, parse_condition  # noqa: E402
+from analysis_utils import list_segments, parse_condition, resolve_opensim_file  # noqa: E402
 
 # Cache Motive event tables: (namecode, cond) → DataFrame | None
 _EVENTS_CACHE: Dict[tuple, Optional[pd.DataFrame]] = {}
@@ -110,10 +110,10 @@ def heavyhand_ehf_for_segment(
 ) -> Dict[str, np.ndarray]:
     rp = _path.ResultPaths(namecode)
     cp = rp.for_condition(cond)
-    bk_path = cp.bk_path(seg, "pos_global")
-    if not os.path.isfile(bk_path):
-        raise FileNotFoundError(bk_path)
-    pos_df, _ = read_opensim_storage(bk_path)
+    bk_path = resolve_opensim_file(cp.bk_path(seg, "pos_global"))
+    if bk_path is None:
+        raise FileNotFoundError(cp.bk_path(seg, "pos_global"))
+    pos_df, _ = read_opensim_storage(str(bk_path))
     mass = box_mass_from_condition(cond)
     ehf, _hands, _qc = ehf_from_bk_pos(pos_df, mass)
     t = np.asarray(ehf["time"], dtype=float)

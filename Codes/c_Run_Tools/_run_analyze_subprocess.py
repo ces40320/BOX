@@ -44,6 +44,10 @@ JSON 파일 1개 (``--manifest`` 인자) 안에 작업 리스트:
 CLI
 ---
 ``python _run_analyze_subprocess.py --manifest <manifest.json>``
+
+App-agnostic: MeasuredEHF / HeavyHand / preRiCTO / postRiCTO / FreeBox
+all flow through the same AnalyzeTool RUN path once SETUP XML + model
+paths are in the manifest.
 """
 
 from __future__ import annotations

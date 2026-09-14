@@ -70,7 +70,18 @@ APP_PLOT_STYLE = {
     "HeavyHand": {"color": "red", "linestyle": "-", "label": "HeavyHand"},
     "preRiCTO": {"color": "darkorange", "linestyle": "-", "label": "preRiCTO"},
     "postRiCTO": {"color": "blue", "linestyle": "-", "label": "postRiCTO"},
+    # Code key FreeBox; document-facing legend LoadShare (freebox_config.DISPLAY_NAME).
+    "FreeBox": {"color": "seagreen", "linestyle": "-", "label": "LoadShare"},
 }
+
+# Preferred overlay order for single-segment EHF comparison (skip quietly if missing).
+EHF_COMPARE_APPS = (
+    "MeasuredEHF",
+    "HeavyHand",
+    "preRiCTO",
+    "postRiCTO",
+    "FreeBox",
+)
 
 P_COLS = [f"p{i:03d}" for i in range(N_RESAMPLE)]
 SECTIONS = ("AB", "BC", "CA")
@@ -131,6 +142,27 @@ def list_segments(namecode: str, cond: str) -> List[str]:
 def load_storage(path: Union[str, Path]) -> pd.DataFrame:
     df, _ = read_opensim_storage(path)
     return df
+
+
+def resolve_opensim_file(path: Union[str, Path]) -> Optional[Path]:
+    """Prefer ``path`` under local ``OPENSIM_DIR``, else the Dropbox cowork twin."""
+    local = Path(path)
+    if local.is_file():
+        return local
+    try:
+        rel = local.relative_to(Path(_path.OPENSIM_DIR))
+    except ValueError:
+        return None
+    cowork = Path(_path.COWORK_OPENSIM_DIR) / rel
+    if cowork.is_file():
+        return cowork
+    return None
+
+
+def resolve_extload_mot(namecode: str, cond: str, seg: str, app: str) -> Optional[Path]:
+    """Local ``OpenSim_Process`` first, then Dropbox ``COWORK_OPENSIM_DIR``."""
+    cp = result_paths(namecode).for_condition(cond)
+    return resolve_opensim_file(cp.extload_path(seg, app))
 
 
 def contact_windows_fy(

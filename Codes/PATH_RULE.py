@@ -19,6 +19,25 @@ DATA_DIR = os.path.join(COWORK_ROOT_DIR, "Experiment")
 ANALYSIS_DIR = os.path.join(ROOT_DIR, "Analysis")
 os.makedirs(ANALYSIS_DIR, exist_ok=True)
 
+# Shared (subject-independent) box mesh / free-joint osim assets
+MODEL_DIR = os.path.join(ROOT_DIR, "OpenSim_Process", "Model")
+DESIGN_BOX_DIR = os.path.join(MODEL_DIR, "Design_Box")
+
+
+def design_box_dir() -> str:
+    """``OpenSim_Process/Model/Design_Box`` (ADDBOX meshes + FreeBox free-joint osim)."""
+    return DESIGN_BOX_DIR
+
+
+def freebox_box_osim_path(*, with_markers: bool = True) -> str:
+    """Free-joint box model under Design_Box.
+
+    ``with_markers=True`` → ``BOX_with_markers.osim`` (IK)
+    ``with_markers=False`` → ``BOX.osim`` (mass/inertia reference)
+    """
+    name = "BOX_with_markers.osim" if with_markers else "BOX.osim"
+    return os.path.join(DESIGN_BOX_DIR, name)
+
 if prototype is not None:
     OPENSIM_DIR        = os.path.join(ROOT_DIR,         "OpenSim_Process", str(prototype))
     COWORK_OPENSIM_DIR = os.path.join(COWORK_ROOT_DIR,  "OpenSim_Process", str(prototype))
@@ -304,6 +323,22 @@ class ResultPaths:
         base.extend(parts)
         return _ensure_dir(*base)
 
+    # ── Analysis (FreeBox) ─────────────────────────────────
+
+    def freebox_root(self) -> str:
+        """``Analysis/<protocol>/FreeBox`` (e.g. Analysis/Asymmetric/FreeBox)."""
+        return _ensure_dir(ANALYSIS_DIR, self.protocol, "FreeBox")
+
+    def freebox_summary_dir(self) -> str:
+        return _ensure_dir(self.freebox_root(), "Summary")
+
+    def freebox_timeseries_dir(self, cond: str) -> str:
+        """``…/TimeSeries/SUB{n}/{cond}/``."""
+        return _ensure_dir(self.freebox_root(), "TimeSeries", self.sub_label, cond)
+
+    def freebox_validation_dir(self) -> str:
+        return _ensure_dir(self.freebox_root(), "_validation")
+
 
 # ═══════════════════════════════════════════════════════════════
 #  ConditionPaths — condition 바인딩 하위 context
@@ -404,6 +439,19 @@ class ConditionPaths:
 
     def ricto_report_path(self) -> str:
         return self._p.ricto_report_path()
+
+    def freebox_timeseries_path(self, seg: str) -> str:
+        return os.path.join(
+            self._p.freebox_timeseries_dir(self.cond),
+            f"{self.sub_label}_{self.cond}_{seg}_FreeBox_timeseries.csv",
+        )
+
+    def freebox_plot_path(self, seg: str, tag: str = "overview") -> str:
+        return os.path.join(
+            self._p.freebox_timeseries_dir(self.cond),
+            "plots",
+            f"{self.sub_label}_{self.cond}_{seg}_FreeBox_{tag}.png",
+        )
 
     # ── 전체 경로 (seg → section 자동 추출) ─────────────────────
 
