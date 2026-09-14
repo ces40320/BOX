@@ -1,93 +1,109 @@
 # BoxWrench — planning doc (Approach-5 inspired, RiCTO-gated)
 
-- **Branch (conceptual name)**: `BoxWrench`
-- **Cloud / git branch used**: `cursor/boxwrench-0490` (environment requires `cursor/<name>-0490`; intended product name remains **BoxWrench**)
+- **Branch**: `cursor/boxwrench-0490` (product name **BoxWrench**)
 - **Location**: `Codes/c_Run_Tools/BoxWrench/`
-- **Literature reference**: Akhavanfar et al. (2022), “Sharing the load” — Approach 5 (box 6DOF wrench → constrained L/R hand allocation). Folder/app name is **BoxWrench**, not APP5 / app5.
+- **Literature**: Akhavanfar et al. (2022) Approach 5 — vendor scripts under `_vendor/` (runtime must **not** import General)
 
-## Status (this scaffolding pass)
+## Status (2026-09-14)
 
 | Asset | Status |
 |-------|--------|
-| Approach-5 Python sources (vendor) | **NOT in workspace** — blocked |
-| Box `.osim` model for Approach-5 kinematics | **NOT in workspace** — blocked |
-| Repo RiCTO timing / weight API | Present (`optimization/`) |
-| Repo ExtLoad MOT I/O | Present (`optimization/ricto_io.py`) |
-| Repo rotation utilities | **None found** (no safe `RotMat` equivalent yet) |
+| Vendor APP5 + General (reference only) | Present under `_vendor/` |
+| Reference `BOX.osim` (15.03 kg, no markers) | `models/BOX.osim` |
+| Marked free box | `models/BOX_with_markers.osim` (8 corners + L/R handle) |
+| CAD excel + workflow | Read from Dropbox `…/to OpenSim/1212/` |
+| Mass scale 15 kg → condition kg | `boxwrench_inertia.py` |
+| Allocation × RiCTO gate → ExtLoad | Wired; synthetic smoke **OK** |
+| Box IK + BK pipeline (trial) | **Still needed** (see blockers) |
 
-**Decision**: ship folder + config/CLI stubs + PATH_RULE / pipeline hooks only. Do **not** invent a full numerical reimplementation from the paper alone.
+## CAD / excel findings (handle + markers)
 
-## Method summary (target design)
+### Handle centers (physical ML ≈ ±0.160 m)
 
-1. **Box 6DOF wrench**  
-   From box rigid-body pose (markers / IK / body kinematics): linear COM acceleration + angular velocity/acceleration → net force and moment at box COM (Newton–Euler). Mass / inertia come from the box model (user-provided `.osim` or documented constants).
+| Frame | L (hand3) | R (hand4) | Source |
+|-------|-----------|-----------|--------|
+| **Motive RB / MeasuredEHF** | `(-0.16001, 0.0158, 0.00041)` m | `(0.16007, 0.0158, 0.00041)` m | Excel “Transverse in OpenSim”; `config_exp_settings.D3/D4` |
+| **CAD / BOX body (ADDBOX)** | `(0.0, 0.0158, -0.16001)` m | `(0.0, 0.0158, 0.16007)` m | Same offset; ML on **Z** after STL import |
 
-2. **Constrained L/R allocation**  
-   Allocate the net wrench to left/right hand contact forces (and optionally moments) under Approach-5-style constraints (equal/unequal share, force direction / grip assumptions as in vendor code). Mapping for this repo: **hand3 = left, hand4 = right** (same as RiCTO / ExtLoad SETUP).
+BoxWrench OpenSim allocation uses the **CAD body** row (`HANDLE_L_NOM` / `HANDLE_R_NOM`). Vendor paper-box `HANDLE_Z_NOM=0.17` replaced by **0.160**.
 
-3. **RiCTO timing gate (not MeasuredEHF)**  
-   Contact / load timing comes from RiCTO optimized `(t1, d1, t2, d2)` and weight curves (`rect_w` / `smooth_w`) under `Codes/c_Run_Tools/optimization/`.  
-   **Chosen coupling (default, documented)**: multiply allocated hand forces by RiCTO **smooth** weight (`post`-style) unless CLI overrides to `rect`. Outside contact windows, hand forces → 0.  
-   **No MeasuredEHF leakage**: never copy MeasuredEHF hand force / torque / COP into BoxWrench ExtLoad.
+### Corner markers (workflow step 8 / ADDBOX / 마커셋 위치 조절.xlsx)
 
-4. **Torque policy (provisional until vendor review)**  
-   Default stub policy matches RiCTO / HeavyHand: **`hand_torque3_* = hand_torque4_* = 0`** unless Approach-5 vendor code requires nonzero contact moments — then document axis frames and enable via config flag after integration.
+On `box_15kg_half_l` / `_r` (m):
 
-5. **ExtLoad write**  
-   Template = HeavyHand MOT (GRF plates 1–2 kept). Hand columns overwritten with BoxWrench allocation × RiCTO weight. Paths follow `PATH_RULE` (`…/ExtLoad/SUB*_…_ExtLoad_BoxWrench.mot`). Analysis CSVs under `Analysis/<protocol>/BoxWrench/`.
+| Marker | Parent | Location |
+|--------|--------|----------|
+| LTA/LTP/LBA/LBP | half_l | `(0.3496,0.295,0.01539)` … `(0.0704,0.015,-0.01461)` |
+| RTA/RTP/RBA/RBP | half_r | `(0.3496,0.295,0.19312)` … `(0.0704,0.015,0.22312)` |
 
-## Rotation / axis signs (open)
+Free `BOX_with_markers.osim` maps R → left-half frame via weld Δz = 0.205 m (**ASSUMPTION**: free BOX body ≈ left-half CAD frame).
 
-- Vendor `RotMat.py` may contain incorrect rotation matrices — **do not copy blindly**.
-- This repo currently has **no** shared rotation helper under `Codes/`. After vendor sources arrive: prefer re-deriving with explicit OpenSim/ground frame assumptions, or extract only verified transforms; document R convention (body→ground vs ground→body) and marker order.
-- Open questions until vendor + box model arrive:
-  - Box local axes vs OpenSim ground (`+Y` up).
-  - Sign of force applied **to hand** vs **to box** (RiCTO uses force of box on hand: static `fy ≈ −m|g|`).
-  - Whether Approach-5 moments are about hand COP or box COM, and in which frame they enter ExtLoad.
+### Motive `*_rigidbody.csv` → box markers
 
-## Reuse (do not vendor-dump “General”)
+- Path rule: `E:\Dropbox\SEL\BOX\Experiment\<namecode>\RigidBody\*_<cond>_rigidbody.csv` (`PATH_RULE.DATA_DIR`, `ResultPaths.rigid_dir`).
+- Reader: `a_Get_Exp_Data/lifting_io.read_rigid_body_csv` (RB center + Euler; skiprows=7).
+- Marker columns: `RigidBody:Marker1`…`Marker8` (XYZ + quality). Empirically vs CAD local offsets:
 
-| Need | Repo equivalent |
-|------|-----------------|
-| Read/write ExtLoad `.mot` | `optimization/ricto_io.py` |
-| Weight curves / `(t1,d1,t2,d2)` | `optimization/ricto_optimize.py`, RiCTO Analysis CSV |
-| 2nd derivative / filtering | `optimization/ricto_ehf.py` (`second_derivative`) |
-| Paths | `PATH_RULE.ResultPaths` / `ConditionPaths` |
-| Pipeline ExtLoad SETUP / SO / JR | existing handlers; app label `BoxWrench` |
+| Motive | OpenSim / C3D |
+|--------|----------------|
+| Marker1 | LTA_BOX |
+| Marker2 | LTP_BOX |
+| Marker3 | LBA_BOX |
+| Marker4 | LBP_BOX |
+| Marker5 | RTA_BOX |
+| Marker6 | RTP_BOX |
+| Marker7 | RBA_BOX |
+| Marker8 | RBP_BOX |
 
-## Pipeline integration
+`abc_marker_events` already uses Marker1/Marker5 (LTA/RTA) for ABC events. MeasuredEHF places hand COP with `D3/D4` + Motive `R`.
 
-- **Model variant**: base `SUB{n}_Scaled.osim` (same as pre/postRiCTO) — differentiation is ExtLoad, not mass variant. Revisit if box geometry model is required for SO/JR.
-- **Default protocol `APPs`**: unchanged (BoxWrench is **opt-in** via `--apps BoxWrench` so existing runs are not broken).
-- **Progress sheet** (`update_pipeline_progress.APPS`): not expanded yet — avoid mass “missing” rows until MOT generation is real.
+### Workflow summary (`박스 모델 생성 Workflow.txt`)
+
+1. Add half bodies (mass/COM/inertia from SolidWorks PDFs); joints `handle_l` / `handle_r`.
+2. Mesh scale 0.001.
+3. Weld offset frames L/R: `(0.21, 0.11303, 0.20676)` / `(0.21, 0.11303, 0.00176)`.
+4–7. Handle ↔ hand / box offsets + ±90° orientations; pro_sup defaults.
+8. Attach eight markers (table above).
+9–10. WeldConstraint between half offset frames.
+
+Human welded box: `b_Build_Model/ADDBOX.py`. Free box for Approach-5 BK: `BoxWrench/models/BOX*.osim` + `build_box_model_with_markers.py`.
+
+## Method (implemented)
+
+1. **Box 6DOF wrench** — COM accel + ω̇ → `F`, `M` (`boxwrench_kinematics`; vendor diagonal-I, no ω×Iω).
+2. **L/R allocation** — SLSQP min ‖F_r‖²+‖F_l‖² with force/moment equality; COP near CAD handles (`boxwrench_allocate`).
+3. **RiCTO gate** — multiply hand forces by smooth/rect weight; **no MeasuredEHF** hand copy; torques **0**.
+4. **ExtLoad** — HeavyHand GRF template; hand3=L, hand4=R (`boxwrench_extload`).
 
 ## Module layout
 
 ```
-Codes/c_Run_Tools/BoxWrench/
-├─ BOXWRENCH_PLAN.md          ← this file
-├─ __init__.py
+BoxWrench/
+├─ BOXWRENCH_PLAN.md
+├─ run_boxwrench.py              # CLI; --synthetic smoke test
+├─ build_box_model_with_markers.py
 ├─ boxwrench_config.py
-├─ boxwrench_kinematics.py    ← stub (needs box pose + model)
-├─ boxwrench_allocate.py      ← stub (needs Approach-5 allocation)
-├─ boxwrench_extload.py       ← stub skeleton (reuses ricto_io when filled)
-└─ run_boxwrench.py           ← CLI stub
+├─ boxwrench_markers.py          # CAD / Motive geometry tables
+├─ boxwrench_rotation.py         # Rx@Ry@Rz reimplementation (not vendor import)
+├─ boxwrench_inertia.py
+├─ boxwrench_kinematics.py
+├─ boxwrench_allocate.py
+├─ boxwrench_extload.py
+├─ models/BOX.osim, BOX_with_markers.osim  (+ *.STL gitignored)
+└─ _vendor/APP5, General         # reference only
 ```
 
-## Blocked checklist (user assets still needed)
+## Done
 
-1. Approach-5 Python sources (allocation + kinematics entry points; any deps beyond a bloated “General” tree).
-2. Box `.osim` (or explicit mass, COM, inertia, marker definitions used by Approach-5).
-3. Confirmation of ExtLoad torque policy from vendor method.
-4. Confirmation of RiCTO weight choice (`smooth` vs `rect`) for the paper comparison arm.
+- [x] Package + PATH_RULE / pipeline opt-in for app `BoxWrench`
+- [x] Vendor APP5 adapted (no General runtime import)
+- [x] CAD handle ±0.160 m; marker tables; Motive Marker1–8 map
+- [x] `BOX_with_markers.osim` builder
+- [x] `python run_boxwrench.py --synthetic --box-mass 7` — success (fy≈−mg/2 each in contact window)
 
-## Implementation checklist
+## Blockers / next
 
-- [x] Branch + this plan
-- [x] Stub package + CLI
-- [x] PATH_RULE `boxwrench_*` helpers
-- [x] `pipeline_rules` + runner opt-in for app `BoxWrench`
-- [ ] Integrate vendor Approach-5 (adapt, no raw dump)
-- [ ] Wire real kinematics / allocation / ExtLoad write
-- [ ] Validate against MeasuredEHF (timing GT only; no hand-column copy)
-- [ ] Optional: add `BoxWrench` to protocol `APPs` / progress sheet
+1. **Trial box IK + BK**: run free-joint box IK on segment TRC (box markers) → BodyKinematics / States → `run_boxwrench.py --bk-vel …`.
+2. **Validate** free-BOX marker frame ASSUMPTION vs static TRC / Motive Marker locals (adjust if residuals high).
+3. Optional: add `BoxWrench` to default protocol `APPs` / progress sheet once MOT generation is routine.
+4. Example rigidbody for docs: e.g. `Experiment/260512_HSH/RigidBody/7kg_10bpm_rigidbody.csv` (not vendored into git).
