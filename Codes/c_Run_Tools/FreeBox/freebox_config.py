@@ -7,8 +7,14 @@ Document-facing labels (figure legends, titles, captions) use ``LoadShare``.
 from __future__ import annotations
 
 import os
+import sys
 
 _THIS = os.path.dirname(os.path.abspath(__file__))
+_CODES = os.path.dirname(os.path.dirname(_THIS))
+if _CODES not in sys.path:
+    sys.path.insert(0, _CODES)
+
+import PATH_RULE as _path  # noqa: E402
 
 APP_NAME: str = "FreeBox"
 # Manuscript / plot legend label (not used in PATH_RULE paths).
@@ -27,20 +33,18 @@ EXTLOAD_TEMPLATE_APP: str = "HeavyHand"
 # "smooth" → post-style weight; "rect" → pre-style hard window.
 RICTO_WEIGHT_MODE: str = "smooth"  # "smooth" | "rect"
 
-# Vendor ExtForceGenAPP5 writes hand torques as zeros — keep that policy.
+# Hand torques written as zeros (ExtForceGen policy retained).
 FORCE_ZERO_HAND_TORQUE: bool = True
 
 # Physics
 GRAVITY_Y: float = -9.80660
 GRAVITY_VEC = (0.0, GRAVITY_Y, 0.0)
 
-# Default box model shipped with this package (mass/inertia XML).
-DEFAULT_BOX_OSIM: str = os.path.join(_THIS, "models", "BOX.osim")
-DEFAULT_BOX_WITH_MARKERS_OSIM: str = os.path.join(
-    _THIS, "models", "BOX_with_markers.osim"
-)
+# Default box models live under OpenSim_Process/Model/Design_Box (not package models/).
+DEFAULT_BOX_OSIM: str = _path.freebox_box_osim_path(with_markers=False)
+DEFAULT_BOX_WITH_MARKERS_OSIM: str = _path.freebox_box_osim_path(with_markers=True)
 DEFAULT_BOX_BODY_NAME: str = "BOX"
-# Reference mass in shipped BOX.osim (~15.02 kg CAD). Condition kg scales inertia.
+# Reference mass in BOX.osim (~15.02 kg CAD). Condition kg scales inertia.
 REF_BOX_MASS_KG: float = 15.028443336486816
 
 # Free-box Analyze (vendor LoadBK/LoadStates used 3 Hz; human BK uses 6 Hz).
@@ -84,10 +88,7 @@ ALLOC_TOL: float = 1.0e-6
 ALLOC_MAXITER: int = 200
 
 # Rotation: OpenSim BodyKinematics body-fixed XYZ (deg) → R_body_to_ground.
-# Vendor RotMat uses Rx@Ry@Rz; we keep the same composition but document it.
+# Composition Rx@Ry@Rz matches historical RotMat; OpenSim Rotation is SoT — see freebox_rotation.
 ROTATION_MODE: str = "body_fixed_xyz_deg"  # see freebox_rotation.py
 
 PIPELINE_OPT_IN: bool = True
-
-VENDOR_DIR: str = os.path.join(_THIS, "_vendor")
-VENDOR_APP5_DIR: str = os.path.join(VENDOR_DIR, "APP5")

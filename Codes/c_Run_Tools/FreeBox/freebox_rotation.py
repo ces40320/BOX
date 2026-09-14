@@ -1,15 +1,16 @@
-"""Rotation helpers for FreeBox (do not import vendor RotMat at runtime).
+"""Rotation helpers for FreeBox (OpenSim conventions are source of truth).
 
-Vendor ``_vendor/General/RotMat.py`` builds::
+BodyKinematics orientation is typically **body-fixed XYZ** angles (degrees).
+Composition ``R = Rx(x) @ Ry(y) @ Rz(z)`` is the standard body-fixed XYZ product
+and is what this module uses.
 
-    R = Rx(x) @ Ry(y) @ Rz(z)   with angles in degrees
+Do **not** treat any historical RotMat dump as SoT. If OpenSim ``Rotation`` /
+known poses disagree, change this file to match OpenSim and discard the old
+formula.
 
-OpenSim BodyKinematics orientation is typically **body-fixed XYZ** angles
-(degrees). Body-fixed XYZ composition is the same product ``Rx@Ry@Rz``, so
-the vendor formula is *plausible* — but column order / sign still need
-empirical checks against OpenSim ``Rotation``.
-
-ASSUMPTION: ``R`` maps **box-body → ground** (``v_g = R @ v_b``).
+ASSUMPTION (pending empirical OpenSim check): ``R`` maps **box-body → ground**
+(``v_g = R @ v_b``). Prefer validating with ``opensim.Rotation`` when the
+``osim`` env is available rather than re-copying external RotMat sources.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ def _rz(a: float) -> np.ndarray:
 
 
 def rotmat_body_fixed_xyz_deg(ox: float, oy: float, oz: float) -> np.ndarray:
-    """Same composition as vendor RotMat (degrees → radians, Rx@Ry@Rz)."""
+    """Body-fixed XYZ (deg): ``Rx @ Ry @ Rz``. Validate vs OpenSim Rotation if unsure."""
     return _rx(math.radians(ox)) @ _ry(math.radians(oy)) @ _rz(math.radians(oz))
 
 

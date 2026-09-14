@@ -1,18 +1,17 @@
 # FreeBox 코드·Analysis 산출물 구조
 
 > **배치·이동 결정의 source of truth는 [`FREEBOX_PLAN.md`](./FREEBOX_PLAN.md)이다.**  
-> 특히 §3(권고: c_Run_Tools에 **thin** 유지), §4(파일 배치표), §5(모델→`OpenSim_Process/Model/Design_Box`)가 본 요약과 충돌하면 **PLAN을 따른다.**  
-> 아래 트리는 **목표(thin) 상태**이며, 아직 `models/`·`build_*`·`_vendor/`가 남아 있으면 이행 전 잔여물이다.
+> 특히 §3(권고: c_Run_Tools에 **thin** 유지), §4(파일 배치표), §5(모델→`OpenSim_Process/Model/Design_Box`)가 본 요약과 충돌하면 **PLAN을 따른다.**
 
 코드·경로 키워드는 **FreeBox**, 문서·플롯 범례/제목용 표기는 **LoadShare**  
 (`freebox_config.APP_NAME` / `DISPLAY_NAME`).
 
-## 1. 코드 위치 (목표: thin package)
+## 1. 코드 위치 (thin package)
 
 ```
 Codes/c_Run_Tools/FreeBox/          # RiCTO optimization/ 과 같은 급 — 미니 레포 아님
 ├─ run_freebox.py
-├─ freebox_config.py                # DEFAULT_BOX_* → Design_Box (패키지 models/ 금지)
+├─ freebox_config.py                # DEFAULT_BOX_* → PATH_RULE Design_Box helpers
 ├─ freebox_paths.py
 ├─ freebox_opensim.py
 ├─ freebox_markers.py               # 런타임·빌드가 공유; 빌드는 b에서 import
@@ -25,20 +24,20 @@ Codes/c_Run_Tools/FreeBox/          # RiCTO optimization/ 과 같은 급 — 미
 └─ FREEBOX_STRUCTURE.md             # 본 요약
 
 Codes/b_Build_Model/
-└─ build_freebox_model_with_markers.py   # ← build_* 이전 대상
+└─ build_freebox_model_with_markers.py
 
 OpenSim_Process/Model/Design_Box/
 ├─ BOX.osim / BOX_with_markers.osim / BOX.STL
 └─ (기존) BOX_15.02kg_Half_{L,R}.STL
 ```
 
-**넣지 않음**: `FreeBox/models/`, `FreeBox/_vendor/General`, 런타임 미사용 APP5 덤프.
+**넣지 않음**: `FreeBox/models/`, `FreeBox/_vendor/`.
 
 파이프라인 연동:
 
 | 파일 | 역할 |
 |------|------|
-| `Codes/PATH_RULE.py` | `freebox_*` Analysis API + (예정) Design_Box free-box osim helper |
+| `Codes/PATH_RULE.py` | `freebox_*` Analysis API + `design_box_dir` / `freebox_box_osim_path` |
 | `Codes/c_Run_Tools/pipeline_rules.py` | app `FreeBox` + `OPTIONAL_PIPELINE_APPS` |
 | `run_opensim_pipeline.py` | `--apps FreeBox` opt-in |
 | `opensim_pipeline_handlers.py` | ExtLoad/SO/JR는 base model (RiCTO와 동일) |
@@ -97,14 +96,19 @@ Analysis/Asymmetric/FreeBox/
 ## 5. PATH_RULE API 요약
 
 ```python
+from PATH_RULE import design_box_dir, freebox_box_osim_path, ResultPaths
+
+design_box_dir()                                 # …/OpenSim_Process/Model/Design_Box
+freebox_box_osim_path(with_markers=True)         # …/BOX_with_markers.osim
+freebox_box_osim_path(with_markers=False)        # …/BOX.osim
+
 rp = ResultPaths("260526_PJH")
-rp.freebox_root()                        # Analysis/…/FreeBox
+rp.freebox_root()                                # Analysis/…/FreeBox
 rp.freebox_timeseries_dir("7kg_10bpm")
 cp = rp.for_condition("7kg_10bpm")
 cp.extload_path("1AB", "FreeBox")
 cp.freebox_timeseries_path("1AB")
 cp.freebox_plot_path("1AB", tag="overview")
-# 예정: design_box_dir() / freebox_box_osim_path(with_markers=…)
 ```
 
 ## 6. 다른 앱과의 구분

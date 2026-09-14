@@ -1,7 +1,7 @@
-"""Free-box OpenSim IK + BodyKinematics + StatesReporter (Approach-5 Load path).
+"""Free-box OpenSim IK + BodyKinematics + StatesReporter (Load path).
 
-Reimplements vendor ``LoadIKAPP5`` / ``LoadBKAPP5`` / ``LoadStatesAPP5`` against
-``BOX_with_markers.osim`` without importing ``_vendor`` / General at runtime.
+Runs against ``OpenSim_Process/Model/Design_Box/BOX_with_markers.osim``
+(see ``PATH_RULE.freebox_box_osim_path``). No vendor dumps at runtime.
 
 AnalyzeTool SET→RUN is isolated via ``_run_analyze_subprocess.py`` (same
 pattern as the human pipeline) to avoid silent OpenSim skip.

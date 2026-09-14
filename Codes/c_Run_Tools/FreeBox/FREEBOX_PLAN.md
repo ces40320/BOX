@@ -171,12 +171,13 @@ Analysis: `Analysis/<protocol>/FreeBox/TimeSeries/…` (파일명 FreeBox, 범�
 1. **`_vendor/General` 덤프 금지·삭제.** “reference only”로 Codes에 남겨 두지 않는다.
 2. **이미 있는 공유 I/O를 재사용**: `optimization/ricto_io` (`read_opensim_storage`, MOT/CSV), `ricto_optimize` weight 곡선 — FreeBox가 이미 쓰는 경로를 유지·확대.
 3. **정말 없는 util만** FreeBox 내부 소함수 또는 (재사용 확정 시) `Codes` 공용 최소 모듈로 추가. General 폴더 통째 복원 금지.
-4. **회전**: `freebox_rotation.rotmat_body_fixed_xyz_deg`는 현재 vendor `Rx@Ry@Rz`와 동일 조성이지만, 이는 **가설**이다.  
+4. **회전**: `freebox_rotation.rotmat_body_fixed_xyz_deg`는 body-fixed XYZ (`Rx@Ry@Rz`) 조성이다.  
    - BodyKinematics orientation ↔ OpenSim `Rotation` / 알려진 자세로 **수치 검증** 후 확정.  
-   - 검증 전·후 모두 RotMat.py를 소스 오브 트루스로 두지 말 것.  
-   - 불일치 시 OpenSim 규약에 맞게 수정하고, vendor 식은 폐기.
+   - **OpenSim이 SoT** — 어떤 RotMat 덤프도 소스로 두지 말 것 (재복사 금지).  
+   - 불일치 시 OpenSim 규약에 맞게 `freebox_rotation`만 수정.  
+   - **검증 (2026-09-15)**: `opensim.Rotation(BodyRotationSequence, X,Y,Z)` vs `rotmat_body_fixed_xyz_deg` — sample angles에서 `max|diff|=0` (osim env). RotMat 재복사 없음.
 
-`_vendor/APP5`: 런타임 import가 없다면 이식 체크리스트만 남기고 디렉터리 삭제.
+`_vendor/APP5` / `_vendor/General`: 이식 후 **삭제 완료** (Codes에 잔류 금지).
 
 ---
 

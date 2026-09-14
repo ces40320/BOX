@@ -1,3 +1,0 @@
-# Large mesh; keep locally beside BOX.osim. Prefer not to push multi-MB binaries.
-*.STL
-*.stl

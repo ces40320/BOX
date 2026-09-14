@@ -19,6 +19,25 @@ DATA_DIR = os.path.join(COWORK_ROOT_DIR, "Experiment")
 ANALYSIS_DIR = os.path.join(ROOT_DIR, "Analysis")
 os.makedirs(ANALYSIS_DIR, exist_ok=True)
 
+# Shared (subject-independent) box mesh / free-joint osim assets
+MODEL_DIR = os.path.join(ROOT_DIR, "OpenSim_Process", "Model")
+DESIGN_BOX_DIR = os.path.join(MODEL_DIR, "Design_Box")
+
+
+def design_box_dir() -> str:
+    """``OpenSim_Process/Model/Design_Box`` (ADDBOX meshes + FreeBox free-joint osim)."""
+    return DESIGN_BOX_DIR
+
+
+def freebox_box_osim_path(*, with_markers: bool = True) -> str:
+    """Free-joint box model under Design_Box.
+
+    ``with_markers=True`` → ``BOX_with_markers.osim`` (IK)
+    ``with_markers=False`` → ``BOX.osim`` (mass/inertia reference)
+    """
+    name = "BOX_with_markers.osim" if with_markers else "BOX.osim"
+    return os.path.join(DESIGN_BOX_DIR, name)
+
 if prototype is not None:
     OPENSIM_DIR        = os.path.join(ROOT_DIR,         "OpenSim_Process", str(prototype))
     COWORK_OPENSIM_DIR = os.path.join(COWORK_ROOT_DIR,  "OpenSim_Process", str(prototype))

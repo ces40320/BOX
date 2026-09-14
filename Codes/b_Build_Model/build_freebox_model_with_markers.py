@@ -1,7 +1,8 @@
 """Attach CAD/ADDBOX box markers to free-joint BOX.osim (XML or OpenSim API).
 
-Writes ``models/BOX_with_markers.osim`` by default. Marker locations come from
-``freebox_markers.py`` (excel + ADDBOX / workflow step 8) — not invented.
+Writes ``OpenSim_Process/Model/Design_Box/BOX_with_markers.osim`` by default.
+Marker locations come from ``Codes/c_Run_Tools/FreeBox/freebox_markers.py``
+(excel + ADDBOX / workflow step 8) — not invented.
 
 ASSUMPTION: free ``BOX`` body frame matches the welded left-half CAD frame used
 by ADDBOX (R corners transformed via weld offset Δ). Validate against a static
@@ -17,11 +18,20 @@ import xml.etree.ElementTree as ET
 from typing import Dict, Optional, Tuple
 
 _THIS = os.path.dirname(os.path.abspath(__file__))
-if _THIS not in sys.path:
-    sys.path.insert(0, _THIS)
+_CODES = os.path.dirname(_THIS)
+_FREEBOX = os.path.join(_CODES, "c_Run_Tools", "FreeBox")
+for _p in (_CODES, _FREEBOX, _THIS):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-from freebox_config import DEFAULT_BOX_BODY_NAME, DEFAULT_BOX_OSIM, HANDLE_L_NOM, HANDLE_R_NOM
-from freebox_markers import markers_in_left_half_frame
+import PATH_RULE as _path  # noqa: E402
+from freebox_config import (  # noqa: E402
+    DEFAULT_BOX_BODY_NAME,
+    DEFAULT_BOX_OSIM,
+    HANDLE_L_NOM,
+    HANDLE_R_NOM,
+)
+from freebox_markers import markers_in_left_half_frame  # noqa: E402
 
 
 def _marker_xml(name: str, body: str, loc: Tuple[float, float, float]) -> str:
@@ -69,7 +79,7 @@ def attach_markers_xml(
         raise ValueError(f"{src_osim} already has a MarkerSet; refuse to double-attach")
 
     markers = build_marker_table(include_handles=include_handles)
-    block = ["\t\t<MarkerSet name=\"markerset\">\n", "\t\t\t<objects>\n"]
+    block = ['\t\t<MarkerSet name="markerset">\n', "\t\t\t<objects>\n"]
     for name, loc in markers.items():
         block.append(_marker_xml(name, body_name, loc))
     block.append("\t\t\t</objects>\n")
@@ -124,24 +134,26 @@ def build(
     include_handles: bool = True,
 ) -> str:
     src = src_osim or DEFAULT_BOX_OSIM
-    dst = dst_osim or os.path.join(_THIS, "models", "BOX_with_markers.osim")
+    dst = dst_osim or _path.freebox_box_osim_path(with_markers=True)
     if prefer_api:
         try:
             return attach_markers_opensim_api(
                 src, dst, include_handles=include_handles
             )
         except Exception as exc:  # noqa: BLE001 — fall back to XML
-            print(f"[build_box_model_with_markers] OpenSim API unavailable ({exc}); XML edit")
+            print(
+                f"[build_freebox_model_with_markers] OpenSim API unavailable ({exc}); "
+                "XML edit"
+            )
     return attach_markers_xml(src, dst, include_handles=include_handles)
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Attach box markers to BOX.osim")
-    p.add_argument("--src", default=DEFAULT_BOX_OSIM)
-    p.add_argument(
-        "--dst",
-        default=os.path.join(_THIS, "models", "BOX_with_markers.osim"),
+    p = argparse.ArgumentParser(
+        description="Attach box markers to Design_Box/BOX.osim → BOX_with_markers.osim"
     )
+    p.add_argument("--src", default=DEFAULT_BOX_OSIM)
+    p.add_argument("--dst", default=_path.freebox_box_osim_path(with_markers=True))
     p.add_argument("--xml-only", action="store_true")
     p.add_argument("--no-handles", action="store_true")
     args = p.parse_args(argv)
