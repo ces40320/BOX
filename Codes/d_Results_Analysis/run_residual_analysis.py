@@ -26,21 +26,22 @@ from analysis_utils import (  # noqa: E402
     analysis_asymmetric_root,
     crop_by_time,
     ensure_domain_dirs,
-    figures_dir,
     ground_and_hand_net_force,
     hicks_from_net,
     list_segments,
     load_storage,
-    mean_std_plot,
     measured_contact_window,
     merge_metric_csv,
     resample_series,
     result_paths,
     row_dict,
-    rows_to_matrix,
     scale_ratio_row,
     section_of,
     write_section_timeseries,
+)
+from figure_outputs import (  # noqa: E402
+    rebuild_suball_figures,
+    write_subject_figures_from_rows,
 )
 
 
@@ -160,21 +161,25 @@ def process_subject(
         summ.to_csv(m_me / f"Hicks_summary_{rp.sub_label}.csv", index=False)
 
     if plot:
-        fig_root = figures_dir("Residual")
-        for ax in RESIDUAL_AXES:
-            for section in SECTIONS:
-                by_app = {}
-                for app in EHF_APPS:
-                    rows = series_rows[app][ax][section]
-                    if rows:
-                        by_app[app] = rows_to_matrix(rows)
-                if by_app:
-                    mean_std_plot(
-                        by_app,
-                        title=f"Residual {ax} {section} ({rp.sub_label})",
-                        ylabel=f"residual {ax} (N)",
-                        out_path=fig_root / f"{rp.sub_label}_{ax}_{section}.png",
-                    )
+        n_fig = write_subject_figures_from_rows(
+            "Residual",
+            rp.sub_label,
+            series_rows=series_rows,
+            apps=EHF_APPS,
+            axes=RESIDUAL_AXES,
+            sections=SECTIONS,
+            hands=None,
+            title_prefix="Residual",
+            ylabel_fn=lambda ax: f"residual {ax} (N)",
+        )
+        suball = rebuild_suball_figures(
+            "Residual",
+            axes=RESIDUAL_AXES,
+            hands=None,
+            title_prefix="Residual",
+            ylabel_fn=lambda ax: f"residual {ax} (N)",
+        )
+        print(f"[figures] Residual subject={n_fig}  SUBALL={suball}")
 
     return {"ok": n_ok, "skip": n_skip, "sub": rp.sub_label}
 

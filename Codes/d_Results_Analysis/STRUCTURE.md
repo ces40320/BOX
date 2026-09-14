@@ -14,10 +14,24 @@ Analysis/Asymmetric/
   L5S1/{app}/_metrics/{resample_scale|RMSE}_SUB{n}.csv
   Residual/{app}/{Fx|Fy|Fz}/SUB{n}_{AB|BC|CA}.csv
   Residual/{app}/_metrics/{resample_scale|Hicks}_SUB{n}.csv
-  _figures/{EHF|L5S1|Residual}/...
+  _figures/{EHF|L5S1|Residual}/
+    SUB{n}/                         # subject pooled (all conds)
+      SUB{n}_{stem}.png
+      {kg_bpm}/                     # per-condition
+        SUB{n}_{kg_bpm}_{stem}.png
+    SUBALL/                         # pipeline all_done subjects only
+      SUBALL_roster.xlsx            # as_of, subjects, n_samples per cond
+      SUBALL_{stem}.png
+      {kg_bpm}/SUBALL_{kg_bpm}_{stem}.png
 ```
 
 Apps: `MeasuredEHF`, `HeavyHand`, `preRiCTO`, `postRiCTO`.
+
+`SUBALL` eligibility: `OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx`
+Summary `all_done` (all 4 apps complete, no trouble) **and** on-disk analysis
+CSVs for every app. Refresh progress with
+`python Codes/c_Run_Tools/update_pipeline_progress.py`.
+Rebuild figures only: `python run_all_analysis.py --suball-only`.
 
 ## Timeseries CSV
 
@@ -68,3 +82,8 @@ LMM / 추론 통계는 **`Codes/e_statistics/`** 전용.
 - `e_statistics/implementation/` — 코드 구현용 분석·설계 MD
 - `e_statistics/research/` — 사전 연구·문헌 노트
 - 실행 코드: `e_statistics/stats_lmm.py`, `run_statistics.py`
+- Results 보고 계획(플롯·시트·통계 MD·정장 경로):  
+  [`../e_statistics/implementation/RICTO_RESULTS_REPORT_PLAN.md`](../e_statistics/implementation/RICTO_RESULTS_REPORT_PLAN.md)
+- 통계 보고서 템플릿:  
+  [`../e_statistics/implementation/STATS_REPORT_TEMPLATE.md`](../e_statistics/implementation/STATS_REPORT_TEMPLATE.md)
+- 산출 루트: `Analysis/Asymmetric/_stats/` (`long/`, `models/`, `reports/`)
