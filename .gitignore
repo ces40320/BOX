@@ -3,3 +3,12 @@ opensim.log
 OpenSim_Process/_Main_
 Codes/a_Get_Exp_Data/OLD
 Codes/c_Run_Tools/*.sto
+
+# Analysis plot PNGs / figure trees (regenerable; keep repo light)
+Analysis/**/_figures/
+
+# Asymmetric analysis CSV/stats outputs (regenerable locally)
+Analysis/Asymmetric/_stats/
+Analysis/Asymmetric/EHF/
+Analysis/Asymmetric/L5S1/
+Analysis/Asymmetric/Residual/
