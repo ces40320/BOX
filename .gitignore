@@ -3,3 +3,7 @@ opensim.log
 OpenSim_Process/_Main_
 Codes/a_Get_Exp_Data/OLD
 Codes/c_Run_Tools/*.sto
+
+# Analysis figures / plot PNGs (regenerated locally; keep out of git)
+Analysis/**/_figures/
+Analysis/**/plots/
