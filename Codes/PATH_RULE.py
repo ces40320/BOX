@@ -304,6 +304,22 @@ class ResultPaths:
         base.extend(parts)
         return _ensure_dir(*base)
 
+    # ── Analysis (BoxWrench) ─────────────────────────────────
+
+    def boxwrench_root(self) -> str:
+        """``Analysis/<protocol>/BoxWrench`` (e.g. Analysis/Asymmetric/BoxWrench)."""
+        return _ensure_dir(ANALYSIS_DIR, self.protocol, "BoxWrench")
+
+    def boxwrench_summary_dir(self) -> str:
+        return _ensure_dir(self.boxwrench_root(), "Summary")
+
+    def boxwrench_timeseries_dir(self, cond: str) -> str:
+        """``…/TimeSeries/SUB{n}/{cond}/``."""
+        return _ensure_dir(self.boxwrench_root(), "TimeSeries", self.sub_label, cond)
+
+    def boxwrench_validation_dir(self) -> str:
+        return _ensure_dir(self.boxwrench_root(), "_validation")
+
 
 # ═══════════════════════════════════════════════════════════════
 #  ConditionPaths — condition 바인딩 하위 context
@@ -404,6 +420,19 @@ class ConditionPaths:
 
     def ricto_report_path(self) -> str:
         return self._p.ricto_report_path()
+
+    def boxwrench_timeseries_path(self, seg: str) -> str:
+        return os.path.join(
+            self._p.boxwrench_timeseries_dir(self.cond),
+            f"{self.sub_label}_{self.cond}_{seg}_BoxWrench_timeseries.csv",
+        )
+
+    def boxwrench_plot_path(self, seg: str, tag: str = "overview") -> str:
+        return os.path.join(
+            self._p.boxwrench_timeseries_dir(self.cond),
+            "plots",
+            f"{self.sub_label}_{self.cond}_{seg}_BoxWrench_{tag}.png",
+        )
 
     # ── 전체 경로 (seg → section 자동 추출) ─────────────────────
 

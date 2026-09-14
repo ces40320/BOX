@@ -28,6 +28,7 @@ from opensim_pipeline_handlers import (
 from pipeline_rules import (
     DEFAULT_ANALYZE_TIMEOUT_S,
     ID_APP,
+    OPTIONAL_PIPELINE_APPS,
     ik_suffix,
     jr_suffixes,
     resolve_model_path,
@@ -100,9 +101,14 @@ def _pick_conditions(namecode: str, raw: str | None) -> list[str]:
 def _pick_apps(cp, raw_apps: str | None) -> list[str]:
     if raw_apps:
         selected = [a.strip() for a in raw_apps.split(",") if a.strip()]
-        unknown = [a for a in selected if a not in cp.apps]
+        allowed = set(cp.apps) | set(OPTIONAL_PIPELINE_APPS)
+        unknown = [a for a in selected if a not in allowed]
         if unknown:
-            raise ValueError(f"Unknown apps: {unknown}. Available: {cp.apps}")
+            raise ValueError(
+                f"Unknown apps: {unknown}. "
+                f"Available: {list(cp.apps)} "
+                f"(opt-in: {list(OPTIONAL_PIPELINE_APPS)})"
+            )
         return selected
     return list(cp.apps)
 
@@ -747,7 +753,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--apps", default=None,
-        help="Comma-separated app names; default is all protocol apps",
+        help="Comma-separated app names; default is all protocol apps. "
+             "Opt-in apps (e.g. BoxWrench) are allowed explicitly even when "
+             "not listed in protocol APPs.",
     )
     parser.add_argument(
         "--segments", default=None,

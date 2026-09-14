@@ -22,6 +22,14 @@ Reserve / residual / torque ``CoordinateActuator`` 의 모델 주입은 더 이�
 이는 OLD 가 ``*_SET.py`` 와 ``*_RUN.py`` 를 두 파일로 분리해 실행하던
 이유 (동일 프로세스 안에서 SET → RUN 직행 시 OpenSim 분석이 조용히
 미수행되는 알려진 문제) 를 그대로 회피하기 위함이다.
+
+BoxWrench (opt-in app)
+----------------------
+``BoxWrench`` uses the same ExtLoad SETUP / SO / JR handlers as pre/postRiCTO
+(base model; differentiation is the ``ExtLoad_BoxWrench.mot`` file). MOT
+generation lives in ``Codes/c_Run_Tools/BoxWrench/`` and is scaffolding-only
+until Approach-5 sources + box ``.osim`` arrive. Select via
+``run_opensim_pipeline.py --apps BoxWrench``.
 """
 
 from __future__ import annotations
