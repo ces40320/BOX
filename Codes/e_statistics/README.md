@@ -11,12 +11,20 @@ Codes/e_statistics/
   implementation/           ← 코드 구현용 분석·설계 MD
     LMM_ANALYSIS_PLAN.md
     LMM_DESIGN.md
+    RICTO_RESULTS_REPORT_PLAN.md   ← Results figures / sheets / stats I/O
+    STATS_REPORT_TEMPLATE.md       ← fill-in statistics report MD
   research/                 ← 사전 연구·문헌 노트
     README.md
     LMM_LITERATURE_NOTES.md
-  stats_lmm.py              ← long table + SUB7 OLS + LMM skeleton
+  stats_lmm.py              ← long table + OLS + SUBALL MixedLM
+  stats_timing_error.py     ← Grip/Deposit abs error long table
+  stats_bland_altman.py     ← Bland–Altman timing
+  stats_rm_anova.py         ← L5S1 peak rmANOVA
+  render_stats_report.py    ← fill `_stats/reports/*.md`
   run_statistics.py         ← CLI
 ```
+
+Manuscript figures: `d_Results_Analysis/manuscript_figures.py` → `_figures/RiCTO_manuscript/`.
 
 ## 역할 분담
 
@@ -31,14 +39,19 @@ Codes/e_statistics/
 Analysis/Asymmetric/{EHF,L5S1,...}/_metrics/*.csv
         │
         ▼
-  e_statistics/ (long table 빌드 → LMM / 고정효과)
+  e_statistics/ (long table 빌드 → LMM / 고정효과 / rmANOVA / Bland–Altman)
         │
         ▼
-  Analysis/Asymmetric/Stats/   (또는 Analysis/Stats/)  ← 통계 산출 CSV (구현 시 확정)
+  Analysis/Asymmetric/_stats/   ← long/, models/, reports/ (현행 경로)
 ```
+
+Results 보고(피규어·시트·통계 MD) 전체 맵:  
+[`implementation/RICTO_RESULTS_REPORT_PLAN.md`](implementation/RICTO_RESULTS_REPORT_PLAN.md).  
+보고서 채움 골격: [`implementation/STATS_REPORT_TEMPLATE.md`](implementation/STATS_REPORT_TEMPLATE.md).
 
 ## 범위 (기존 합의)
 
-- **A**: 문헌·이론 + multi-subject LMM 코드 골격
+- **A**: 문헌·이론 + multi-subject LMM 코드 골격 (SUBALL 피험자)
 - **B**: SUB7만으로 가능한 고정효과 / 반복측정 분석
 - **C**: 전 피험자 대기 시나리오는 개요만 (`implementation/LMM_ANALYSIS_PLAN.md`)
+- **Results report**: figures / RiCTO sheets / stats report MD — `RICTO_RESULTS_REPORT_PLAN.md`
