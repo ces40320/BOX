@@ -34,7 +34,8 @@ import pandas as pd
 _THIS = Path(__file__).resolve().parent
 _CODES = _THIS.parent.parent
 _RUN_TOOLS = _THIS.parent
-for p in (_CODES, _RUN_TOOLS):
+_D_RESULTS = _CODES / "d_Results_Analysis"
+for p in (_CODES, _RUN_TOOLS, _D_RESULTS):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
@@ -62,9 +63,22 @@ from optimization.run_ricto import (  # noqa: E402
 )
 import PATH_RULE as _path  # noqa: E402
 
-# Match config_methods Asymmetric segmentation defaults (validation GT only).
-DEFAULT_FY_THRESH_N: float = 5.0
-DEFAULT_MIN_CONTACT_DUR_S: float = 0.30
+from analysis_utils import (  # noqa: E402
+    FY_THRESH_N,
+    MIN_CONTACT_DUR_S,
+    align_force_to_gt_window,
+    apply_ehf_report_signs,
+    contact_windows_fy,
+    longest_window,
+    overlap_duration_s,
+    resample_series_by_time,
+    rmse_full_and_quartiles,
+)
+from export_ehf_marker_rect_heavyhand import marker_window_for_seg  # noqa: E402
+
+# Match analysis_utils / config_methods Asymmetric segmentation defaults.
+DEFAULT_FY_THRESH_N: float = FY_THRESH_N
+DEFAULT_MIN_CONTACT_DUR_S: float = MIN_CONTACT_DUR_S
 
 
 def test_sign_dummies(box_mass_kg: float = 7.0) -> dict:
@@ -194,32 +208,17 @@ def detect_contact_windows(
     thresh_n: float = DEFAULT_FY_THRESH_N,
     min_dur_s: float = DEFAULT_MIN_CONTACT_DUR_S,
 ) -> list[tuple[float, float]]:
-    """Contact windows where |Fy_L| + |Fy_R| exceeds threshold for >= min_dur."""
-    t = np.asarray(time_s, dtype=float)
-    total = np.abs(np.asarray(fy_l, dtype=float)) + np.abs(np.asarray(fy_r, dtype=float))
-    contact = total > float(thresh_n)
-    if not np.any(contact):
-        return []
+    """Contact windows where |Fy_L| + |Fy_R| >= threshold for >= min_dur.
 
-    padded = np.concatenate([[False], contact, [False]])
-    d = np.diff(padded.astype(int))
-    starts = np.where(d == 1)[0]
-    ends = np.where(d == -1)[0]  # exclusive index into contact
-    wins: list[tuple[float, float]] = []
-    for s, e in zip(starts, ends):
-        if e <= s:
-            continue
-        t_on = float(t[s])
-        t_off = float(t[e - 1])
-        if (t_off - t_on) >= float(min_dur_s):
-            wins.append((t_on, t_off))
-    return wins
+    Delegates to ``analysis_utils.contact_windows_fy`` (``>=`` threshold).
+    """
+    return contact_windows_fy(
+        time_s, fy_l, fy_r, thresh_n=thresh_n, min_dur_s=min_dur_s
+    )
 
 
 def _longest_window(wins: list[tuple[float, float]]) -> Optional[tuple[float, float]]:
-    if not wins:
-        return None
-    return max(wins, key=lambda w: w[1] - w[0])
+    return longest_window(wins)
 
 
 def _interp_force_onto(
@@ -250,6 +249,79 @@ def _axis_pair_metrics(
     }
 
 
+def _quartile_metrics_aligned(
+    t_meas: np.ndarray,
+    meas_xyz: dict[str, np.ndarray],
+    t_pred: np.ndarray,
+    pred_xyz: dict[str, np.ndarray],
+    *,
+    gt_on: float,
+    gt_off: float,
+    contact_on: float,
+    contact_off: float,
+    prefix: str,
+) -> dict[str, float]:
+    """GT-align + 0-fill + 101 time-resample; full + quartile RMSE vs MeasuredEHF.
+
+    ``meas_xyz`` / ``pred_xyz`` keys: fx, fy, fz (OpenSim hand frame, one hand).
+    Report-frame signs applied before RMSE to match EHF analysis.
+    """
+    out: dict[str, float] = {}
+    for hand, htag in (("l", "L"), ("r", "R")):
+        mfx, mfy, mfz = apply_ehf_report_signs(
+            meas_xyz[f"fx_{hand}"],
+            meas_xyz[f"fy_{hand}"],
+            meas_xyz[f"fz_{hand}"],
+            htag,
+        )
+        pfx, pfy, pfz = apply_ehf_report_signs(
+            pred_xyz[f"fx_{hand}"],
+            pred_xyz[f"fy_{hand}"],
+            pred_xyz[f"fz_{hand}"],
+            htag,
+        )
+        # Measured uses GT as its contact window (no extra zeroing).
+        m_pack = align_force_to_gt_window(
+            t_meas,
+            {"ML": mfx, "Vertical": mfy, "AP": mfz},
+            gt_on,
+            gt_off,
+            gt_on,
+            gt_off,
+        )
+        p_pack = align_force_to_gt_window(
+            t_pred,
+            {"ML": pfx, "Vertical": pfy, "AP": pfz},
+            gt_on,
+            gt_off,
+            contact_on,
+            contact_off,
+        )
+        for ax, key in (("ML", "ml"), ("Vertical", "fy"), ("AP", "ap")):
+            m101 = resample_series_by_time(m_pack["time"], m_pack[ax])
+            p101 = resample_series_by_time(p_pack["time"], p_pack[ax])
+            metrics = rmse_full_and_quartiles(m101, p101)
+            tag = f"{prefix}_{key}_{hand}"
+            out[f"rmse101_{tag}_full"] = metrics["RMSE_full"]
+            for qi in range(1, 5):
+                out[f"rmse101_{tag}_q{qi}"] = metrics[f"RMSE_q{qi}"]
+        # Resultant in report frame
+        m_res = np.sqrt(
+            m_pack["ML"] ** 2 + m_pack["Vertical"] ** 2 + m_pack["AP"] ** 2
+        )
+        p_res = np.sqrt(
+            p_pack["ML"] ** 2 + p_pack["Vertical"] ** 2 + p_pack["AP"] ** 2
+        )
+        m101 = resample_series_by_time(m_pack["time"], m_res)
+        p101 = resample_series_by_time(p_pack["time"], p_res)
+        metrics = rmse_full_and_quartiles(m101, p101)
+        tag = f"{prefix}_res_{hand}"
+        out[f"rmse101_{tag}_full"] = metrics["RMSE_full"]
+        for qi in range(1, 5):
+            out[f"rmse101_{tag}_q{qi}"] = metrics[f"RMSE_q{qi}"]
+    return out
+
+
 def validate_modern_segment(
     *,
     namecode: str,
@@ -260,7 +332,7 @@ def validate_modern_segment(
     fy_thresh_n: float = DEFAULT_FY_THRESH_N,
     min_contact_dur_s: float = DEFAULT_MIN_CONTACT_DUR_S,
 ) -> dict:
-    """Compare kinematics EHF vs MeasuredEHF and RicTO times vs GT contact."""
+    """Compare kinematics EHF vs MeasuredEHF and RicTO / marker times vs GT."""
     rp = _path.ResultPaths(namecode)
     cp = rp.for_condition(condition)
 
@@ -309,7 +381,7 @@ def validate_modern_segment(
         "fy_r": me_df["hand_force4_vy"].to_numpy(dtype=float),
         "fz_r": me_df["hand_force4_vz"].to_numpy(dtype=float),
     }
-    # GT windows on native MeasuredEHF rate; metrics on BK grid.
+    # GT windows on native MeasuredEHF rate; raw-contact metrics on BK grid.
     wins = detect_contact_windows(
         t_me,
         meas_hi["fy_l"],
@@ -320,10 +392,22 @@ def validate_modern_segment(
     primary = _longest_window(wins)
     if primary is None:
         raise RuntimeError(
-            f"no MeasuredEHF contact window (|Fy_L|+|Fy_R|>{fy_thresh_n}N, "
+            f"no MeasuredEHF contact window (|Fy_L|+|Fy_R|>={fy_thresh_n}N, "
             f">={min_contact_dur_s}s)"
         )
     gt_onset, gt_offset = primary
+
+    ricto_onset = float(ric["t1"])
+    ricto_offset = float(ric["t2"] + ric["d2"])
+
+    marker_win = marker_window_for_seg(namecode, condition, seg)
+    if marker_win is not None:
+        marker_onset, marker_offset = float(marker_win[0]), float(marker_win[1])
+        marker_ok = True
+    else:
+        marker_onset = float("nan")
+        marker_offset = float("nan")
+        marker_ok = False
 
     meas = _interp_force_onto(t_me, meas_hi, t_bk)
     contact_mask = (t_bk >= gt_onset) & (t_bk <= gt_offset)
@@ -344,12 +428,29 @@ def validate_modern_segment(
         "d1": float(ric["d1"]),
         "t2": float(ric["t2"]),
         "d2": float(ric["d2"]),
-        "ricto_onset": float(ric["t1"]),
-        "ricto_offset": float(ric["t2"] + ric["d2"]),
+        "ricto_onset": ricto_onset,
+        "ricto_offset": ricto_offset,
         "gt_onset": float(gt_onset),
         "gt_offset": float(gt_offset),
-        "err_onset_s": float(ric["t1"] - gt_onset),
-        "err_offset_s": float((ric["t2"] + ric["d2"]) - gt_offset),
+        "err_onset_s": float(ricto_onset - gt_onset),
+        "err_offset_s": float(ricto_offset - gt_offset),
+        "marker_onset": marker_onset,
+        "marker_offset": marker_offset,
+        "marker_ok": bool(marker_ok),
+        "err_marker_onset_s": (
+            float(marker_onset - gt_onset) if marker_ok else float("nan")
+        ),
+        "err_marker_offset_s": (
+            float(marker_offset - gt_offset) if marker_ok else float("nan")
+        ),
+        "overlap_gt_ricto_s": overlap_duration_s(
+            gt_onset, gt_offset, ricto_onset, ricto_offset
+        ),
+        "overlap_gt_marker_s": (
+            overlap_duration_s(gt_onset, gt_offset, marker_onset, marker_offset)
+            if marker_ok
+            else float("nan")
+        ),
         "n_gt_windows": len(wins),
         "gt_dur_s": float(gt_offset - gt_onset),
         "fy_thresh_n": float(fy_thresh_n),
@@ -371,6 +472,77 @@ def validate_modern_segment(
                 f"{axis}_sum",
             )
         )
+
+    # 101-pt GT-aligned quartile RMSE: kinematics f_est gated by RiCTO window.
+    pred_xyz = {
+        "fx_l": ehf["fx_l"],
+        "fy_l": ehf["fy_l"],
+        "fz_l": ehf["fz_l"],
+        "fx_r": ehf["fx_r"],
+        "fy_r": ehf["fy_r"],
+        "fz_r": ehf["fz_r"],
+    }
+    row.update(
+        _quartile_metrics_aligned(
+            t_me,
+            meas_hi,
+            t_bk,
+            pred_xyz,
+            gt_on=gt_onset,
+            gt_off=gt_offset,
+            contact_on=ricto_onset,
+            contact_off=ricto_offset,
+            prefix="fest_ricto",
+        )
+    )
+    # Same f_est but gated by marker window when available (else GT = no extra zero).
+    m_on = marker_onset if marker_ok else gt_onset
+    m_off = marker_offset if marker_ok else gt_offset
+    row.update(
+        _quartile_metrics_aligned(
+            t_me,
+            meas_hi,
+            t_bk,
+            pred_xyz,
+            gt_on=gt_onset,
+            gt_off=gt_offset,
+            contact_on=m_on,
+            contact_off=m_off,
+            prefix="fest_marker",
+        )
+    )
+
+    # Optional: pre/post ExtLoad MOT 101 RMSE if files exist.
+    for app, app_prefix in (("preRiCTO", "pre"), ("postRiCTO", "post")):
+        app_path = cp.extload_path(seg, app)
+        if not os.path.isfile(app_path):
+            continue
+        try:
+            app_df, _ = read_opensim_storage(app_path)
+            t_app = app_df["time"].to_numpy(dtype=float)
+            app_xyz = {
+                "fx_l": app_df["hand_force3_vx"].to_numpy(dtype=float),
+                "fy_l": app_df["hand_force3_vy"].to_numpy(dtype=float),
+                "fz_l": app_df["hand_force3_vz"].to_numpy(dtype=float),
+                "fx_r": app_df["hand_force4_vx"].to_numpy(dtype=float),
+                "fy_r": app_df["hand_force4_vy"].to_numpy(dtype=float),
+                "fz_r": app_df["hand_force4_vz"].to_numpy(dtype=float),
+            }
+            row.update(
+                _quartile_metrics_aligned(
+                    t_me,
+                    meas_hi,
+                    t_app,
+                    app_xyz,
+                    gt_on=gt_onset,
+                    gt_off=gt_offset,
+                    contact_on=ricto_onset,
+                    contact_off=ricto_offset,
+                    prefix=app_prefix,
+                )
+            )
+        except Exception as e:
+            row[f"rmse101_{app_prefix}_error"] = str(e)
 
     # Sign sanity: contact-window mean fy should be negative for both.
     row["meas_fy_l_mean_contact"] = float(np.mean(meas["fy_l"][contact_mask]))
@@ -473,6 +645,16 @@ def validate_all_modern(
                 f"rmse_fy_sum={row['rmse_fy_sum']:.2f} "
                 f"err_on={row['err_onset_s']:+.3f}s "
                 f"err_off={row['err_offset_s']:+.3f}s"
+                + (
+                    f" | marker_err_on={row['err_marker_onset_s']:+.3f}s"
+                    if row.get("marker_ok")
+                    else " | marker=NA"
+                )
+                + (
+                    f" | rmse101_fy_l={row.get('rmse101_fest_ricto_fy_l_full', float('nan')):.2f}"
+                    if "rmse101_fest_ricto_fy_l_full" in row
+                    else ""
+                )
             )
             ok += 1
         except Exception as e:
@@ -501,11 +683,25 @@ def validate_all_modern(
         batch_df = _drop_error_log_validation_rows(pd.DataFrame(rows))
         out = Path(out_csv) if out_csv else _default_all_summary_path(analysis, fy_thresh_n)
         out.parent.mkdir(parents=True, exist_ok=True)
-        # Merge into existing all-subjects table when filtering a subset
+        # Merge into existing all-subjects table when filtering a subset.
+        # Replace only overlapping (namecode, condition, seg) keys so partial
+        # --segments / --conditions runs do not wipe the rest of a subject.
         if out.is_file() and not batch_df.empty and "namecode" in batch_df.columns:
             prev = _drop_error_log_validation_rows(pd.read_csv(out))
-            drop_nc = set(batch_df["namecode"].astype(str).unique())
-            if "namecode" in prev.columns:
+            if {"namecode", "condition", "seg"}.issubset(prev.columns) and {
+                "namecode",
+                "condition",
+                "seg",
+            }.issubset(batch_df.columns):
+                keys = batch_df[["namecode", "condition", "seg"]].astype(str)
+                prev_keys = prev[["namecode", "condition", "seg"]].astype(str)
+                keyset = set(map(tuple, keys.to_numpy()))
+                keep = [
+                    tuple(r) not in keyset for r in prev_keys.to_numpy()
+                ]
+                prev = prev.loc[keep]
+            elif "namecode" in prev.columns:
+                drop_nc = set(batch_df["namecode"].astype(str).unique())
                 prev = prev[~prev["namecode"].astype(str).isin(drop_nc)]
             df = pd.concat([prev, batch_df], ignore_index=True)
         elif out.is_file() and batch_df.empty:
@@ -516,8 +712,13 @@ def validate_all_modern(
         save_csv(out, df)
         # Also write subject-scoped copies for convenience
         if not batch_df.empty and "namecode" in batch_df.columns:
-            for nc, g in batch_df.groupby("namecode"):
+            # Refresh subject file from the merged table (not batch alone)
+            for nc in batch_df["namecode"].astype(str).unique():
                 sub_out = analysis / f"realdata_{nc}_fy{fy_thresh_n:g}.csv"
+                if "namecode" in df.columns:
+                    g = df[df["namecode"].astype(str) == str(nc)]
+                else:
+                    g = batch_df[batch_df["namecode"].astype(str) == str(nc)]
                 save_csv(sub_out, _drop_error_log_validation_rows(g))
                 print(f"[all] wrote {sub_out}")
         summary["summary_csv"] = str(out)
