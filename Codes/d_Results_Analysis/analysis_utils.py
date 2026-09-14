@@ -204,6 +204,55 @@ def crop_by_time(
     return t[mask], np.asarray(values, dtype=float)[mask]
 
 
+def align_force_to_gt_window(
+    time_s: np.ndarray,
+    values: Union[np.ndarray, Dict[str, np.ndarray]],
+    gt_on: float,
+    gt_off: float,
+    contact_on: float,
+    contact_off: float,
+):
+    """Crop to GT window; zero samples outside the app contact window.
+
+    Absolute clock is ``[gt_on, gt_off]``. Within that window, force is kept
+    only where ``contact_on <= t <= contact_off``; elsewhere set to 0.
+    """
+    t = np.asarray(time_s, dtype=float)
+    gt_mask = (t >= float(gt_on)) & (t <= float(gt_off))
+    if not np.any(gt_mask):
+        i0 = int(np.argmin(np.abs(t - float(gt_on))))
+        i1 = int(np.argmin(np.abs(t - float(gt_off))))
+        if i1 < i0:
+            i0, i1 = i1, i0
+        gt_mask = np.zeros_like(t, dtype=bool)
+        gt_mask[i0 : i1 + 1] = True
+    t_gt = t[gt_mask]
+    c_on, c_off = float(contact_on), float(contact_off)
+    active = (t_gt >= c_on) & (t_gt <= c_off)
+
+    def _zero_outside(y: np.ndarray) -> np.ndarray:
+        out = np.asarray(y, dtype=float)[gt_mask].copy()
+        out[~active] = 0.0
+        return out
+
+    if isinstance(values, dict):
+        out: Dict[str, np.ndarray] = {
+            k: _zero_outside(np.asarray(v, dtype=float)) for k, v in values.items()
+        }
+        out["time"] = t_gt
+        n_zero_prefix = int(np.argmax(active)) if np.any(active) else int(active.size)
+        if np.any(active):
+            last = int(np.max(np.where(active)[0]))
+            n_zero_suffix = int(active.size - 1 - last)
+        else:
+            n_zero_suffix = 0
+        out["_n_zero_prefix"] = np.array([n_zero_prefix])
+        out["_n_zero_suffix"] = np.array([n_zero_suffix])
+        return out
+    y_aligned = _zero_outside(np.asarray(values, dtype=float))
+    return t_gt, y_aligned
+
+
 def resample_series(values: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
     y = np.asarray(values, dtype=float).ravel()
     if y.size == 0:
@@ -219,6 +268,48 @@ def resample_series(values: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
     except Exception:
         f = interp1d(x, y, kind="linear", fill_value="extrapolate")
         return np.asarray(f(x_new), dtype=float)
+
+
+def resample_series_by_time(
+    time_s: np.ndarray,
+    values: np.ndarray,
+    n: int = N_RESAMPLE,
+) -> np.ndarray:
+    """Resample onto n points uniformly spanning the time interval."""
+    t = np.asarray(time_s, dtype=float).ravel()
+    y = np.asarray(values, dtype=float).ravel()
+    if t.size == 0 or y.size == 0:
+        return np.full(n, np.nan)
+    if t.size == 1 or y.size == 1:
+        return np.full(n, float(y[0]))
+    # Drop non-finite / non-increasing duplicates for stable interp.
+    order = np.argsort(t)
+    t = t[order]
+    y = y[order]
+    uniq = np.concatenate([[True], np.diff(t) > 0])
+    t = t[uniq]
+    y = y[uniq]
+    if t.size < 2:
+        return np.full(n, float(y[0]) if y.size else float("nan"))
+    t0, t1 = float(t[0]), float(t[-1])
+    if not np.isfinite(t0) or not np.isfinite(t1) or t1 <= t0:
+        return resample_series(y, n=n)
+    t_new = np.linspace(t0, t1, n)
+    kind = "cubic" if t.size >= 4 else "linear"
+    try:
+        f = interp1d(t, y, kind=kind, fill_value="extrapolate", assume_sorted=True)
+        return np.asarray(f(t_new), dtype=float)
+    except Exception:
+        f = interp1d(t, y, kind="linear", fill_value="extrapolate", assume_sorted=True)
+        return np.asarray(f(t_new), dtype=float)
+
+
+def overlap_duration_s(
+    a_on: float, a_off: float, b_on: float, b_off: float
+) -> float:
+    lo = max(float(a_on), float(b_on))
+    hi = min(float(a_off), float(b_off))
+    return float(max(0.0, hi - lo))
 
 
 def apply_ehf_report_signs(
@@ -261,15 +352,22 @@ def scale_ratio_row(
     onset_t: float,
     offset_t: float,
     n_raw: int,
+    contact_on: Optional[float] = None,
+    contact_off: Optional[float] = None,
+    n_zero_prefix: Optional[int] = None,
+    n_zero_suffix: Optional[int] = None,
+    contact_source: Optional[str] = None,
 ) -> dict:
     duration_s = float(offset_t) - float(onset_t)
     mass, tempo = parse_condition(cond)
-    return {
+    row = {
         "cond": cond,
         "section": section_of(seg),
         "seg": seg,
         "onset_t": float(onset_t),
         "offset_t": float(offset_t),
+        "gt_on": float(onset_t),
+        "gt_off": float(offset_t),
         "duration_s": duration_s,
         "n_raw": int(n_raw),
         "n_resampled": N_RESAMPLE,
@@ -278,6 +376,148 @@ def scale_ratio_row(
         "tempo_bpm": tempo,
         "mass_kg": mass,
     }
+    if contact_on is not None:
+        row["contact_on"] = float(contact_on)
+    if contact_off is not None:
+        row["contact_off"] = float(contact_off)
+    if n_zero_prefix is not None:
+        row["n_zero_prefix"] = int(n_zero_prefix)
+    if n_zero_suffix is not None:
+        row["n_zero_suffix"] = int(n_zero_suffix)
+    if contact_source is not None:
+        row["contact_source"] = str(contact_source)
+    return row
+
+
+def ricto_params_from_timeseries_df(
+    ts: pd.DataFrame,
+) -> Optional[Tuple[float, float, float, float]]:
+    """``(t1, d1, t2, d2)`` from timeseries columns or ``w_rect`` edges.
+
+    Prefer stored param columns (written by modern optimize). Else recover
+    contact from ``w_rect >= 0.5`` with ``d1=d2=0`` (onset/offset only).
+    """
+    if ts is None or ts.empty:
+        return None
+    if {"t1", "d1", "t2", "d2"}.issubset(ts.columns):
+        r = ts.iloc[0]
+        try:
+            vals = (
+                float(r["t1"]),
+                float(r["d1"]),
+                float(r["t2"]),
+                float(r["d2"]),
+            )
+        except (TypeError, ValueError):
+            vals = None
+        if vals is not None and all(np.isfinite(v) for v in vals):
+            return vals
+
+    if "time" not in ts.columns or "w_rect" not in ts.columns:
+        return None
+    t = ts["time"].to_numpy(dtype=float)
+    w = ts["w_rect"].to_numpy(dtype=float)
+    active = w >= 0.5
+    if not np.any(active):
+        return None
+    idx = np.where(active)[0]
+    t_on = float(t[idx[0]])
+    t_off = float(t[idx[-1]])
+    return (t_on, 0.0, t_off, 0.0)
+
+
+def ricto_opt_fields_from_timeseries_df(ts: pd.DataFrame) -> Dict[str, object]:
+    """Opt-row fields for Summary rebuild from one timeseries CSV."""
+    out: Dict[str, object] = {
+        "t1": np.nan,
+        "d1": np.nan,
+        "t2": np.nan,
+        "d2": np.nan,
+        "B": np.nan,
+        "solver": "",
+        "success": np.nan,
+        "cost": np.nan,
+        "nfev": np.nan,
+        "residual_source": "timeseries",
+        "qc_warning": "",
+    }
+    params = ricto_params_from_timeseries_df(ts)
+    if params is not None:
+        out["t1"], out["d1"], out["t2"], out["d2"] = params
+        if float(out["d1"]) == 0.0 and float(out["d2"]) == 0.0:
+            # Edge recovery: mark source so QC readers know ramps were not stored.
+            if "t1" not in ts.columns:
+                out["residual_source"] = "timeseries_w_rect"
+                out["qc_warning"] = "params_from_w_rect_edges"
+
+    for key in (
+        "B",
+        "solver",
+        "success",
+        "cost",
+        "nfev",
+        "residual_source",
+        "qc_warning",
+    ):
+        if key not in ts.columns:
+            continue
+        val = ts.iloc[0][key]
+        if val is None or (isinstance(val, float) and np.isnan(val)):
+            continue
+        s = str(val).strip()
+        if not s or s.lower() in ("nan", "none"):
+            continue
+        out[key] = val
+    return out
+
+
+def load_ricto_params_for_seg(
+    namecode: str, cond: str, seg: str
+) -> Optional[Tuple[float, float, float, float]]:
+    """Return ``(t1, d1, t2, d2)`` from Summary xlsx or timeseries.
+
+    Prefer Summary workbook; fall back to ``TimeSeries`` CSV (stored params
+    or ``w_rect`` edges).
+    """
+    rp = result_paths(namecode)
+    xlsx = Path(rp.ricto_report_path())
+    if xlsx.is_file():
+        try:
+            df = pd.read_excel(xlsx, sheet_name="by_segment")
+            hit = df[
+                (df["condition"].astype(str) == str(cond))
+                & (df["seg"].astype(str) == str(seg))
+            ]
+            if not hit.empty and {"t1", "d1", "t2", "d2"}.issubset(hit.columns):
+                r = hit.iloc[-1]
+                return (
+                    float(r["t1"]),
+                    float(r["d1"]),
+                    float(r["t2"]),
+                    float(r["d2"]),
+                )
+        except Exception:
+            pass
+
+    cp = rp.for_condition(cond)
+    ts_path = Path(cp.ricto_timeseries_path(seg))
+    if not ts_path.is_file():
+        return None
+    try:
+        return ricto_params_from_timeseries_df(pd.read_csv(ts_path))
+    except Exception:
+        return None
+
+
+def ricto_contact_window(
+    namecode: str, cond: str, seg: str
+) -> Optional[Tuple[float, float]]:
+    """``[t1, t2+d2]`` contact window for pre/post-RiCTO, or None if missing."""
+    params = load_ricto_params_for_seg(namecode, cond, seg)
+    if params is None:
+        return None
+    t1, _d1, t2, d2 = params
+    return float(t1), float(t2 + d2)
 
 
 def rmse(a: np.ndarray, b: np.ndarray) -> float:
