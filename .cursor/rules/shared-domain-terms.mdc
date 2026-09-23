@@ -1,0 +1,17 @@
+---
+description: Prefer shared domain terms over code-local identifiers in explanations
+alwaysApply: true
+---
+
+# Explain with shared terms, not code jargon
+
+When explaining analysis, results, or pipeline behavior to the user:
+
+- Lead with **shared / agreed domain language** (e.g. AB·BC·CA segment, MeasuredEHF contact window, HeavyHand, hand force, marker grip/deposit timing).
+- Do **not** make the main explanation out of implementation-only names that exist only in code, metrics columns, or one-off exports (e.g. `gt_fallback`, `resample_scale`, `contact_source`, “always-on export”, “Motive peak-pair”).
+- Code identifiers may appear **in parentheses once** when useful for navigation — never as the sole vocabulary.
+- Prefer: *what it means physically / experimentally* → then optional `(symbol in code)`.
+
+Example:
+- Bad: “`gt_fallback`로 잡혀 `resample_scale`에만 보인다”
+- Good: “마커 접촉 시각을 못 찾아 MeasuredEHF 5 N 창으로 대체함 (`gt_fallback`)”
