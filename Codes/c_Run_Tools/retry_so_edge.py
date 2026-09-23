@@ -21,6 +21,10 @@ treated as edge failures. They would likely succeed from 0.01 s, and
 cutting them would invent early frames. Pass ``--include-interrupted``
 to override.
 
+Log-stall / frozen-optimization hangs (``freeze_sim_time`` or stall
+markers in the trouble error) are also skipped: starting at 0.05 s does
+not fix a mid-window freeze. Pass ``--include-freeze`` to override.
+
 A later ``run_opensim_pipeline.py`` without ``--skip-existing`` will
 overwrite these results with a full-window attempt. Re-run this script
 afterwards, or keep ``--skip-existing`` on.
@@ -52,6 +56,7 @@ from opensim_pipeline_handlers import (
 )
 from pipeline_rules import ik_suffix, jr_suffixes
 from update_pipeline_progress import (
+    extract_freeze_sim_time,
     load_troubles,
     record_trouble,
     refresh_progress_sheet,
@@ -70,6 +75,12 @@ _INTERRUPT_MARKERS = (
     "BrokenProcessPool",
     "KeyboardInterrupt",
 )
+# Mid-window hangs recorded by AnalyzeTool log-stall / timeout killers.
+_FREEZE_STALL_MARKERS = (
+    "log stall",
+    "frozen optimization",
+    "freeze_sim_time_s",
+)
 
 
 def _log(msg: str) -> None:
@@ -83,6 +94,18 @@ def _near(a: float, b: float) -> bool:
 def is_interrupt_error(error: str) -> bool:
     text = error or ""
     return any(marker in text for marker in _INTERRUPT_MARKERS)
+
+
+def is_freeze_stall_trouble(entry: dict) -> bool:
+    """True when the trouble is a log-stall / frozen-optimization hang.
+
+    Uses ``freeze_sim_time`` when present, else stall markers in ``error``.
+    These are not early-window (0.05 s) failures.
+    """
+    if extract_freeze_sim_time(entry) is not None:
+        return True
+    text = str(entry.get("error") or "")
+    return any(marker in text for marker in _FREEZE_STALL_MARKERS)
 
 
 def _case_key(entry: dict) -> tuple[str, str, str, str]:
@@ -150,14 +173,16 @@ def select_edge_segments(
     entries: list[dict],
     *,
     include_interrupted: bool = False,
+    include_freeze: bool = False,
     namecodes: set[str] | None = None,
     conditions: set[str] | None = None,
     segments: set[str] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Group unresolved SO troubles by segment. The logged app is ignored.
 
-    A segment is selected if any unresolved SO row is a real tool failure.
-    Interrupt-only segments are skipped unless ``include_interrupted``.
+    A segment is selected if any unresolved SO row is a real early-window
+    tool failure. Interrupt-only and freeze/stall-only segments are
+    skipped unless the matching ``include_*`` flag is set.
     """
     grouped: dict[tuple[str, str, str], list[dict]] = {}
     for entry in entries:
@@ -180,12 +205,28 @@ def select_edge_segments(
         if not unresolved:
             skipped.append({**rows[0], "_skip": "already resolved"})
             continue
-        edge = [
-            e for e in unresolved
-            if include_interrupted or not is_interrupt_error(str(e.get("error") or ""))
-        ]
+
+        def _is_edge_candidate(e: dict) -> bool:
+            err = str(e.get("error") or "")
+            if not include_interrupted and is_interrupt_error(err):
+                return False
+            if not include_freeze and is_freeze_stall_trouble(e):
+                return False
+            return True
+
+        edge = [e for e in unresolved if _is_edge_candidate(e)]
         if not edge:
-            skipped.append({**unresolved[0], "_skip": "interrupt/pool, not edge"})
+            # Prefer a specific skip reason when every unresolved row
+            # shares the same exclusion class.
+            if unresolved and all(is_freeze_stall_trouble(e) for e in unresolved):
+                reason = "freeze/stall, not edge"
+            elif unresolved and all(
+                is_interrupt_error(str(e.get("error") or "")) for e in unresolved
+            ):
+                reason = "interrupt/pool, not edge"
+            else:
+                reason = "no edge candidate (interrupt/freeze filtered)"
+            skipped.append({**unresolved[0], "_skip": reason})
             continue
         selected.append(edge[0])
     return selected, skipped
@@ -195,6 +236,7 @@ def select_retry_cases(
     entries: list[dict],
     *,
     include_interrupted: bool = False,
+    include_freeze: bool = False,
     namecodes: set[str] | None = None,
     conditions: set[str] | None = None,
     segments: set[str] | None = None,
@@ -212,6 +254,7 @@ def select_retry_cases(
     triggers, skipped = select_edge_segments(
         entries,
         include_interrupted=include_interrupted,
+        include_freeze=include_freeze,
         namecodes=namecodes,
         conditions=conditions,
         segments=segments,
@@ -856,6 +899,12 @@ def main() -> None:
              "Default skips them — those are not the 0.05 s failure.",
     )
     parser.add_argument(
+        "--include-freeze", action="store_true",
+        help="Also retry log-stall / frozen-optimization SO entries "
+             "(those with freeze_sim_time). Default skips them — "
+             "0.05 s start does not fix a mid-window hang.",
+    )
+    parser.add_argument(
         "--manual", action="store_true",
         help="Ignore pipeline_trouble.json. Requires --namecode, "
              "--condition, and --segments. Apps with SETUP_ExtLoad XML "
@@ -890,6 +939,7 @@ def main() -> None:
         selected, skipped = select_retry_cases(
             entries,
             include_interrupted=args.include_interrupted,
+            include_freeze=args.include_freeze,
             namecodes=namecodes,
             conditions=conditions,
             segments=segments,

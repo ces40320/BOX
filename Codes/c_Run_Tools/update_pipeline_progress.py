@@ -269,6 +269,58 @@ def extract_freeze_sim_time(entry: dict) -> float | None:
     return None
 
 
+# Keep in sync with ``retry_so_edge.is_interrupt_error`` (no import cycle).
+_INTERRUPT_MARKERS = (
+    "3221225786",
+    "0xC000013A",
+    "BrokenProcessPool",
+    "KeyboardInterrupt",
+)
+
+
+def _is_interrupt_error(error: str) -> bool:
+    text = error or ""
+    return any(marker in text for marker in _INTERRUPT_MARKERS)
+
+
+def _trouble_segment_annotation(entry: dict) -> str:
+    """Short label after ``SEG:`` in Detail ``failed_segments``.
+
+    Priority:
+    1. Known freeze sim-time (log-stall / hang) → numeric seconds
+    2. Interrupt / pool death → ``interrupt`` (not an edge-retry case)
+    3. Stall/hang without a parsed time → ``stall``
+    4. SO (or leftover ``edge-retry:`` JR/BK) → ``retry_so_edge``
+    5. Else → ``fail``
+    """
+    freeze = extract_freeze_sim_time(entry)
+    if freeze is not None:
+        return f"{float(freeze):g}"
+    err = str(entry.get("error") or "")
+    if _is_interrupt_error(err):
+        return "interrupt"
+    if "log stall" in err or "frozen optimization" in err:
+        return "stall"
+    tool = str(entry.get("tool") or "").strip().lower()
+    if tool == "so" or "edge-retry:" in err:
+        return "retry_so_edge"
+    return "fail"
+
+
+def format_failed_segments_cell(entries: list[dict]) -> str:
+    """Newline-separated ``SEG: label,`` lines for the Detail sheet."""
+    if not entries:
+        return ""
+    by_seg: dict[str, dict] = {}
+    for e in entries:
+        by_seg[str(e["segment"])] = e
+    lines = [
+        f"{seg}: {_trouble_segment_annotation(by_seg[seg])},"
+        for seg in sorted(by_seg)
+    ]
+    return "\n".join(lines)
+
+
 def load_freeze_sim_times(path: str | None = None) -> dict:
     """Load accumulated freeze-time set JSON (empty scaffold if missing)."""
     path = path or default_freeze_times_path()
@@ -522,9 +574,12 @@ def clear_trouble(
 
 def _troubles_by_detail_key(
     troubles: list[dict],
-) -> dict[tuple[str, str, str, str, str], list[str]]:
-    """Map (namecode, condition, section, app, tool) → failed segments."""
-    out: dict[tuple[str, str, str, str, str], list[str]] = {}
+) -> dict[tuple[str, str, str, str, str], list[dict]]:
+    """Map (namecode, condition, section, app, tool) → trouble entries.
+
+    One entry per segment (later rows win). Sorted by segment name.
+    """
+    by_key_seg: dict[tuple[str, str, str, str, str], dict[str, dict]] = {}
     for e in troubles:
         tool_l = str(e["tool"]).strip().lower()
         app_n = _normalize_trouble_app(tool_l, e.get("app"))
@@ -535,13 +590,11 @@ def _troubles_by_detail_key(
             app_n,
             tool_l,
         )
-        segs = out.setdefault(key, [])
-        seg = str(e["segment"])
-        if seg not in segs:
-            segs.append(seg)
-    for segs in out.values():
-        segs.sort()
-    return out
+        by_key_seg.setdefault(key, {})[str(e["segment"])] = e
+    return {
+        key: [by_seg[s] for s in sorted(by_seg)]
+        for key, by_seg in by_key_seg.items()
+    }
 
 
 def apply_troubles_to_report(report: dict, troubles: list[dict]) -> dict:
@@ -558,7 +611,7 @@ def apply_troubles_to_report(report: dict, troubles: list[dict]) -> dict:
             tool_l,
         )
         failed = by_key.get(key, [])
-        row["failed_segments"] = ", ".join(failed)
+        row["failed_segments"] = format_failed_segments_cell(failed)
         if failed:
             row["mark"] = MARK_TROUBLE
 
@@ -851,7 +904,7 @@ def write_workbook(report: dict, out_path: str) -> str:
         (MARK_DONE, "All expected segments present (error_log excluded)"),
         (MARK_PARTIAL, "Some expected files present"),
         (MARK_EMPTY, "No expected files present"),
-        (MARK_TROUBLE, "Runtime tool failure recorded (see failed_segments)"),
+        (MARK_TROUBLE, "Runtime tool failure (failed_segments: SEG: time|retry_so_edge|…)"),
         ("—", "No expected segments (n_cycles / error_log edge case)"),
         ("", ""),
         ("IK", "Shared across apps → …/<section>/IK/*_IK.mot"),
@@ -976,18 +1029,29 @@ def write_workbook(report: dict, out_path: str) -> str:
         _style_header(cell)
     for r, row in enumerate(report["detail"], start=2):
         vals = [row.get(h, "") for h in d_headers]
+        failed_txt = str(row.get("failed_segments") or "")
+        n_failed_lines = failed_txt.count("\n") + 1 if failed_txt else 1
         for c, v in enumerate(vals, start=1):
             cell = ws_d.cell(row=r, column=c, value=v)
-            cell.alignment = CENTER
+            if c == 11:
+                cell.alignment = Alignment(
+                    horizontal="left",
+                    vertical="center",
+                    wrap_text=True,
+                )
+            else:
+                cell.alignment = CENTER
             cell.border = THIN
             if c == 7:
                 fill = _fill_for_mark(str(v))
                 if fill:
                     cell.fill = fill
+        if n_failed_lines > 1:
+            ws_d.row_dimensions[r].height = max(18, 15 * n_failed_lines)
     for c in range(1, len(d_headers) + 1):
         ws_d.column_dimensions[get_column_letter(c)].width = 14
     ws_d.column_dimensions["B"].width = 16
-    ws_d.column_dimensions["K"].width = 28
+    ws_d.column_dimensions["K"].width = 36
     ws_d.freeze_panes = "A2"
 
     # ── Missing ───────────────────────────────────────────────

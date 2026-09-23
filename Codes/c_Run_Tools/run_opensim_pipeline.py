@@ -1,3 +1,33 @@
+"""OpenSim pipeline runner (ExtLoad / IK / ID / SO / BK / JR).
+
+Run from ``Codes/c_Run_Tools``. Tool order is always
+``extload -> ik -> id -> so -> bk -> jr`` regardless of ``--tools`` order.
+ID runs only for HeavyHand, once per segment. App-loop tools
+(``extload``, ``ik``, ``so``, ``jr``) iterate ``--apps`` (default: all
+protocol apps for that condition). Early-window SO retries are separate:
+``retry_so_edge.py``.
+
+CLI examples::
+
+    # Plan only (no writes / no AnalyzeTool)
+    python run_opensim_pipeline.py --namecode 260306_KTY --condition 7kg_10bpm --dry-run
+
+    # Default tools (extload,ik), one subject / condition / few segments
+    python run_opensim_pipeline.py --namecode 260306_KTY --condition 7kg_10bpm --segments 1AB,1BC,1CA
+
+    # Full analyze chain with skip + parallel segment workers
+    python run_opensim_pipeline.py --namecode 260519_SHY --condition 7kg_10bpm --tools extload,ik,id,so,bk,jr --workers 4 --skip-existing
+
+    # Restrict apps; write SETUP XMLs only for so/jr (no AnalyzeTool run)
+    python run_opensim_pipeline.py --namecode 260306_KTY --condition 7kg_10bpm --tools extload,so,jr --apps preRiCTO,postRiCTO --no-run-so --no-run-jr
+
+    # Multiple subjects / conditions; omit --namecode or --condition for "all"
+    python run_opensim_pipeline.py --namecode 260306_KTY,260519_SHY --condition 7kg_10bpm,10kg_10bpm --tools ik,so --workers 0
+
+    # BK IK binding + AnalyzeTool log-stall timeout (seconds; 0 disables)
+    python run_opensim_pipeline.py --namecode 260306_KTY --tools bk,jr --bk-ik-app MeasuredEHF --tool-timeout 300
+"""
+
 import argparse
 import os
 import sys
@@ -725,9 +755,13 @@ def _run_one_subject(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="OpenSim pipeline (ExtLoad / IK / ID / SO / BK / JR). "
-                    "SO cases that only run from 0.05 s are a separate "
-                    "retry: retry_so_edge.py"
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "OpenSim pipeline (ExtLoad / IK / ID / SO / BK / JR). "
+            "SO cases that only run from 0.05 s are a separate "
+            "retry: retry_so_edge.py"
+        ),
+        epilog=__doc__,
     )
     parser.add_argument(
         "--namecode", default=None,
