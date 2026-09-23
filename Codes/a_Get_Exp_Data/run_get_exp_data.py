@@ -19,6 +19,8 @@ Usage
                                           7kg_16bpm=-1.5                       # default + override
     python run_get_exp_data.py 260423_CES --interactive-tap                   # tap 을 GUI 에서 클릭 선택
     python run_get_exp_data.py 260423_CES --interactive-tap --dry-run         # 인터랙티브 + 탐색만
+    python run_get_exp_data.py 260519_KMJ --conditions 10kg_10bpm             # 특정 condition 만
+    python run_get_exp_data.py 260519_KMJ --conditions 7kg_10bpm 10kg_10bpm  # 여러 condition
 
 Notebook (예: ``_a_Main.ipynb``) 에서는:
     # 모든 condition 에 동일 offset
@@ -36,6 +38,8 @@ Notebook (예: ``_a_Main.ipynb``) 에서는:
     })
     # 인터랙티브 (cond 마다 GUI 창이 뜸; t_tap_offset 은 초기 선택 위치)
     process_subject("260423_CES", dry_run=False, interactive_tap=True)
+    # 특정 condition 만 재실행
+    process_subject("260519_KMJ", conditions=["10kg_10bpm"], interactive_tap=True)
     # 주피터의 경우 인터랙티브 창이 별도로 뜨려면 셀 상단에 ``%matplotlib qt``
     # 또는 ``%matplotlib tk`` 가 설정되어 있어야 한다 (기본 ``inline`` 은 GUI 미지원).
 
@@ -1495,8 +1499,63 @@ def _format_t_tap_offset_header(t_tap_offset):
     return f"{float(t_tap_offset):+.2f}s  (manual)"
 
 
+def _normalize_conditions_filter(conditions, available_conds):
+    """``conditions`` 인자를 검증·정규화해 처리할 cond_key 리스트를 반환.
+
+    Parameters
+    ----------
+    conditions : None | str | sequence[str]
+        ``None`` → 피험자의 전체 condition.
+        ``str``  → 단일 condition.
+        sequence → 지정한 condition 들 (등록 순서 ``order`` 로 정렬).
+    available_conds : Mapping[str, Any]
+        ``rp.conditions`` (key = cond_key, value 에 ``order`` 포함).
+
+    Returns
+    -------
+    list[tuple[str, Any]]
+        ``(cond_key, cond_val)`` 를 ``order`` 오름차순으로 정렬한 목록.
+
+    Raises
+    ------
+    ValueError
+        알 수 없는 cond_key 이거나, 빈 목록이 주어진 경우.
+    """
+    if conditions is None:
+        selected = list(available_conds.keys())
+    elif isinstance(conditions, str):
+        selected = [conditions]
+    else:
+        try:
+            selected = list(conditions)
+        except TypeError as exc:
+            raise ValueError(
+                f"conditions 는 None / str / sequence[str] 이어야 합니다 "
+                f"(받은 타입: {type(conditions).__name__})"
+            ) from exc
+
+    if not selected:
+        raise ValueError(
+            "conditions 필터가 비어 있습니다. "
+            f"사용 가능: {sorted(available_conds.keys())}"
+        )
+
+    unknown = [k for k in selected if k not in available_conds]
+    if unknown:
+        raise ValueError(
+            f"알 수 없는 condition: {unknown}. "
+            f"사용 가능: {sorted(available_conds.keys())}"
+        )
+
+    # 호출 순서 유지가 아니라 protocol order 로 통일 (전체 실행과 동일).
+    return sorted(
+        ((k, available_conds[k]) for k in selected),
+        key=lambda kv: kv[1]["order"],
+    )
+
+
 def process_subject(namecode, dry_run=False, t_tap_offset=0.0,
-                    interactive_tap=False):
+                    interactive_tap=True, conditions=None):
     """한 명의 피험자에 대해 전체 파이프라인 수행.
 
     Parameters
@@ -1522,6 +1581,10 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0,
         condition 의 값이 창의 초기 선택 위치로 사용된다. ``dry_run``
         모드에서도 동일하게 GUI 가 뜨며, 사용자가 고른 위치로
         ``tap_onset_check.png`` 만 저장하고 TRC/MOT 은 생성하지 않는다.
+    conditions : None | str | sequence[str], default None
+        처리할 condition 필터. ``None`` 이면 피험자의 전체 condition.
+        예: ``"10kg_10bpm"`` 또는 ``["7kg_10bpm", "10kg_10bpm"]``.
+        알 수 없는 key 가 있으면 ``ValueError``.
 
     Examples
     --------
@@ -1534,8 +1597,17 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0,
     ...     "260512_KCH",
     ...     t_tap_offset={"_default": -2.0, "7kg_16bpm": -1.50},
     ... )
+    >>> process_subject("260519_KMJ", conditions=["10kg_10bpm"])
     """
     rp = _path.ResultPaths(namecode)
+
+    try:
+        conditions_sorted = _normalize_conditions_filter(
+            conditions, rp.conditions,
+        )
+    except ValueError as exc:
+        print(f"  [ERROR] {exc}")
+        return
 
     print(f"\n{'='*60}")
     print(f"[{namecode}]  {rp.sub_label}  protocol={rp.protocol}  "
@@ -1544,6 +1616,9 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0,
     print(f"  Rigid dir: {rp.rigid_dir}")
     print(f"  Output  : {rp.sub_dir}")
     print(f"  APPs    : {rp.apps}")
+    if conditions is not None:
+        print(f"  conditions filter: "
+              f"{[k for k, _ in conditions_sorted]}")
     if rp.segmentation.get("method") == "bpm_window":
         # dict / scalar 양쪽 모두 동일 포맷터로 헤더 출력.
         if isinstance(t_tap_offset, dict) or t_tap_offset != 0.0:
@@ -1611,11 +1686,6 @@ def process_subject(namecode, dry_run=False, t_tap_offset=0.0,
         else:
             print(f"  [ERROR] Static calibration C3D missing: "
                   f"expected one of [{static_names}] under {rp.c3d_dir}")
-
-    conditions_sorted = sorted(
-        rp.conditions.items(),
-        key=lambda kv: kv[1]["order"],
-    )
 
     for cond_key, cond_val in conditions_sorted:
         cp = rp.for_condition(cond_key)
@@ -1758,6 +1828,11 @@ def main():
              "각 condition 별 값이 창의 초기 선택 위치로 사용된다. "
              "--dry-run 과도 결합 가능 (선택 결과로 tap_onset_check.png 만 저장).",
     )
+    parser.add_argument(
+        "--conditions", nargs="+", default=None, metavar="COND",
+        help="처리할 condition 만 지정 (예: --conditions 10kg_10bpm). "
+             "생략 시 피험자의 전체 condition.",
+    )
     args = parser.parse_args()
 
     try:
@@ -1779,6 +1854,8 @@ def main():
 
     print(f"=== run_get_exp_data.py ===")
     print(f"Subjects ({len(namecodes)}): {namecodes}")
+    if args.conditions:
+        print(f"Conditions filter: {args.conditions}")
     if args.dry_run:
         print("[DRY-RUN MODE]")
 
@@ -1786,7 +1863,8 @@ def main():
         try:
             process_subject(namecode, dry_run=args.dry_run,
                             t_tap_offset=t_tap_offset,
-                            interactive_tap=args.interactive_tap)
+                            interactive_tap=args.interactive_tap,
+                            conditions=args.conditions)
         except NotImplementedError as e:
             print(f"    [NOT IMPLEMENTED] {e}")
         except Exception as e:

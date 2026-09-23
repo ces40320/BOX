@@ -53,7 +53,11 @@ print("Available subjects:", _path.DATA_SUB_NAMECODE_li)
 # % matplotlib tk
 
 dry_run  = False            # True: tap_onset_check.png 만 저장,  False: 실제 TRC/MOT 생성
-namecode = "260526_PJM"    # TODO: 필요 시 변경
+namecode = "260519_KMJ"    # TODO: 필요 시 변경
+
+# 처리할 condition 필터. None 이면 전체.
+#   예: None / "10kg_10bpm" / ["7kg_10bpm", "10kg_10bpm"]
+conditions = ["10kg_10bpm"]
 
 # condition 별로 다른 초기 offset 을 주는 예시.
 # (인터랙티브 1회 후 콘솔에 출력되는 effective offset 을 채워넣고 재실행하면
@@ -71,4 +75,5 @@ process_subject(
     dry_run=dry_run,
     interactive_tap=True,
     t_tap_offset=t_tap_offset_per_cond,
+    conditions=conditions,
 )
