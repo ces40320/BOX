@@ -71,9 +71,9 @@ RiCTO(구 RMO)는 residual 시계열만으로 전이 파라미터 `(t1,d1,t2,d2)
 ## 4. 가정 (ASSUMPTION)
 
 1. 접촉 중 손 COM 가속도 ≈ 박스 가속도(강체 결합).
-2. 양손 질량 분배 `α = 0.5` (비대칭 α 최적화는 Strategy A 확장으로 보류).
+2. 양손 질량 분배 `α = 0.5` (비대칭 α 최적화는 Strategy A 확장 — **명시적 보류**, 별도 PLAN: `Codes/PLAN/260122_alpha-양손질량분배-최적화.md`).
 3. 잔차 신호 = ID `pelvis_ty_force` (없으면 SO `residual_pelvis_ty`).
-4. 연구 범위 = **손 로드셀 제거**; GRF는 측정값 사용.
+4. 연구 범위 = **손 로드셀 제거**; **GRF(force plate)는 측정값 유지** (GRF까지 없는 트랙은 Strategy C 장기 옵션).
 
 ## 5. 데이터 플로우
 
@@ -90,7 +90,7 @@ flowchart LR
   COP --> ASM
   ASM --> MOT[ExtLoad_preRiCTO / postRiCTO]
   MOT --> PIPE[OpenSim SO/JR base model]
-  OPT --> CSV[Analysis/RiCTO CSV PNG]
+  OPT --> CSV[Analysis/Asymmetric/RiCTO]
   MEAS[MeasuredEHF] -. validation only .-> CSV
 ```
 
@@ -174,11 +174,12 @@ Codes/c_Run_Tools/optimization/
 
 **채택**: `least_squares` 를 기본 솔버로 유지 (경계 지원, nfev·시간 최소, 오차 동급). DE는 전역 탐색이 필요할 때 옵션.
 
-CSV: `Analysis/RiCTO/_validation/solver_compare_synthetic.csv`
+발표·벤치 근거 CSV: `Analysis/Asymmetric/RiCTO/_validation/solver_compare_all.csv` (+ `solver_compare_summary_by_solver.csv`).  
+합성 residual 표(위)는 **콘솔 유닛 테스트**용으로만 유지 — `solver_compare_synthetic.csv` / `_synthetic/` **산출물 삭제·비생성** (2026-09-16).
 
 ### 9.3 Synthetic E2E
 
-`run_ricto.py --synthetic` → `Analysis/RiCTO/_synthetic/` 에 pre/post MOT + summary. hand_torque 전부 0 확인.
+`run_ricto.py --synthetic` → **임시 디렉터리만** (Analysis에 MOT/summary 쓰지 않음). hand_torque=0·누출 검사 콘솔 QC.
 
 ## 10. 구현 체크리스트
 
@@ -190,8 +191,11 @@ CSV: `Analysis/RiCTO/_validation/solver_compare_synthetic.csv`
 - [x] `_c_Main_ricto.ipynb` 셀에서 `run_ricto.py` / `validate_ricto.py` 호출
 - [ ] 실데이터(로드셀 접촉시각) 비교 — OpenSim 결과 파일이 있는 환경에서 추가
 
-## 11. 건드리지 않는 것
+## 11. 건드리지 않는 것 (현 본선)
 
 - `d_Optimization/get_optimized_solution_and_EHF.py` 원본(참조만; 학회 재현용으로 유지)
 - Dropbox 원본 `ricto_core.py`
-- GRF 제거 / α 최적화 / Strategy B·C
+- **α 비대칭 최적화** — 보류 후 재개 예정 → `Codes/PLAN/260122_alpha-양손질량분배-최적화.md`
+- **Strategy B** (MuJoCo soft-contact) — 이 연구 배제 → `Codes/PLAN/260122_Strategy-B-C-로드맵.md`
+- **Strategy C** (Deep-EHFNet / 선택적 GRF 없음) — 훨씬 나중 → 동일 md
+- ※ “GRF 제거” ≠ 현재 RiCTO 범위. 지금은 손 센서만 제거한다.

@@ -93,10 +93,11 @@ def _make_heavyhand_template(n: int = 6000, dt: float = 0.001, grf_y: float = 35
 
 
 def run_synthetic(box_mass_kg: float, modes: list[str], solver: str) -> dict:
-    """In-memory synthetic smoke test (no Analysis/_synthetic write).
+    """In-memory synthetic smoke test only (no Analysis writes).
 
-    Writes only ``_validation/solver_compare_synthetic.csv`` via validate_ricto
-    when that CLI is used. This helper returns dict results for console QC.
+    ``_synthetic/`` folders and ``solver_compare_synthetic.csv`` are retired
+    (2026-09-16). Use ``validate_ricto --solvers`` for console unit test and
+    ``solver_compare_all.csv`` for subject benchmarks.
     """
     T, dt = 6.0, 0.01
     t = np.arange(0.0, T + 1e-12, dt)
@@ -158,7 +159,7 @@ def run_synthetic(box_mass_kg: float, modes: list[str], solver: str) -> dict:
         "truth": {"t1": truth[0], "t2": truth[2]},
         "qc": qc,
         "leak_checks": leak,
-        "note": "synthetic artifacts not written (use validate_ricto --solvers for CSV)",
+        "note": "synthetic artifacts not written (console/temp only)",
     }
 
 

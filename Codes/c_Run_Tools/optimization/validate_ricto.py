@@ -7,12 +7,16 @@ Usage
     python validate_ricto.py --dummy --solvers
     python validate_ricto.py --legacy-trial 1   # if OpenSim data present
 
-    # Real-data batch: MeasuredEHF GT contact vs f_est / RicTO times
+    # Batch: MeasuredEHF GT contact vs f_est / RicTO times
     python validate_ricto.py --all --protocols Asymmetric
     python validate_ricto.py --all --protocols Asymmetric --fy-thresh 2
-    # → writes realdata_all_summary_fy5.csv / _fy2.csv (no clobber)
+    # → writes all_summary_fy5.csv / _fy2.csv (no clobber)
     python validate_ricto.py --all --namecodes 260306_KTY --conditions 7kg_10bpm \\
         --segments 1AB --dry-run
+
+    # Multi-solver head-to-head on modern residuals (all jobs / filters)
+    python validate_ricto.py --solvers-real --protocols Asymmetric
+    # → writes solver_compare_all.csv (+ solver_compare_summary_by_solver.csv)
 
     # Overlay MeasuredEHF / preRiCTO / postRiCTO hand forces
     python validate_ricto.py --plot --namecode 260306_KTY --condition 7kg_10bpm \\
@@ -136,6 +140,11 @@ def _synthetic_residual(
 
 
 def test_solvers_synthetic(box_mass_kg: float = 7.0) -> pd.DataFrame:
+    """Unit-test solver compare on one synthetic residual (known truth).
+
+    Not subject data. Prefer ``compare_solvers_realdata`` for presentation
+    benchmarks across SUB1–SUBn.
+    """
     t, r, B, truth = _synthetic_residual(box_mass_kg=box_mass_kg)
     rows = compare_solvers(t, r, box_mass_kg)
     df = pd.DataFrame(rows)
@@ -145,6 +154,194 @@ def test_solvers_synthetic(box_mass_kg: float = 7.0) -> pd.DataFrame:
     df["err_t2"] = df["t2"] - truth[2]
     df["B_theory"] = B
     return df
+
+
+def _gt_contact_from_measured_ehf(
+    me_path: str,
+    *,
+    fy_thresh_n: float,
+    min_contact_dur_s: float,
+) -> Optional[tuple[float, float]]:
+    """Longest MeasuredEHF |Fy| contact window, or None if unavailable."""
+    if not os.path.isfile(me_path):
+        return None
+    me_df, _ = read_opensim_storage(me_path)
+    need = ("hand_force3_vy", "hand_force4_vy")
+    if any(c not in me_df.columns for c in need):
+        return None
+    t_me = me_df["time"].to_numpy(dtype=float)
+    wins = detect_contact_windows(
+        t_me,
+        me_df["hand_force3_vy"].to_numpy(dtype=float),
+        me_df["hand_force4_vy"].to_numpy(dtype=float),
+        thresh_n=fy_thresh_n,
+        min_dur_s=min_contact_dur_s,
+    )
+    return _longest_window(wins)
+
+
+def compare_solvers_realdata(
+    *,
+    namecodes: Optional[Iterable[str]] = None,
+    protocols: Optional[Iterable[str]] = None,
+    conditions: Optional[Iterable[str]] = None,
+    segments: Optional[Iterable[str]] = None,
+    fy_thresh_n: float = DEFAULT_FY_THRESH_N,
+    min_contact_dur_s: float = DEFAULT_MIN_CONTACT_DUR_S,
+    require_gt: bool = True,
+    continue_on_error: bool = True,
+    dry_run: bool = False,
+    out_dir: Optional[Path] = None,
+) -> dict:
+    """Run all configured solvers on each modern residual; optional GT timing.
+
+    Writes:
+      - ``solver_compare_all.csv`` (one row per segment × solver)
+      - ``solver_compare_summary_by_solver.csv``
+    """
+    jobs = iter_modern_jobs(
+        namecodes=namecodes,
+        protocols=protocols,
+        conditions=conditions,
+        segments=segments,
+    )
+    analysis = (
+        Path(out_dir)
+        if out_dir
+        else Path(_path.ANALYSIS_DIR) / "Asymmetric" / "RiCTO" / "_validation"
+    )
+    analysis.mkdir(parents=True, exist_ok=True)
+
+    rows: list[dict] = []
+    ok_seg = fail_seg = skip_seg = 0
+    print(
+        f"[solvers-real] {len(jobs)} jobs | solvers={list(cfg.SOLVERS)} "
+        f"fy_thresh={fy_thresh_n}N require_gt={require_gt}"
+    )
+    for namecode, cond, seg, mass in jobs:
+        tag = f"{namecode} {cond} {seg} ({mass:g}kg)"
+        if dry_run:
+            print(f"[dry-run] {tag}")
+            ok_seg += 1
+            continue
+        try:
+            rp = _path.ResultPaths(namecode)
+            cp = rp.for_condition(cond)
+            id_path = cp.id_path(seg, "HeavyHand")
+            so_path = cp.so_path(seg, "HeavyHand", "force")
+            residual_path = id_path if os.path.isfile(id_path) else so_path
+            if not os.path.isfile(residual_path):
+                raise FileNotFoundError(f"missing residual ID/SO: {residual_path}")
+            prefer = "id" if residual_path == id_path else "so"
+            rdf, _ = read_opensim_storage(residual_path)
+            t_res, r, rtag = extract_residual(rdf, prefer=prefer)
+
+            gt = _gt_contact_from_measured_ehf(
+                cp.extload_path(seg, "MeasuredEHF"),
+                fy_thresh_n=fy_thresh_n,
+                min_contact_dur_s=min_contact_dur_s,
+            )
+            if require_gt and gt is None:
+                skip_seg += 1
+                print(f"[skip] {tag}: no MeasuredEHF contact GT")
+                continue
+            gt_onset = float(gt[0]) if gt is not None else float("nan")
+            gt_offset = float(gt[1]) if gt is not None else float("nan")
+
+            sol_rows = compare_solvers(t_res, r, float(mass))
+            for srow in sol_rows:
+                onset = float(srow["t1"])
+                offset = float(srow["t2"] + srow["d2"])
+                rows.append(
+                    {
+                        "ok": True,
+                        "namecode": namecode,
+                        "protocol": rp.protocol,
+                        "sub": rp.sub_label,
+                        "condition": cond,
+                        "seg": seg,
+                        "box_mass_kg": float(mass),
+                        "residual_source": rtag,
+                        "gt_onset": gt_onset,
+                        "gt_offset": gt_offset,
+                        "ricto_onset": onset,
+                        "ricto_offset": offset,
+                        "err_onset_s": onset - gt_onset,
+                        "err_offset_s": offset - gt_offset,
+                        "fy_thresh_n": float(fy_thresh_n),
+                        **srow,
+                    }
+                )
+            ok_seg += 1
+            best = min(sol_rows, key=lambda d: d.get("cost", float("inf")))
+            print(
+                f"[ok] {tag} | best={best['solver']} cost={best['cost']:.1f} "
+                f"nfev={best['nfev']}"
+            )
+        except Exception as e:
+            if _is_error_log_seg(namecode, cond, seg):
+                print(f"[skip] {tag}: error_log ({e})")
+                continue
+            fail_seg += 1
+            print(f"[fail] {tag}: {e}")
+            if not continue_on_error:
+                traceback.print_exc()
+                raise
+
+    detail = pd.DataFrame(rows)
+    detail_path = analysis / "solver_compare_all.csv"
+    save_csv(detail_path, detail)
+
+    summary_path = analysis / "solver_compare_summary_by_solver.csv"
+    if len(detail):
+        g = detail.groupby("solver", sort=False)
+        summary = pd.DataFrame(
+            {
+                "n_segments": g.size(),
+                "success_rate": g["success"].mean(),
+                "mean_cost": g["cost"].mean(),
+                "median_cost": g["cost"].median(),
+                "mean_nfev": g["nfev"].mean(),
+                "median_nfev": g["nfev"].median(),
+                "mean_elapsed_s": g["elapsed_s"].mean(),
+                "median_elapsed_s": g["elapsed_s"].median(),
+                "mae_onset_s": g["err_onset_s"].apply(lambda s: s.abs().mean()),
+                "mae_offset_s": g["err_offset_s"].apply(lambda s: s.abs().mean()),
+                "median_abs_onset_s": g["err_onset_s"].apply(
+                    lambda s: s.abs().median()
+                ),
+                "median_abs_offset_s": g["err_offset_s"].apply(
+                    lambda s: s.abs().median()
+                ),
+                "n_subjects": g["sub"].nunique(),
+                "n_namecodes": g["namecode"].nunique(),
+            }
+        ).reset_index()
+        # Relative efficiency vs least_squares (when present)
+        ls = summary.loc[summary["solver"] == "least_squares"]
+        if len(ls):
+            base_n = float(ls["mean_nfev"].iloc[0])
+            base_t = float(ls["mean_elapsed_s"].iloc[0])
+            summary["nfev_vs_least_squares"] = summary["mean_nfev"] / base_n
+            summary["elapsed_vs_least_squares"] = summary["mean_elapsed_s"] / base_t
+        save_csv(summary_path, summary)
+        print(summary.to_string(index=False))
+    else:
+        summary = pd.DataFrame()
+        save_csv(summary_path, summary)
+
+    print(
+        f"[solvers-real] segments ok={ok_seg} fail={fail_seg} skip={skip_seg} "
+        f"| rows={len(detail)} → {detail_path}"
+    )
+    return {
+        "ok_segments": ok_seg,
+        "fail_segments": fail_seg,
+        "skip_segments": skip_seg,
+        "n_rows": len(detail),
+        "detail_csv": str(detail_path),
+        "summary_csv": str(summary_path),
+    }
 
 
 def try_legacy_trial(task_num: int = 1, box_mass_kg: float = 15.0) -> dict:
@@ -588,9 +785,9 @@ def _drop_error_log_validation_rows(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _default_all_summary_path(analysis: Path, fy_thresh_n: float) -> Path:
-    """``realdata_all_summary_fy5.csv`` — thresh in name so runs do not clobber."""
+    """``all_summary_fy5.csv`` — thresh in name so runs do not clobber."""
     tag = f"{fy_thresh_n:g}".replace(".", "p")
-    return analysis / f"realdata_all_summary_fy{tag}.csv"
+    return analysis / f"all_summary_fy{tag}.csv"
 
 
 def validate_all_modern(
@@ -714,7 +911,7 @@ def validate_all_modern(
         if not batch_df.empty and "namecode" in batch_df.columns:
             # Refresh subject file from the merged table (not batch alone)
             for nc in batch_df["namecode"].astype(str).unique():
-                sub_out = analysis / f"realdata_{nc}_fy{fy_thresh_n:g}.csv"
+                sub_out = analysis / f"{nc}_fy{fy_thresh_n:g}.csv"
                 if "namecode" in df.columns:
                     g = df[df["namecode"].astype(str) == str(nc)]
                 else:
@@ -742,7 +939,21 @@ def validate_all_modern(
 def main() -> None:
     ap = argparse.ArgumentParser(description="Validate RiCTO core policies / real-data batch")
     ap.add_argument("--dummy", action="store_true", help="Run sign-convention dummies")
-    ap.add_argument("--solvers", action="store_true", help="Compare solvers on synthetic residual")
+    ap.add_argument(
+        "--solvers",
+        action="store_true",
+        help="Compare solvers on one synthetic residual (unit test; not subjects)",
+    )
+    ap.add_argument(
+        "--solvers-real",
+        action="store_true",
+        help="Multi-solver head-to-head on real modern residuals (+ MeasuredEHF GT)",
+    )
+    ap.add_argument(
+        "--allow-no-gt",
+        action="store_true",
+        help="With --solvers-real: keep segments even if MeasuredEHF GT is missing",
+    )
     ap.add_argument("--legacy-trial", type=int, default=None, help="Optional real-data trial index")
     ap.add_argument(
         "--all",
@@ -794,7 +1005,7 @@ def main() -> None:
     ap.add_argument(
         "--out",
         default=None,
-        help="Summary CSV path for --all (default: _validation/realdata_all_summary_fy{thresh}.csv)",
+        help="Summary CSV path for --all (default: _validation/all_summary_fy{thresh}.csv)",
     )
     ap.add_argument(
         "--plot",
@@ -836,6 +1047,21 @@ def main() -> None:
         )
         return
 
+    if args.solvers_real:
+        proto = _csv_set(args.protocols)
+        compare_solvers_realdata(
+            namecodes=_csv_set(args.namecodes) or (_csv_set(args.namecode) if args.namecode else None),
+            protocols=proto,
+            conditions=_csv_set(args.conditions) or (_csv_set(args.condition) if args.condition else None),
+            segments=_csv_set(args.segments),
+            fy_thresh_n=args.fy_thresh,
+            min_contact_dur_s=args.min_contact_dur,
+            require_gt=not args.allow_no_gt,
+            continue_on_error=not args.stop_on_error,
+            dry_run=args.dry_run,
+        )
+        return
+
     # Single modern segment without --all
     if args.namecode and args.condition and args.segments:
         segs = [s.strip() for s in str(args.segments).split(",") if s.strip()]
@@ -858,7 +1084,7 @@ def main() -> None:
             )})
         analysis = Path(_path.ANALYSIS_DIR) / "Asymmetric" / "RiCTO" / "_validation"
         analysis.mkdir(parents=True, exist_ok=True)
-        out = analysis / f"realdata_{args.namecode}_{args.condition}.csv"
+        out = analysis / f"{args.namecode}_{args.condition}.csv"
         save_csv(out, pd.DataFrame(rows))
         print("[modern] wrote", out)
         return
@@ -878,10 +1104,10 @@ def main() -> None:
         print("[sign-dummy] PASS")
 
     if args.solvers:
+        # Console-only unit test — do not write Analysis/_validation synthetic CSV
+        # (2026-09-16: _synthetic artifacts retired; use solver_compare_all.csv).
         df = test_solvers_synthetic(box_mass)
-        out = analysis / "solver_compare_synthetic.csv"
-        df.to_csv(out, index=False)
-        print("[solvers] wrote", out)
+        print("[solvers] synthetic residual unit test (not written to Analysis/)")
         print(df.to_string(index=False))
         best = df.sort_values("cost").iloc[0]
         print(
