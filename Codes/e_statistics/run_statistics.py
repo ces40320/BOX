@@ -103,6 +103,17 @@ def main() -> None:
         if args.mode == "lmm":
             return
 
+    if args.suball and args.mode in ("figures", "all", "report"):
+        from manuscript_figures import (
+            process_suball_ehf_figures,
+            process_suball_l5s1_figures,
+            process_suball_timing_figure,
+        )
+
+        print("[EHF SUBALL Fig-EHF]", process_suball_ehf_figures())
+        print("[L5S1 SUBALL Fig-L5S1]", process_suball_l5s1_figures())
+        print("[RiCTO SUBALL Fig-RiCTO-2]", process_suball_timing_figure())
+
     for nc in namecodes:
         print(f"=== {nc} mode={args.mode} ===")
         print(_run_subject(nc, args.mode))

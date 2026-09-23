@@ -47,7 +47,10 @@ Analysis/Asymmetric/{EHF,L5S1,...}/_metrics/*.csv
 
 Results 보고(피규어·시트·통계 MD) 전체 맵:  
 [`implementation/RICTO_RESULTS_REPORT_PLAN.md`](implementation/RICTO_RESULTS_REPORT_PLAN.md).  
-보고서 채움 골격: [`implementation/STATS_REPORT_TEMPLATE.md`](implementation/STATS_REPORT_TEMPLATE.md).
+보고서 채움 골격: [`implementation/STATS_REPORT_TEMPLATE.md`](implementation/STATS_REPORT_TEMPLATE.md).  
+**폴더/약어 설명(사람이 읽는 가이드):** `Analysis/Asymmetric/_stats/README.md`.  
+**jamovi형 보고서:** `Analysis/Asymmetric/_stats/reports/SUB*_stats_report.md`, `SUBALL_stats_report.md`  
+(`python render_stats_report.py --all-reports`).
 
 ## 범위 (기존 합의)
 

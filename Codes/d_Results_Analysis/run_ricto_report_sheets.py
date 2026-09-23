@@ -131,7 +131,7 @@ def _load_validation_timing(
         Path(_path.ANALYSIS_DIR) / "RiCTO" / "_validation",
     ]
     for root in roots:
-        for name in ("realdata_all_summary_fy5.csv", "realdata_all_summary.csv"):
+        for name in ("all_summary_fy5.csv", "all_summary.csv"):
             path = root / name
             if not path.is_file():
                 continue
