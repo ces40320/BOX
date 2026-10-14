@@ -312,13 +312,22 @@ def run_ik(
 
     model = osim.Model(model_path)
     ik = osim.InverseKinematicsTool(ik_template_path)
-    ik.setName(rp.sub_label)
+    # Unique tool name + results dir so OpenSim writes
+    # ``{name}_ik_marker_errors.sto`` into this segment's IK/ folder
+    # instead of overwriting ``CWD/SUB{n}_ik_marker_errors.sto``.
+    ik_results_dir = os.path.dirname(ik_output_path)
+    ik_tool_name = f"{rp.sub_label}_{cp.cond}_{seg}"
+    if suffix:
+        ik_tool_name = f"{ik_tool_name}_{suffix}"
+    ik.setName(ik_tool_name)
+    ik.setResultsDir(ik_results_dir)
     ik.set_marker_file(trc_path)
     ik.setModel(model)
     ik.setStartTime(trcdata[1, 1])
     ik.setEndTime(trcdata[-1, 1])
     ik.setOutputMotionFileName(ik_output_path)
 
+    os.makedirs(ik_results_dir, exist_ok=True)
     os.makedirs(os.path.dirname(setup_ik_path), exist_ok=True)
     ik.printToXML(setup_ik_path)
     ik.run()
@@ -342,16 +351,19 @@ def _read_trc_time_bounds(trc_path: str) -> tuple[float, float]:
 def _resolve_analyze_window(
     trc_path: str,
     start_time: float | None = None,
+    end_time: float | None = None,
 ) -> tuple[float, float]:
-    """TRC window, optionally overriding the start.
+    """TRC window, optionally overriding start and/or end.
 
-    End time stays the TRC end. ``start_time`` is the edge-retry hook
-    (see ``retry_so_edge.py``); the main pipeline passes ``None``.
+    Defaults keep the full TRC span. ``start_time`` is the edge-retry hook
+    (see ``retry_so_edge.py``); ``end_time`` is used by freeze-skip stitches
+    (front segment). The main pipeline passes both as ``None``.
     """
     t0, t1 = _read_trc_time_bounds(trc_path)
-    if start_time is None:
-        return t0, t1
-    t0 = float(start_time)
+    if start_time is not None:
+        t0 = float(start_time)
+    if end_time is not None:
+        t1 = float(end_time)
     if not t0 < t1:
         raise ValueError(
             f"start_time {t0} must be < end time {t1} (trc={trc_path})"
@@ -570,6 +582,7 @@ def prepare_so_setup(
     max_iterations: int = 100,
     dry_run: bool = False,
     start_time: float | None = None,
+    end_time: float | None = None,
 ) -> str:
     """Write ``SETUP_SO_*.xml`` for one (segment, app).
 
@@ -578,9 +591,9 @@ def prepare_so_setup(
     are assumed to be baked in by ``b_Build_Model/add_reserve_actuators``.
     No ``_Actuator`` suffix is generated here.
 
-    ``start_time`` overrides the TRC start (default). Used by
-    ``retry_so_edge.py`` for the 0.05 s edge retry; the main pipeline
-    leaves it unset.
+    ``start_time`` / ``end_time`` override the TRC window. Used by
+    ``retry_so_edge.py`` (0.05 s edge) and freeze-skip stitches; the main
+    pipeline leaves both unset.
     """
     setup_so_xml = cp.setup_so_path(seg, app)
     results_dir = cp.so_dir(cp.seg_to_section(seg), app)
@@ -594,7 +607,7 @@ def prepare_so_setup(
     import opensim as osim
 
     trc_path = cp.trc_path(seg)
-    t0, t1 = _resolve_analyze_window(trc_path, start_time)
+    t0, t1 = _resolve_analyze_window(trc_path, start_time, end_time)
     ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
 
     model = osim.Model(model_path)
@@ -811,14 +824,15 @@ def prepare_jr_setup(
     step_interval: int = 1,
     dry_run: bool = False,
     start_time: float | None = None,
+    end_time: float | None = None,
 ) -> list[str]:
     """Write one or two ``SETUP_JR_*.xml`` files for one (segment, app).
 
     Returns the list of setup XML paths actually written / planned, in the
     fixed ``ground → child`` order.
 
-    ``start_time`` overrides the TRC start (default). Used by
-    ``retry_so_edge.py`` so JR matches the truncated SO window.
+    ``start_time`` / ``end_time`` override the TRC window. Used by
+    ``retry_so_edge.py`` so JR matches a truncated SO window.
     """
     suffixes = _jr_suffix_order(app)
     setup_paths = [cp.setup_jr_path(seg, app, suffix) for suffix in suffixes]
@@ -832,7 +846,7 @@ def prepare_jr_setup(
     import opensim as osim
 
     trc_path = cp.trc_path(seg)
-    t0, t1 = _resolve_analyze_window(trc_path, start_time)
+    t0, t1 = _resolve_analyze_window(trc_path, start_time, end_time)
     ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
 
     # SO outputs are mandatory inputs for JR (controls + forces).
