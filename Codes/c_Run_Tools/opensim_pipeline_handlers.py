@@ -583,6 +583,7 @@ def prepare_so_setup(
     dry_run: bool = False,
     start_time: float | None = None,
     end_time: float | None = None,
+    model_path: str | None = None,
 ) -> str:
     """Write ``SETUP_SO_*.xml`` for one (segment, app).
 
@@ -594,11 +595,17 @@ def prepare_so_setup(
     ``start_time`` / ``end_time`` override the TRC window. Used by
     ``retry_so_edge.py`` (0.05 s edge) and freeze-skip stitches; the main
     pipeline leaves both unset.
+
+    ``model_path`` overrides the kg-aware base osim (trial sidecar only).
+    The shared scaled model is left untouched.
     """
     setup_so_xml = cp.setup_so_path(seg, app)
     results_dir = cp.so_dir(cp.seg_to_section(seg), app)
-    model_path = resolve_model_path(rp, cp.cond, app, "so",
-                                    must_exist=not dry_run)
+    if model_path is None:
+        model_path = resolve_model_path(rp, cp.cond, app, "so",
+                                        must_exist=not dry_run)
+    elif not dry_run and not os.path.isfile(model_path):
+        raise FileNotFoundError(f"SO model override missing: {model_path}")
 
     if dry_run:
         return setup_so_xml
@@ -649,6 +656,7 @@ def run_so(
     app: str,
     dry_run: bool = False,
     timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
+    model_path: str | None = None,
 ) -> str:
     """Run a previously prepared ``SETUP_SO_*.xml`` for one (segment, app).
 
@@ -665,7 +673,10 @@ def run_so(
             "  Run with --tools so (setup is created on first invocation)."
         )
 
-    model_path = resolve_model_path(rp, cp.cond, app, "so", must_exist=True)
+    if model_path is None:
+        model_path = resolve_model_path(rp, cp.cond, app, "so", must_exist=True)
+    elif not os.path.isfile(model_path):
+        raise FileNotFoundError(f"SO model override missing: {model_path}")
     _run_analyze_jobs([{
         "tool": "so",
         "setup_xml": setup_so_xml,
@@ -825,6 +836,7 @@ def prepare_jr_setup(
     dry_run: bool = False,
     start_time: float | None = None,
     end_time: float | None = None,
+    model_path: str | None = None,
 ) -> list[str]:
     """Write one or two ``SETUP_JR_*.xml`` files for one (segment, app).
 
@@ -840,7 +852,10 @@ def prepare_jr_setup(
     if dry_run:
         return setup_paths
 
-    model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+    if model_path is None:
+        model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+    elif not os.path.isfile(model_path):
+        raise FileNotFoundError(f"JR model override missing: {model_path}")
 
     _maybe_add_opensim_dll_dir()
     import opensim as osim
@@ -899,6 +914,7 @@ def run_jr(
     app: str,
     dry_run: bool = False,
     timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
+    model_path: str | None = None,
 ) -> list[str]:
     """Run all JR setup XMLs for one (segment, app), renaming ground output.
 
@@ -912,7 +928,10 @@ def run_jr(
     if dry_run:
         return setup_paths
 
-    model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+    if model_path is None:
+        model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+    elif not os.path.isfile(model_path):
+        raise FileNotFoundError(f"JR model override missing: {model_path}")
     canonical_jr_sto = cp.jr_path(seg, app, "")
 
     jobs: list[dict] = []
