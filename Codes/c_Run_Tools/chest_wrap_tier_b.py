@@ -71,6 +71,124 @@ def _drop_other_muscles(osim, model, keep: set[str]) -> int:
     return len(drop)
 
 
+# L5_S1 coords used for lumbar erector / latissimus Chest-wrap paths.
+_FBP_COORD_NAMES = (
+    "L5_S1_Flex_Ext",
+    "L5_S1_Lat_Bending",
+    "L5_S1_axial_rotation",
+)
+_FBP_COORD_PATHS = (
+    "/jointset/L5_S1_IVDjnt/L5_S1_Flex_Ext",
+    "/jointset/L5_S1_IVDjnt/L5_S1_Lat_Bending",
+    "/jointset/L5_S1_IVDjnt/L5_S1_axial_rotation",
+)
+
+
+def _poly_exponents(dimension: int, order: int) -> list[tuple[int, ...]]:
+    """OpenSim MultivariatePolynomialFunction monomial order (last dim fastest)."""
+    if dimension != 3:
+        raise ValueError("only dimension=3 implemented")
+    out: list[tuple[int, ...]] = []
+    for nx in range(order + 1):
+        for ny in range(order + 1 - nx):
+            for nz in range(order + 1 - nx - ny):
+                out.append((nx, ny, nz))
+    return out
+
+
+def _design_matrix(q: "np.ndarray", order: int):
+    import numpy as np
+
+    exps = _poly_exponents(3, order)
+    A = np.empty((q.shape[0], len(exps)), dtype=float)
+    for j, (nx, ny, nz) in enumerate(exps):
+        A[:, j] = (q[:, 0] ** nx) * (q[:, 1] ** ny) * (q[:, 2] ** nz)
+    return A, exps
+
+
+def _fit_length_polys_numpy(
+    osim,
+    *,
+    model_path: str,
+    good_df,
+    meta: dict,
+    muscles: list[str],
+    order: int = 3,
+) -> dict[str, list[float]]:
+    """Least-squares l(q) on good IK rows. Returns muscle → coefficients."""
+    import numpy as np
+    from chest_wrap_lib import _apply_ik_row, _ik_in_degrees
+
+    model = osim.Model(model_path)
+    state = model.initSystem()
+    coords = model.getCoordinateSet()
+    for name in _FBP_COORD_NAMES:
+        if not coords.contains(name):
+            raise RuntimeError(f"missing coordinate {name}")
+    indeg = _ik_in_degrees(meta)
+    objs = {m: model.getMuscles().get(m) for m in muscles}
+    q_rows = []
+    L = {m: [] for m in muscles}
+    for _, row in good_df.iterrows():
+        _apply_ik_row(osim, model, state, row, indeg)
+        model.realizePosition(state)
+        q_rows.append([float(coords.get(n).getValue(state)) for n in _FBP_COORD_NAMES])
+        for m, mus in objs.items():
+            L[m].append(float(mus.getGeometryPath().getLength(state)))
+    q = np.asarray(q_rows, dtype=float)
+    A, _ = _design_matrix(q, order)
+    coefs: dict[str, list[float]] = {}
+    for m in muscles:
+        y = np.asarray(L[m], dtype=float)
+        if not np.all(np.isfinite(y)):
+            raise RuntimeError(f"non-finite GeometryPath length for {m}")
+        c, *_ = np.linalg.lstsq(A, y, rcond=None)
+        if not np.all(np.isfinite(c)):
+            raise RuntimeError(f"non-finite polynomial coeffs for {m}")
+        yhat = A @ c
+        rmse = float(np.sqrt(np.mean((y - yhat) ** 2)))
+        _log(f"[FBP] numpy {m}: order={order} RMSE={rmse*100:.3f} cm n={len(y)}")
+        coefs[m] = [float(v) for v in c]
+    return coefs
+
+
+def _write_function_based_path_set(
+    path: str,
+    coefs: dict[str, list[float]],
+    *,
+    order: int,
+) -> str:
+    coord_paths = " ".join(_FBP_COORD_PATHS)
+    objs = []
+    for muscle, c in coefs.items():
+        cstr = " ".join(f"{v:.16g}" for v in c)
+        objs.append(
+            f"""\t\t\t<FunctionBasedPath name="/forceset/{muscle}">
+\t\t\t\t<coordinate_paths>{coord_paths}</coordinate_paths>
+\t\t\t\t<length_function>
+\t\t\t\t\t<MultivariatePolynomialFunction>
+\t\t\t\t\t\t<coefficients>{cstr}</coefficients>
+\t\t\t\t\t\t<dimension>3</dimension>
+\t\t\t\t\t\t<order>{order}</order>
+\t\t\t\t\t</MultivariatePolynomialFunction>
+\t\t\t\t</length_function>
+\t\t\t</FunctionBasedPath>"""
+        )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8" ?>\n'
+        '<OpenSimDocument Version="40500">\n'
+        "\t<Set_FunctionBasedPath_>\n"
+        "\t\t<objects>\n"
+        + "\n".join(objs)
+        + "\n\t\t</objects>\n"
+        "\t\t<groups />\n"
+        "\t</Set_FunctionBasedPath_>\n"
+        "</OpenSimDocument>\n"
+    )
+    Path(path).write_text(xml, encoding="utf-8")
+    return path
+
+
 def build_fbp_sidecar(
     *,
     model_path: str,
@@ -80,7 +198,12 @@ def build_fbp_sidecar(
     out_osim: str,
     work_dir: str,
 ) -> str | None:
-    """Fit FunctionBasedPaths on good IK frames for ``muscles`` only."""
+    """Fit FunctionBasedPaths on good IK frames for ``muscles`` only.
+
+    Uses a numpy least-squares fit of ``MultivariatePolynomialFunction``
+    coefficients (OpenSim monomial order). ``PolynomialPathFitter`` on this
+    OpenSim 4.5 / Windows build yields NaN coeffs for most lumbar paths.
+    """
     if not muscles:
         _log("[FBP] no target muscles")
         return None
@@ -96,47 +219,29 @@ def build_fbp_sidecar(
     good_mot = os.path.join(work_dir, "ik_good_frames.mot")
     write_opensim_storage(good_mot, good, meta)
 
-    model = osim.Model(model_path)
-    n_drop = _drop_other_muscles(osim, model, set(muscles))
-    _log(f"[FBP] dropped {n_drop} muscles; fitting {len(muscles)}")
-    reduced = os.path.join(work_dir, "reduced_for_fit.osim")
-    model.finalizeConnections()
-    model.initSystem()
-    model.printToXML(reduced)
-
-    out_dir = os.path.join(work_dir, "fbp_out")
-    os.makedirs(out_dir, exist_ok=True)
-    fitter = osim.PolynomialPathFitter()
-    fitter.setModel(osim.ModelProcessor(reduced))
-    fitter.setCoordinateValues(osim.TableProcessor(good_mot))
-    fitter.setOutputDirectory(out_dir)
-    fitter.setNumSamplesPerFrame(5)
-    fitter.setMaximumPolynomialOrder(4)
-    fitter.setMinimumPolynomialOrder(2)
+    order = 3
     try:
-        fitter.setGlobalCoordinateSamplingBounds(osim.Vec2(-5, 5))
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        fitter.run()
+        coefs = _fit_length_polys_numpy(
+            osim,
+            model_path=model_path,
+            good_df=good,
+            meta=meta,
+            muscles=muscles,
+            order=order,
+        )
     except Exception as exc:  # noqa: BLE001
-        _log(f"[FBP] fit failed: {exc}")
+        _log(f"[FBP] numpy fit failed: {exc}")
         return None
 
-    xmls = sorted(Path(out_dir).glob("*FunctionBasedPath*.xml"))
-    if not xmls:
-        xmls = sorted(Path(out_dir).rglob("*.xml"))
-    if not xmls:
-        _log("[FBP] no FunctionBasedPath XML written")
-        return None
-    paths_xml = str(xmls[0])
+    paths_xml = os.path.join(work_dir, "FunctionBasedPathSet_numpy.xml")
+    _write_function_based_path_set(paths_xml, coefs, order=order)
     proc = osim.ModelProcessor(model_path)
     proc.append(osim.ModOpReplacePathsWithFunctionBasedPaths(paths_xml))
     fitted = proc.process()
     fitted.finalizeConnections()
     fitted.initSystem()
     fitted.printToXML(out_osim)
-    _log(f"[FBP] sidecar → {out_osim}")
+    _log(f"[FBP] sidecar → {out_osim} ({len(coefs)} paths, numpy)")
     return out_osim
 
 

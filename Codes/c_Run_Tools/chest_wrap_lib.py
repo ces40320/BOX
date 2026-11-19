@@ -89,6 +89,10 @@ def import_opensim():
 
 
 def repair_dir(namecode: str) -> str:
+    """Working / report dir under ``Codes/c_Run_Tools/chest_wrap_work/<SUB#>``.
+
+    Never write tools or scratch outputs into ``OpenSim_Process/.../SUB#/``.
+    """
     import sys
 
     codes = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -97,7 +101,11 @@ def repair_dir(namecode: str) -> str:
     from PATH_RULE import ResultPaths
 
     rp = ResultPaths(namecode)
-    d = os.path.join(rp.sub_dir, "chest_wrap_repair")
+    d = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "chest_wrap_work",
+        rp.sub_label,
+    )
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -151,18 +159,14 @@ def _rotation_body_xyz(osim, rx: float, ry: float, rz: float):
 
 def _to_wrap_local(osim, state, body, wrap, p_ground: np.ndarray) -> np.ndarray:
     X_GB = body.getTransformInGround(state)
-    p_body = X_GB.invert() * osim.Vec3(
+    p_body = X_GB.shiftBaseStationToFrame(osim.Vec3(
         float(p_ground[0]), float(p_ground[1]), float(p_ground[2])
-    )
+    ))
     trans = wrap.get_translation()
     rot = wrap.get_xyz_body_rotation()
     R = _rotation_body_xyz(osim, rot.get(0), rot.get(1), rot.get(2))
-    delta = osim.Vec3(
-        p_body.get(0) - trans.get(0),
-        p_body.get(1) - trans.get(1),
-        p_body.get(2) - trans.get(2),
-    )
-    p_w = R.invert() * delta
+    X_BW = osim.Transform(R, trans)
+    p_w = X_BW.shiftBaseStationToFrame(p_body)
     return np.array([p_w.get(0), p_w.get(1), p_w.get(2)], dtype=float)
 
 

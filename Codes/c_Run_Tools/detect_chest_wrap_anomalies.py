@@ -1,7 +1,8 @@
 """Detect Chest wrap path anomalies on SO-failed trials and assign tier A/B/C.
 
 Does not modify shared scaled models. Writes
-``…/SUB#/chest_wrap_repair/chest_wrap_detect_report.json`` and a flags CSV.
+``Codes/c_Run_Tools/chest_wrap_work/<SUB#>/chest_wrap_detect_report.json``
+and a flags CSV.
 
 Example::
 
