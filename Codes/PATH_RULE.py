@@ -65,6 +65,34 @@ def _ensure_dir(*parts) -> str:
     return d
 
 
+# ── SO 트러블슈팅 / 진단 산출물 배치 ─────────────────────────────
+# 같은 접근법 이름을 코드(c_Run_Tools/troubleshoot_so/<approach>),
+# SO 결과 하위폴더(SO_<app>/troubleshoot_so/<approach>),
+# 진단 폴더(Analysis/<protocol>/_diagnosis/<approach>)에 공통 사용.
+TROUBLESHOOT_SO_DIRNAME = "troubleshoot_so"
+TROUBLESHOOT_SO_APPROACHES: tuple[str, ...] = (
+    "rerun_freeze",   # 멈춘 시점 이후 재실행 (0.05 s 시작 재시도, 멈춤 구간 건너뛰기)
+    "wrap_gapfill",   # IK 기반 길이 튐 구간 탐지 → 구간별 SO + 이어붙이기
+    "wrap_fbp",       # 근육 경로를 관절각 함수로 바꾼 트라이얼 전용 osim
+)
+# _diagnosis 하위 전용 폴더 (SO 결과 하위폴더에는 없음)
+DIAGNOSIS_SUBDIRS: tuple[str, ...] = (
+    "pipeline_state",  # 코드가 읽고 쓰는 파이프라인 상태 파일 (progress / trouble / freeze times)
+    "quality_check",   # 원인 분석 산출물 (IK·ID·스케일링·SO 로그 교차)
+    "pipeline_runs",   # 배치 실행 / 게이트 감시 로그
+)
+
+
+def diagnosis_dir(protocol: str, *parts: str) -> str:
+    """``Analysis/<protocol>/_diagnosis/<parts…>`` (생성 포함)."""
+    return _ensure_dir(ANALYSIS_DIR, protocol, "_diagnosis", *parts)
+
+
+def pipeline_state_path(protocol: str, filename: str) -> str:
+    """파이프라인 상태 파일 경로 (``pipeline_progress.xlsx`` 등)."""
+    return os.path.join(diagnosis_dir(protocol, "pipeline_state"), filename)
+
+
 # ═══════════════════════════════════════════════════════════════
 #  ResultPaths — 피험자 단위 경로·파일명 빌더
 # ═══════════════════════════════════════════════════════════════
@@ -134,6 +162,23 @@ class ResultPaths:
 
     def jr_dir(self, cond: str, section: str, app: str) -> str:
         return self.result_dir(cond, section, f"JR_{app}")
+
+    def so_troubleshoot_dir(self, cond: str, section: str, app: str,
+                            approach: str, *, create: bool = True) -> str:
+        """SO 트러블슈팅 부산물 폴더 (트라이얼 전용 osim, 미완성 sto 조각, 복구 기록).
+
+        e.g. ``…/SUB8/15kg_16bpm/CA/SO_MeasuredEHF/troubleshoot_so/wrap_fbp``
+        """
+        if approach not in TROUBLESHOOT_SO_APPROACHES:
+            raise ValueError(
+                f"Unknown troubleshoot approach {approach!r}. "
+                f"Valid: {TROUBLESHOOT_SO_APPROACHES}"
+            )
+        d = os.path.join(self.sub_dir, cond, section, f"SO_{app}",
+                         TROUBLESHOOT_SO_DIRNAME, approach)
+        if create:
+            os.makedirs(d, exist_ok=True)
+        return d
 
     # ── 파일명 생성 ──────────────────────────────────────────
 
@@ -384,6 +429,39 @@ class ConditionPaths:
 
     def jr_dir(self, section: str, app: str) -> str:
         return self._p.jr_dir(self.cond, section, app)
+
+    def so_troubleshoot_dir(self, section: str, app: str, approach: str,
+                            *, create: bool = True) -> str:
+        return self._p.so_troubleshoot_dir(self.cond, section, app, approach,
+                                           create=create)
+
+    def wrap_fbp_model_path(self, seg: str, app: str, *,
+                            create: bool = True) -> str:
+        """트라이얼 전용 osim (Chest wrap 근육 경로를 관절각 함수로 대체).
+
+        e.g. ``…/SO_MeasuredEHF/troubleshoot_so/wrap_fbp/
+        SUB8_15kg_16bpm_4CA_MeasuredEHF_WrapFBP.osim``
+        """
+        d = self.so_troubleshoot_dir(self.seg_to_section(seg), app,
+                                     "wrap_fbp", create=create)
+        return os.path.join(d, f"{self.sub_label}_{self.cond}_{seg}_{app}_WrapFBP.osim")
+
+    def wrap_fbp_record_path(self, seg: str, app: str) -> str:
+        """트라이얼 전용 osim 옆의 복구 기록 JSON."""
+        return self.wrap_fbp_model_path(seg, app).replace(
+            "_WrapFBP.osim", "_wrap_fbp_record.json")
+
+    def so_partial_path(self, seg: str, app: str, so_type: str,
+                        tag: str, approach: str) -> str:
+        """미완성 SO 조각 파일 (정규 결과로 합쳐지기 전).
+
+        e.g. ``…/SO_HeavyHand/troubleshoot_so/rerun_freeze/
+        SUB8_7kg_10bpm_1AB_HeavyHand_StaticOptimization_force.front.sto``
+        """
+        name = self._p.so_name(self.cond, seg, app, so_type)
+        stem, ext = os.path.splitext(name)
+        d = self.so_troubleshoot_dir(self.seg_to_section(seg), app, approach)
+        return os.path.join(d, f"{stem}.{tag}{ext}")
 
     def analysis_dir(self, *parts: str) -> str:
         """Compat helper → prefer ``ricto_*`` paths."""

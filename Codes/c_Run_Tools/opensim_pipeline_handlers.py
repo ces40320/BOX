@@ -356,7 +356,7 @@ def _resolve_analyze_window(
     """TRC window, optionally overriding start and/or end.
 
     Defaults keep the full TRC span. ``start_time`` is the edge-retry hook
-    (see ``retry_so_edge.py``); ``end_time`` is used by freeze-skip stitches
+    (see ``RETRY_so_early_window.py``); ``end_time`` is used by freeze-skip stitches
     (front segment). The main pipeline passes both as ``None``.
     """
     t0, t1 = _read_trc_time_bounds(trc_path)
@@ -593,7 +593,7 @@ def prepare_so_setup(
     No ``_Actuator`` suffix is generated here.
 
     ``start_time`` / ``end_time`` override the TRC window. Used by
-    ``retry_so_edge.py`` (0.05 s edge) and freeze-skip stitches; the main
+    ``RETRY_so_early_window.py`` (0.05 s edge) and freeze-skip stitches; the main
     pipeline leaves both unset.
 
     ``model_path`` overrides the kg-aware base osim (trial sidecar only).
@@ -603,7 +603,7 @@ def prepare_so_setup(
     results_dir = cp.so_dir(cp.seg_to_section(seg), app)
     if model_path is None:
         model_path = resolve_model_path(rp, cp.cond, app, "so",
-                                        must_exist=not dry_run)
+                                        must_exist=not dry_run, seg=seg)
     elif not dry_run and not os.path.isfile(model_path):
         raise FileNotFoundError(f"SO model override missing: {model_path}")
 
@@ -674,7 +674,8 @@ def run_so(
         )
 
     if model_path is None:
-        model_path = resolve_model_path(rp, cp.cond, app, "so", must_exist=True)
+        model_path = resolve_model_path(rp, cp.cond, app, "so", must_exist=True,
+                                        seg=seg)
     elif not os.path.isfile(model_path):
         raise FileNotFoundError(f"SO model override missing: {model_path}")
     _run_analyze_jobs([{
@@ -707,7 +708,7 @@ def prepare_bk_setup(
     ``bk_ik_app`` lets callers override which IK / ExtLoad to bind to.
 
     ``start_time`` overrides the TRC start (default). Used by
-    ``retry_so_edge.py`` so BK matches the truncated SO/JR window.
+    ``RETRY_so_early_window.py`` so BK matches the truncated SO/JR window.
     """
     setup_bk_xml = cp.setup_bk_path(seg)
     results_dir = cp.bk_dir(cp.seg_to_section(seg))
@@ -844,7 +845,7 @@ def prepare_jr_setup(
     fixed ``ground → child`` order.
 
     ``start_time`` / ``end_time`` override the TRC window. Used by
-    ``retry_so_edge.py`` so JR matches a truncated SO window.
+    ``RETRY_so_early_window.py`` so JR matches a truncated SO window.
     """
     suffixes = _jr_suffix_order(app)
     setup_paths = [cp.setup_jr_path(seg, app, suffix) for suffix in suffixes]
@@ -853,7 +854,8 @@ def prepare_jr_setup(
         return setup_paths
 
     if model_path is None:
-        model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+        model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True,
+                                        seg=seg)
     elif not os.path.isfile(model_path):
         raise FileNotFoundError(f"JR model override missing: {model_path}")
 
@@ -929,7 +931,8 @@ def run_jr(
         return setup_paths
 
     if model_path is None:
-        model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True)
+        model_path = resolve_model_path(rp, cp.cond, app, "jr", must_exist=True,
+                                        seg=seg)
     elif not os.path.isfile(model_path):
         raise FileNotFoundError(f"JR model override missing: {model_path}")
     canonical_jr_sto = cp.jr_path(seg, app, "")

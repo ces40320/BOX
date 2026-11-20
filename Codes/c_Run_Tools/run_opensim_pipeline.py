@@ -5,7 +5,7 @@ Run from ``Codes/c_Run_Tools``. Tool order is always
 ID runs only for HeavyHand, once per segment. App-loop tools
 (``extload``, ``ik``, ``so``, ``jr``) iterate ``--apps`` (default: all
 protocol apps for that condition). Early-window SO retries are separate:
-``retry_so_edge.py``.
+``RETRY_so_early_window.py``.
 
 CLI examples::
 
@@ -62,7 +62,7 @@ from pipeline_rules import (
     jr_suffixes,
     resolve_model_path,
 )
-from update_pipeline_progress import (
+from UPDATE_pipeline_progress import (
     prune_resolved_troubles,
     record_trouble,
     refresh_progress_sheet,
@@ -324,7 +324,7 @@ def _run_so(*, cp, rp, seg, app, args, condition):
     if _try_skip_existing(cp=cp, seg=seg, tool="so", app=app, args=args):
         return
     so_model = resolve_model_path(rp, condition, app, "so",
-                                  must_exist=not args.dry_run)
+                                  must_exist=not args.dry_run, seg=seg)
     _log(f"[RUN ] seg={seg}  tool=so  app={app}  "
          f"model={os.path.basename(so_model)}")
     so_xml = prepare_so_setup(cp=cp, rp=rp, seg=seg, app=app,
@@ -366,7 +366,7 @@ def _run_jr(*, cp, rp, seg, app, args, condition):
     if _try_skip_existing(cp=cp, seg=seg, tool="jr", app=app, args=args):
         return
     jr_model = resolve_model_path(rp, condition, app, "jr",
-                                  must_exist=not args.dry_run)
+                                  must_exist=not args.dry_run, seg=seg)
     _log(f"[RUN ] seg={seg}  tool=jr  app={app}  "
          f"model={os.path.basename(jr_model)}")
     jr_xmls = prepare_jr_setup(cp=cp, rp=rp, seg=seg, app=app,
@@ -759,7 +759,7 @@ def main() -> None:
         description=(
             "OpenSim pipeline (ExtLoad / IK / ID / SO / BK / JR). "
             "SO cases that only run from 0.05 s are a separate "
-            "retry: retry_so_edge.py"
+            "retry: RETRY_so_early_window.py"
         ),
         epilog=__doc__,
     )

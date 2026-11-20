@@ -106,8 +106,14 @@ def resolve_model_type(app: str, w_kg: int, stage: str) -> str:
 
 
 def resolve_model_path(rp, cond: str, app: str, stage: str,
-                       *, must_exist: bool = True) -> str:
+                       *, must_exist: bool = True,
+                       seg: str | None = None) -> str:
     """Return the absolute ``.osim`` path for ``(cond, app, stage)``.
+
+    If ``seg`` is given and ``stage`` is ``so`` / ``jr``, a trial-only repaired
+    model (``SO_<app>/troubleshoot_so/wrap_fbp/*_WrapFBP.osim`` or
+    ``*_ChestPatch.osim``) takes precedence over the shared scaled model
+    when it exists.
 
     Parameters
     ----------
@@ -121,7 +127,13 @@ def resolve_model_path(rp, cond: str, app: str, stage: str,
     must_exist : bool, default True
         If True, raise ``FileNotFoundError`` when the resolved file is absent.
         Use ``False`` for dry-run / preview logging.
+    seg : str, optional
+        Segment label (e.g. ``'4CA'``) enabling the trial-model lookup.
     """
+    if seg is not None and stage in ("so", "jr"):
+        trial = trial_model_path(rp, cond, app, seg)
+        if trial is not None:
+            return trial
     w_kg = box_kg_from_cond(cond)
     model_type = resolve_model_type(app, w_kg, stage)
     path = rp.model_path(model_type)
@@ -133,6 +145,17 @@ def resolve_model_path(rp, cond: str, app: str, stage: str,
             f"model variants (rename → HeavyHand → WeldBox/SplitBox)."
         )
     return path
+
+
+def trial_model_path(rp, cond: str, app: str, seg: str) -> str | None:
+    """Existing trial-only repaired SO/JR model for one segment, else ``None``."""
+    from PATH_RULE import ConditionPaths
+
+    fbp = ConditionPaths(rp, cond).wrap_fbp_model_path(seg, app, create=False)
+    for path in (fbp, fbp.replace("_WrapFBP.osim", "_ChestPatch.osim")):
+        if os.path.isfile(path):
+            return path
+    return None
 
 
 # ──────────────────────────────────────────────────────────────────
