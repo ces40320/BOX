@@ -1,0 +1,39 @@
+OpenSim의 `FunctionBasedPath`는 기존의 기하학적 경로(`GeometryPath`) 대신 **수학적 함수를 이용해 근육의 길이(length), 속도(velocity), moment arm을 직접 계산**하는 클래스입니다. OpenSim 4.5 (Moco 1.3.0)에서 처음 도입되었으며, 주요 특징은 다음과 같습니다.
+
+---
+
+### 1. 시뮬레이션 연산 속도 향상 (주 목적)
+
+* 기존 `GeometryPath`는 매 타임스텝마다 path points와 wrapping surfaces를 기반으로 기하학적 계산을 수행해야 하므로 연산 비용이 큽니다.
+* `FunctionBasedPath`는 기존 모델의 근육 기하 구조를 함수 기반의 복제본(replica)으로 대체하여, Moco와 같은 최적 제어(optimal control) 시뮬레이션의 계산 속도를 크게 높이는 데 목적이 있습니다.
+
+### 2. 함수 기반 계산 및 자동 피팅 (`PolynomialPathFitter`)
+
+* 사용자가 제공한 함수(주로 `MultivariatePolynomialFunction`)를 통해 관절 각도(coordinates)에 따른 근육 길이, 속도, moment arm을 즉시 산출합니다.
+* **`PolynomialPathFitter`** 도구를 사용하면 기존 모델과 특정 동작의 관절 각도 데이터(`coordinates.sto`)를 샘플링하여 다항식 계수를 자동으로 피팅할 수 있습니다. (OpenSim 4.5.1부터는 `setUseStepwiseRegression`을 통한 stepwise regression 기능도 추가되었습니다.)
+* 만약 관절 각도와 경로 길이 간의 정확한 수식 관계를 알고 있다면, 다항식 계수를 수동으로 직접 수정하는 것도 가능합니다.
+
+### 3. OpenSim GUI 시각화(Visualization) 미지원
+
+* 물리적인 형상 정보(path points, wrapping surfaces 등)가 모델에서 제거되고 함수만 남기 때문에, **현재 OpenSim GUI 창에 근육 경로가 표시되지 않습니다.**
+* 시뮬레이션 결과(예: muscle activation 변화 등)를 시각적으로 확인하려면, 피팅된 경로가 원본 경로를 잘 대표한다는 전제하에 **기존 `GeometryPath`가 포함된 원본 모델**에 시뮬레이션 결과를 불러와 시각화해야 합니다.
+
+### 4. 모델 수정용 도구가 아님 (권장 워크플로우)
+
+* `FunctionBasedPath`는 근육 경로를 새로 설계하거나 뼈 위로 우회(re-routing)시키는 모델 빌딩(model-building) 도구가 아닙니다.
+* 근육 경로를 수정해야 한다면 다음 순서를 따르는 것이 권장됩니다.
+1. 원본 모델(또는 [OpenSim Creator](https://www.opensimcreator.com/) 등)에서 `GeometryPath`의 path points나 wrapping surfaces를 수정합니다.
+2. 수정된 모델과 관심 있는 관절 가동 범위를 포함하는 `coordinates.sto` 파일을 [examplePolynomialPathFitter](https://github.com/opensim-org/opensim-core/blob/c82ded4c62260193707fa1199d35dd70340c8060/Bindings/Java/Matlab/examples/PolynomialPathFitter/examplePolynomialPathFitter.m#L4)에 입력하여 새로운 `FunctionBasedPath`를 피팅합니다.
+
+
+
+### 5. 근육 모델과의 독립성
+
+* 특정 근육 모델에 종속되지 않습니다. `DeGrooteFregly2016Muscle`과 `Millard` 근육 모델 모두 `GeometryPath`와 `FunctionBasedPath` 중 원하는 방식을 선택해 사용할 수 있습니다.
+
+---
+
+### 참고 출처
+
+* **SimTK OpenSim Moco Forum ([FunctionBasedPath Custom Path Points](https://simtk.org/plugins/phpBB/viewtopic.php?t=19143&sid=0ee0914e2c94326cb4f22cedefab8240))**: OpenSim 핵심 개발자인 Nicholas Bianco와 Aaron Fox의 답변에서 `FunctionBasedPath`의 동작 원리, GUI 시각화 미지원 이유, `GeometryPath` 기반 수정 후 재피팅 워크플로우, 근육 모델 독립성 및 4.5.1의 stepwise regression 지원 내용을 참고했습니다.
+* **OpenSim 공식 문서 ([What's New in OpenSim 4.5](https://opensimconfluence.atlassian.net/wiki/spaces/OpenSim/pages/53091109/What+s+New+in+OpenSim+4.5), [OpenSim Moco Blog](https://opensim-org.github.io/opensim-moco-site/blog/))**: `FunctionBasedPath`와 `PolynomialPathFitter`의 도입 시점(OpenSim 4.5 / Moco 1.3.0) 및 MATLAB/Python 예제 제공 여부를 확인했습니다.
