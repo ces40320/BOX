@@ -3,8 +3,9 @@
 Does **not** run OpenSim tools. Only checks whether PATH_RULE-expected
 outputs already exist on disk (safe while a pipeline job is running).
 
-Writes:
-  ``OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx``
+Writes (pipeline state, read by other tools):
+  ``Analysis/Asymmetric/_diagnosis/pipeline_state/pipeline_progress.xlsx``
+  (``pipeline_trouble.json`` / ``pipeline_freeze_sim_times.json`` alongside)
 
 Also maintains ``pipeline_freeze_sim_times.json``: a sorted unique set of
 ``freeze_sim_time`` values harvested from timeout troubles (for edge-retry
@@ -21,11 +22,11 @@ Usage
 -----
 ::
 
-    python update_pipeline_progress.py
-    python update_pipeline_progress.py --sub 1,2,3
-    python update_pipeline_progress.py --out D:/tmp/progress.xlsx
-    python update_pipeline_progress.py --sync-freeze-times
-    python update_pipeline_progress.py --sync-freeze-times --namecode 260521_JSY
+    python UPDATE_pipeline_progress.py
+    python UPDATE_pipeline_progress.py --sub 1,2,3
+    python UPDATE_pipeline_progress.py --out D:/tmp/progress.xlsx
+    python UPDATE_pipeline_progress.py --sync-freeze-times
+    python UPDATE_pipeline_progress.py --sync-freeze-times --namecode 260521_JSY
 """
 
 from __future__ import annotations
@@ -49,7 +50,7 @@ if CODES_DIR not in sys.path:
     sys.path.insert(0, CODES_DIR)
 
 from SUB_Info import subjects  # noqa: E402
-from PATH_RULE import OPENSIM_DIR, ResultPaths  # noqa: E402
+from PATH_RULE import OPENSIM_DIR, ResultPaths, pipeline_state_path  # noqa: E402
 import config_methods as _cfg  # noqa: E402
 
 if THIS_DIR not in sys.path:
@@ -98,15 +99,15 @@ CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
 def default_sheet_path() -> str:
-    return os.path.join(OPENSIM_DIR, PROTOCOL, "pipeline_progress.xlsx")
+    return pipeline_state_path(PROTOCOL, "pipeline_progress.xlsx")
 
 
 def default_trouble_path() -> str:
-    return os.path.join(OPENSIM_DIR, PROTOCOL, "pipeline_trouble.json")
+    return pipeline_state_path(PROTOCOL, "pipeline_trouble.json")
 
 
 def default_freeze_times_path() -> str:
-    return os.path.join(OPENSIM_DIR, PROTOCOL, "pipeline_freeze_sim_times.json")
+    return pipeline_state_path(PROTOCOL, "pipeline_freeze_sim_times.json")
 
 
 _FREEZE_IN_ERROR_RE = re.compile(
@@ -269,7 +270,7 @@ def extract_freeze_sim_time(entry: dict) -> float | None:
     return None
 
 
-# Keep in sync with ``retry_so_edge.is_interrupt_error`` (no import cycle).
+# Keep in sync with ``RETRY_so_early_window.is_interrupt_error`` (no import cycle).
 _INTERRUPT_MARKERS = (
     "3221225786",
     "0xC000013A",
@@ -290,7 +291,7 @@ def _trouble_segment_annotation(entry: dict) -> str:
     1. Known freeze sim-time (log-stall / hang) → numeric seconds
     2. Interrupt / pool death → ``interrupt`` (not an edge-retry case)
     3. Stall/hang without a parsed time → ``stall``
-    4. SO (or leftover ``edge-retry:`` JR/BK) → ``retry_so_edge``
+    4. SO (or leftover ``edge-retry:`` JR/BK) → ``RETRY_so_early_window``
     5. Else → ``fail``
     """
     freeze = extract_freeze_sim_time(entry)
@@ -303,7 +304,7 @@ def _trouble_segment_annotation(entry: dict) -> str:
         return "stall"
     tool = str(entry.get("tool") or "").strip().lower()
     if tool == "so" or "edge-retry:" in err:
-        return "retry_so_edge"
+        return "RETRY_so_early_window"
     return "fail"
 
 
@@ -904,7 +905,7 @@ def write_workbook(report: dict, out_path: str) -> str:
         (MARK_DONE, "All expected segments present (error_log excluded)"),
         (MARK_PARTIAL, "Some expected files present"),
         (MARK_EMPTY, "No expected files present"),
-        (MARK_TROUBLE, "Runtime tool failure (failed_segments: SEG: time|retry_so_edge|…)"),
+        (MARK_TROUBLE, "Runtime tool failure (failed_segments: SEG: time|RETRY_so_early_window|…)"),
         ("—", "No expected segments (n_cycles / error_log edge case)"),
         ("", ""),
         ("IK", "Shared across apps → …/<section>/IK/*_IK.mot"),
@@ -915,7 +916,7 @@ def write_workbook(report: dict, out_path: str) -> str:
         ("JR", "…/<section>/JR_<app>/*_JointReaction_ReactionLoads.sto"),
         ("", ""),
         ("How to refresh",
-         "python Codes/c_Run_Tools/update_pipeline_progress.py"),
+         "python Codes/c_Run_Tools/UPDATE_pipeline_progress.py"),
     ]
     for r, (a, b) in enumerate(legend_lines, start=1):
         ws_leg.cell(row=r, column=1, value=a).font = FONT_BOLD
@@ -1126,7 +1127,7 @@ def main() -> None:
     parser.add_argument(
         "--out", default=None,
         help="Output xlsx path (default: "
-             "OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx)",
+             "Analysis/Asymmetric/_diagnosis/pipeline_state/pipeline_progress.xlsx)",
     )
     parser.add_argument(
         "--sync-freeze-times", action="store_true",

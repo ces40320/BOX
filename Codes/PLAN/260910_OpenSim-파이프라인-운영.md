@@ -2,7 +2,7 @@
 
 - **대화 시작**: 2026-09-10
 - **관련 transcript (대표)**: [진행시트](8086f4e4-0696-4421-a0d3-1202512cb8a2), [멀티코어](8f5a4905-d7c8-49fe-9881-1b3047013d9f), [SO 엣지](2671f701-2524-48a1-a96f-41cab8a2cfb4), [ID](0af1afda-ccf2-4e7a-b88a-19746ac7b927), [타임아웃](6eccaa44-b062-48b0-9307-428ba01c9c00)·[원인](7b48e37d-d636-49bf-b4e8-10db9d0b0d73), [감시·게이트](dfeba12f-cce8-44c6-b493-73643bbeaf58)·[b932a006](b932a006-3f6b-4d41-a6b7-5b35a0a09a94), [5분 로그 타임아웃](1113974c-8809-40ec-af1e-0aed77e1d9db), [워커 단위 롤백](c428cea1-fdd7-46d6-9110-daa41d3d863b)
-- **핵심 산출**: `run_opensim_pipeline.py`, `update_pipeline_progress.py`, `retry_so_edge.py`, `OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx` · `pipeline_trouble.json`
+- **핵심 산출**: `run_opensim_pipeline.py`, `UPDATE_pipeline_progress.py`, `troubleshoot_so/rerun_freeze/RETRY_so_early_window.py`, `Analysis/Asymmetric/_diagnosis/pipeline_state/pipeline_progress.xlsx` · `pipeline_trouble.json` (261120 이동, `261120_SO-트러블슈팅-코드-출력물-배치.md` 참조)
 
 ---
 
@@ -17,7 +17,7 @@
 ### 2.1 진행 체크시트 (09-10)
 
 - `OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx` 생성.
-- `update_pipeline_progress.py`: PATH_RULE에 맞는 결과 파일 존재 여부로 체크박스 갱신 (`run_opensim_pipeline.py`는 건드리지 않는 조건으로 시작 → 이후 파이프라인과 연동 강화).
+- `UPDATE_pipeline_progress.py`: PATH_RULE에 맞는 결과 파일 존재 여부로 체크박스 갱신 (`run_opensim_pipeline.py`는 건드리지 않는 조건으로 시작 → 이후 파이프라인과 연동 강화).
 - Matrix에 **BK** 열 추가; 실패 세그먼트는 Detail에 ☒; **복구되면 failed에서 제거** 로직 추가.
 - CLI: `--namecode` / 조건 파싱, 미지정 시 전체 리스트.
 
@@ -33,7 +33,7 @@
 - OpenSim Inverse Dynamics를 파이프라인에 추가; **HeavyHand만** 루프.
 - 초기 `setModelFilename` AttributeError → API 호출 방식으로 수정 후 커밋.
 
-### 2.4 SO 초반 실패 · `retry_so_edge` (09-11)
+### 2.4 SO 초반 실패 · `RETRY_so_early_window` (09-11)
 
 - 일부 trial: 시작 직 근처에서 SO 실패 → **0.05 s부터** 돌리면 통과하는 패턴.
 - 전략: IK/ExtLoad를 덮어쓰지 않고, trouble 목록을 읽어 SO(+JR,BK)를 **잘라 재시도**한 뒤, 0.01–0.04 s 행을 0.05 s 값으로 **패딩 복원**.
@@ -57,10 +57,10 @@
 
 ### 2.7 감시·게이트·워커 모니터 (09-12~14)
 
-- 10분(또는 15분)마다 `update_pipeline_progress`로 완료 감지 → 다음 app/피험자 커맨드 자동 기동 (`watch_gate_*` 류).
+- 10분(또는 15분)마다 `UPDATE_pipeline_progress`로 완료 감지 → 다음 app/피험자 커맨드 자동 기동 (`watch_gate_*` 류).
 - 워커별 조건·cycle·segment·app·tool 표 모니터; IDLE 의미 설명; pre 돌리는 동안 **같은 trial post 병렬** 가능 여부 논의.
 - trouble 시각 set을 json에 누적.
-- KMJ 실패 17건을 `retry_so_edge` **워커 17**로 임시 재시도 등 운영 대응.
+- KMJ 실패 17건을 `RETRY_so_early_window` **워커 17**로 임시 재시도 등 운영 대응.
 
 ### 2.8 기타 운영
 
@@ -96,7 +96,7 @@
 | 고정 30분 wall-clock 타임아웃 | **폐기** → **5분 로그 무변동**으로 확정 |
 | 게이트 스크립트로 PJH→다음 자동 | 느림/좀비 프로세스 이슈로 **취소·수동 재기동** 반복 |
 | 클라우드 에이전트로 타임아웃 PR | 타임아웃만 체리픽 머지; 무관 삭제 변경은 버림 |
-| IK/ExtLoad 앞 0.01–0.04를 0.05로 덮어쓰기 | **기각** (덮어쓰기 관리 부담) → sidecar `retry_so_edge` |
+| IK/ExtLoad 앞 0.01–0.04를 0.05로 덮어쓰기 | **기각** (덮어쓰기 관리 부담) → sidecar `RETRY_so_early_window` |
 
 ---
 
@@ -104,6 +104,6 @@
 
 ```text
 python run_opensim_pipeline.py --namecode <CODE> --tools so,jr --apps MeasuredEHF,HeavyHand,preRiCTO,postRiCTO --workers N --skip-existing
-python update_pipeline_progress.py
-python retry_so_edge.py --namecode <CODE>
+python UPDATE_pipeline_progress.py
+python troubleshoot_so/rerun_freeze/RETRY_so_early_window.py --namecode <CODE>
 ```

@@ -30,7 +30,7 @@ Apps: `MeasuredEHF`, `HeavyHand`, `preRiCTO`, `postRiCTO`.
 `SUBALL` eligibility: `OpenSim_Process/_Main_/Asymmetric/pipeline_progress.xlsx`
 Summary `all_done` (all 4 apps complete, no trouble) **and** on-disk analysis
 CSVs for every app. Refresh progress with
-`python Codes/c_Run_Tools/update_pipeline_progress.py`.
+`python Codes/c_Run_Tools/UPDATE_pipeline_progress.py`.
 Rebuild figures only: `python run_all_analysis.py --suball-only`.
 
 ## Timeseries CSV

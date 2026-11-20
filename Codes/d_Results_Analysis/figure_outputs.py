@@ -54,7 +54,7 @@ from analysis_utils import (  # noqa: E402
 )
 
 try:
-    from update_pipeline_progress import (  # noqa: E402
+    from UPDATE_pipeline_progress import (  # noqa: E402
         MARK_DONE,
         default_sheet_path,
     )
@@ -62,9 +62,7 @@ except Exception:  # pragma: no cover
     MARK_DONE = "☑"
 
     def default_sheet_path() -> str:
-        return str(
-            Path(_path.OPENSIM_DIR) / "Asymmetric" / "pipeline_progress.xlsx"
-        )
+        return _path.pipeline_state_path("Asymmetric", "pipeline_progress.xlsx")
 
 
 L5S1_AXES = tuple(L5S1_FORCE_AXES) + tuple(L5S1_MOMENT_AXES)

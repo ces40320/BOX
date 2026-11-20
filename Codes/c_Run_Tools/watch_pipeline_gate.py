@@ -38,7 +38,9 @@ if CODES_DIR not in sys.path:
 if THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
 
-from update_pipeline_progress import (  # noqa: E402
+from PATH_RULE import diagnosis_dir  # noqa: E402
+from UPDATE_pipeline_progress import (  # noqa: E402
+    PROTOCOL,
     MARK_DONE,
     MARK_TROUBLE,
     _ascii_mark,
@@ -290,7 +292,7 @@ def main() -> int:
             if os.name == "nt":
                 creationflags = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
             log_path = os.path.join(
-                THIS_DIR,
+                diagnosis_dir(PROTOCOL, "pipeline_runs", "logs"),
                 f"watch_gate_next_{args.next_namecode}.log",
             )
             log_f = open(log_path, "a", encoding="utf-8")

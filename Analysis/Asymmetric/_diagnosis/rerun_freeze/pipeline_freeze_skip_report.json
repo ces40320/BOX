@@ -1,0 +1,872 @@
+{
+  "updated_at": "2026-09-25 02:13:08",
+  "namecode": "260526_PJM",
+  "n_succeeded": 19,
+  "n_failed": 81,
+  "succeeded": [
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "1CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.8
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "2CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.86
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "3CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.16
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "5CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.96
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "6AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.33
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "9AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.46
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "9CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.99
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "2AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.83
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "3AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 4.24
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "4CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.7
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "7AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 4.11
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "10AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.63
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "1CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.85
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "3AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.16
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "3CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.81
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "5AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.8
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "7AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.93
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "9AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.86
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "10CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.7
+    }
+  ],
+  "failed": [
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "1AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.91,
+      "freeze_sim_time": 3.68,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.68\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_lzucinhy\\opensim_jobs_z3gkrqe1.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_lzucinhy\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "2AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.7,
+      "freeze_sim_time": 3.39,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.39\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_sv693_2q\\opensim_jobs_l1ge4xtj.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_sv693_2q\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "2BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.69,
+      "freeze_sim_time": 2.52,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.52\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_b8g6g94q\\opensim_jobs_7aglyxhv.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_b8g6g94q\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "3AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 3.46,
+      "freeze_sim_time": 3.89,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.89\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_sbwdpchj\\opensim_jobs_py3fclaq.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_sbwdpchj\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "3BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.37,
+      "freeze_sim_time": 2.84,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.84\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_dlqdi8u4\\opensim_jobs_7mbnzbyy.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_dlqdi8u4\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "4AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.87,
+      "freeze_sim_time": 3.55,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.55\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_n0m722gt\\opensim_jobs_r38e5w6x.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_n0m722gt\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "4BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.44,
+      "freeze_sim_time": 3.13,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.13\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_kazupdt7\\opensim_jobs_u4dy5qty.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_kazupdt7\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "4CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.47,
+      "freeze_sim_time": 2.89,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.89\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run__0r2dtv7\\opensim_jobs_s5mtkx75.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run__0r2dtv7\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "5BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.63,
+      "freeze_sim_time": 2.61,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.61\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_4yrhs0py\\opensim_jobs_rgeite58.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_4yrhs0py\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "5CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.54,
+      "freeze_sim_time": 3.04,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.04\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_8buqik4g\\opensim_jobs_sxrr2lhq.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_8buqik4g\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "6AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.92,
+      "freeze_sim_time": 4.44,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 4.44\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_od40ubq9\\opensim_jobs_ouydr0nn.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_od40ubq9\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "6BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.76,
+      "freeze_sim_time": 3.34,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.34\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_6joqbkwc\\opensim_jobs_bzjih5ut.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_6joqbkwc\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "7AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.79,
+      "freeze_sim_time": 3.47,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.47\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_dc50zdyo\\opensim_jobs_r_pyn_2m.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_dc50zdyo\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "7BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.7,
+      "freeze_sim_time": 2.12,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.12\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_zkol3se2\\opensim_jobs_qx9h_tel.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_zkol3se2\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "7CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.89,
+      "freeze_sim_time": 3.1,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.1\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_2s_9if_0\\opensim_jobs_e17jockt.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_2s_9if_0\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "8AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 3.57,
+      "freeze_sim_time": 4.06,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 4.06\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_gnn7viae\\opensim_jobs_h8j53euy.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_gnn7viae\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "8BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.65,
+      "freeze_sim_time": 1.72,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.72\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_5sjb8unc\\opensim_jobs_w1catqae.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_5sjb8unc\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "8CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.91,
+      "freeze_sim_time": 3.07,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.07\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7umgo3us\\opensim_jobs_s94a7whx.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7umgo3us\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "9BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.79,
+      "freeze_sim_time": 3.12,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.12\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_kp7qce3l\\opensim_jobs_5jmdl4kp.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_kp7qce3l\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "9CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.46,
+      "freeze_sim_time": 1.54,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.54\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_5fjk5o02\\opensim_jobs_9zfarewa.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_5fjk5o02\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "10AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 3.48,
+      "freeze_sim_time": 3.93,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.93\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_p8mf3j6d\\opensim_jobs_hipbe33r.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_p8mf3j6d\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "10BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.49,
+      "freeze_sim_time": 2.95,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.95\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_d7tl04iv\\opensim_jobs_acm73pff.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_d7tl04iv\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "11AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.8,
+      "freeze_sim_time": 3.33,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.33\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_61wdjw74\\opensim_jobs_y7ioruh6.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_61wdjw74\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "11BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.83,
+      "freeze_sim_time": 2.88,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.88\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_y7dfy86e\\opensim_jobs_x67af80g.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_y7dfy86e\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "1AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.85,
+      "freeze_sim_time": 2.39,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.39\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_g0mrpbg8\\opensim_jobs_5q8g489w.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_g0mrpbg8\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "1BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.93,
+      "freeze_sim_time": 2.79,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.79\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_24hl6rlq\\opensim_jobs_upjzskf0.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_24hl6rlq\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "2AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.21,
+      "freeze_sim_time": 2.59,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.59\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_maqz1uyj\\opensim_jobs_c0s3g9bz.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_maqz1uyj\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "2BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.62,
+      "freeze_sim_time": 2.91,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.91\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_i1dh_56p\\opensim_jobs__c1ntij1.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_i1dh_56p\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "3AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.25,
+      "freeze_sim_time": 2.82,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.82\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_uo_m4kyl\\opensim_jobs_3krebg0o.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_uo_m4kyl\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "3BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.84,
+      "freeze_sim_time": 1.21,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.21\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_9ekort4l\\opensim_jobs_pqwdnpb3.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_9ekort4l\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "4AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.62,
+      "freeze_sim_time": 1.71,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.71\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_vf4l83l6\\opensim_jobs_hndwkpr2.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_vf4l83l6\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "4BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.0,
+      "freeze_sim_time": 2.81,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.81\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_nvx5x454\\opensim_jobs_uppmfrx4.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_nvx5x454\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "4CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.58,
+      "freeze_sim_time": 2.82,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.82\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_aqv13nv6\\opensim_jobs_migim3c0.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_aqv13nv6\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "5AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.48,
+      "freeze_sim_time": 2.7,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.7\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_qs90bxt0\\opensim_jobs_g_kbylxf.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_qs90bxt0\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "5BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.22,
+      "freeze_sim_time": 2.08,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.08\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_0z9rsde6\\opensim_jobs_47d972ev.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_0z9rsde6\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "6BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.88,
+      "freeze_sim_time": 3.19,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.19\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_dxknillh\\opensim_jobs_fo_b4j_l.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_dxknillh\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "7AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.85,
+      "freeze_sim_time": 3.2,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.2\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ih8drmcv\\opensim_jobs_6wymnl01.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ih8drmcv\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "7BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.21,
+      "freeze_sim_time": 2.86,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.86\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ptbebg6x\\opensim_jobs_84p6y31i.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ptbebg6x\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "8BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.58,
+      "freeze_sim_time": 1.89,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.89\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_jf3mbkyn\\opensim_jobs_otolxknp.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_jf3mbkyn\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "9BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.83,
+      "freeze_sim_time": 1.42,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.42\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_vn9xl9hf\\opensim_jobs_60lnz0rh.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_vn9xl9hf\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "10AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.27,
+      "freeze_sim_time": 3.1,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.1\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_epaw4229\\opensim_jobs_ol457n_z.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_epaw4229\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "10BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.15,
+      "freeze_sim_time": 2.57,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.57\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_xwqryyk6\\opensim_jobs_8vvvb7px.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_xwqryyk6\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "11BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.85,
+      "freeze_sim_time": 1.16,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.16\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_v7kp25ch\\opensim_jobs_4n21hr7m.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_v7kp25ch\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "11CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.91,
+      "freeze_sim_time": 2.04,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.04\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_k5fq58if\\opensim_jobs_1lkhdrlk.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_k5fq58if\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "12AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.86,
+      "freeze_sim_time": 2.51,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.51\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1y0mu2mf\\opensim_jobs_p4ndc_94.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1y0mu2mf\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "12BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.17,
+      "freeze_sim_time": 1.83,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.83\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ofw8afbj\\opensim_jobs_q3m3w718.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ofw8afbj\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "1BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.65,
+      "freeze_sim_time": 3.66,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.66\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_6xm1w6b7\\opensim_jobs_j6pbwvzg.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_6xm1w6b7\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "2BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.85,
+      "freeze_sim_time": 3.24,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.24\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_s_r1jjbj\\opensim_jobs_1l_e9f2_.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_s_r1jjbj\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "3BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.97,
+      "freeze_sim_time": 3.09,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.09\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_tw2pjxy9\\opensim_jobs__o1ll767.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_tw2pjxy9\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "4AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.58,
+      "freeze_sim_time": 4.43,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 4.43\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7ev5lq3d\\opensim_jobs_c7g4nn82.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7ev5lq3d\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "4BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.45,
+      "freeze_sim_time": 2.7,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.7\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_smqhotx1\\opensim_jobs_07swrn53.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_smqhotx1\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "5AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.64,
+      "freeze_sim_time": 4.2,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 4.2\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7c4oms5w\\opensim_jobs_nh2rbpmg.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7c4oms5w\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "5BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.65,
+      "freeze_sim_time": 2.88,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.88\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_x05wpkl3\\opensim_jobs_te3z4dg7.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_x05wpkl3\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "6AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.49,
+      "freeze_sim_time": 3.25,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.25\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_5kql4zt5\\opensim_jobs_kb7fcrth.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_5kql4zt5\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "6BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.75,
+      "freeze_sim_time": 3.11,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.11\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1sv1jv6u\\opensim_jobs_2wippa6v.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1sv1jv6u\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "6CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.92,
+      "freeze_sim_time": 2.03,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.03\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_wyh1hleo\\opensim_jobs_m49reyxc.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_wyh1hleo\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "7BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.41,
+      "freeze_sim_time": 3.82,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.82\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_z09mc213\\opensim_jobs_j__p8w9j.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_z09mc213\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "8AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 3.54,
+      "freeze_sim_time": null,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: unknown\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_stb1gba2\\opensim_jobs_mhx65pvu.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_stb1gba2\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "8BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.54,
+      "freeze_sim_time": 2.94,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.94\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_chgebaa9\\opensim_jobs_5oxy_ws6.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_chgebaa9\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "8CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.06,
+      "freeze_sim_time": null,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: unknown\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_rf5_omi3\\opensim_jobs_eb9xfzk6.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_rf5_omi3\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "9AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.41,
+      "freeze_sim_time": 3.34,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.34\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_bvl1egy7\\opensim_jobs_bk580ifg.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_bvl1egy7\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "9BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.51,
+      "freeze_sim_time": 2.59,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.59\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_wwpcefnc\\opensim_jobs_1fhzdpdp.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_wwpcefnc\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "9CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.46,
+      "freeze_sim_time": 2.71,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.71\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_z9l2qskb\\opensim_jobs_2xafsx8w.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_z9l2qskb\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "10BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.43,
+      "freeze_sim_time": 3.03,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.03\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_a1sbavz1\\opensim_jobs_q1tdm47t.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_a1sbavz1\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "10CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.98,
+      "freeze_sim_time": null,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: unknown\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1f_n_zmx\\opensim_jobs_zhb4tq75.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1f_n_zmx\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "1AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.4,
+      "freeze_sim_time": 3.04,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.04\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_lrsdf8nr\\opensim_jobs_6glihgw1.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_lrsdf8nr\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "1BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.44,
+      "freeze_sim_time": 2.12,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.12\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_fy7niaq0\\opensim_jobs_r8oojhft.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_fy7niaq0\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "2BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.81,
+      "freeze_sim_time": 1.97,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.97\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_903w4hn9\\opensim_jobs_ihf6hnnz.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_903w4hn9\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "3BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.18,
+      "freeze_sim_time": 1.72,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.72\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_n7_0gm89\\opensim_jobs_imduljg3.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_n7_0gm89\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "4AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.22,
+      "freeze_sim_time": 3.21,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 3.21\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7bo8b9_q\\opensim_jobs_z1f4dc6i.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_7bo8b9_q\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "4BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.87,
+      "freeze_sim_time": 1.23,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.23\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_z1ie6xsv\\opensim_jobs_nm1a40hb.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_z1ie6xsv\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "5BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.81,
+      "freeze_sim_time": 2.55,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.55\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_fonrdiu7\\opensim_jobs_ncx46dlf.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_fonrdiu7\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "5CA",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.72,
+      "freeze_sim_time": 1.8,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.8\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_d49rolir\\opensim_jobs_j3a310aw.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_d49rolir\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "6AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.72,
+      "freeze_sim_time": 2.28,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.28\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_c5gwysib\\opensim_jobs_5nggzk6v.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_c5gwysib\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "6BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.08,
+      "freeze_sim_time": 2.26,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.26\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_2518pfs8\\opensim_jobs_8ez75m01.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_2518pfs8\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "7BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 0.93,
+      "freeze_sim_time": 1.69,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.69\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ggtmbp8c\\opensim_jobs_k4kr12ma.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_ggtmbp8c\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "8AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.61,
+      "freeze_sim_time": 2.71,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.71\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_vyk55cg_\\opensim_jobs_q32py7wa.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_vyk55cg_\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "8BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.72,
+      "freeze_sim_time": 2.0,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_n7b8kz83\\opensim_jobs_6xgeo2s9.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_n7b8kz83\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "9BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.27,
+      "freeze_sim_time": 1.95,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.95\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1yf2lf3a\\opensim_jobs_t1fb0m72.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_1yf2lf3a\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "10AB",
+      "app": "MeasuredEHF",
+      "prior_freeze": 2.41,
+      "freeze_sim_time": 2.71,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 2.71\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_xf5uylm_\\opensim_jobs_dgillmd9.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_xf5uylm_\\opensim.log"
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "10BC",
+      "app": "MeasuredEHF",
+      "prior_freeze": 1.31,
+      "freeze_sim_time": 1.71,
+      "error": "AnalyzeTool subprocess killed after 120s log stall (opensim.log unchanged; tool=so; suspected frozen optimization).\n  freeze_sim_time_s: 1.71\n  Manifest preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_swtqqspz\\opensim_jobs_0kuewtf5.json\n  opensim.log preserved at: C:\\Users\\ok\\AppData\\Local\\Temp\\opensim_run_swtqqspz\\opensim.log"
+    }
+  ]
+}
