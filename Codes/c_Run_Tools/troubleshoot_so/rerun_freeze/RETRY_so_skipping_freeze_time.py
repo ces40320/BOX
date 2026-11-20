@@ -11,10 +11,20 @@ The skipped ~0.04 s is not physics — it is a hold bridge so downstream
 time grids stay continuous. ``controls.xml`` is left as the back-only
 OpenSim dump (JR consumes activation + force).
 
+Cases come from ``pipeline_trouble.json`` (SO entries with a freeze time),
+filtered by ``--namecode / --condition / --seg / --apps``. ``--freeze-s``
+runs the given segments at a manual freeze time instead.
+
+Outputs:
+- canonical stitched SO (+ JR) in ``SO_<app>/`` / ``JR_<app>/``
+- front/back pieces in ``SO_<app>/troubleshoot_so/rerun_freeze/`` while
+  running; removed after the stitched result is written (kept on failure)
+- batch report: ``Analysis/<protocol>/_diagnosis/rerun_freeze/pipeline_freeze_skip_report.json``
+
 Example::
 
-    python retry_so_freeze_skip.py
-    python retry_so_freeze_skip.py --seg 4CA --skip-jr
+    python RETRY_so_skipping_freeze_time.py --namecode 260519_KMJ
+    python RETRY_so_skipping_freeze_time.py --namecode 260519_KMJ --condition 10kg_16bpm --seg 4CA --freeze-s 1.42 --skip-jr
 """
 
 from __future__ import annotations
@@ -28,14 +38,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-CODES_DIR = os.path.dirname(THIS_DIR)
-if CODES_DIR not in sys.path:
-    sys.path.append(CODES_DIR)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _ts_paths  # noqa: E402,F401
 
-from PATH_RULE import ConditionPaths, ResultPaths  # noqa: E402
+from PATH_RULE import (  # noqa: E402
+    TROUBLESHOOT_SO_DIRNAME,
+    ConditionPaths,
+    ResultPaths,
+    diagnosis_dir,
+)
 from opensim_pipeline_handlers import (  # noqa: E402
     prepare_jr_setup,
     prepare_so_setup,
@@ -46,8 +57,8 @@ from optimization.ricto_io import (  # noqa: E402
     read_opensim_storage,
     write_opensim_storage,
 )
-from update_pipeline_progress import (  # noqa: E402
-    default_trouble_path,
+from UPDATE_pipeline_progress import (  # noqa: E402
+    PROTOCOL,
     extract_freeze_sim_time,
     load_troubles,
     record_trouble,
@@ -56,35 +67,7 @@ from update_pipeline_progress import (  # noqa: E402
     sync_freeze_sim_times_from_troubles,
 )
 
-# KMJ segments that hung at the same sim-time across all ExtLoad apps.
-DEFAULT_NAMECODE = "260519_KMJ"
-DEFAULT_CONDITION = "10kg_16bpm"
-SEGMENT_FREEZES_S: dict[str, float] = {
-    "4CA": 1.42,
-    "8CA": 1.51,
-    "9CA": 1.43,
-    "10BC": 2.2,
-}
-ALL_APPS: tuple[str, ...] = (
-    "MeasuredEHF",
-    "HeavyHand",
-    "preRiCTO",
-    "postRiCTO",
-)
-
-
-def _builtin_cases(apps: list[str]) -> list[dict]:
-    return [
-        {
-            "namecode": DEFAULT_NAMECODE,
-            "condition": DEFAULT_CONDITION,
-            "segment": seg,
-            "app": app,
-            "freeze_sim_time": freeze,
-        }
-        for seg, freeze in SEGMENT_FREEZES_S.items()
-        for app in apps
-    ]
+APPROACH = "rerun_freeze"
 
 SO_TYPES = ("force", "activation")
 SKIP_BEFORE_S = 0.01
@@ -111,10 +94,7 @@ def _freeze_from_exc(exc: BaseException) -> float | None:
 
 
 def _report_path() -> str:
-    return os.path.join(
-        os.path.dirname(default_trouble_path()),
-        FREEZE_SKIP_REPORT_NAME,
-    )
+    return os.path.join(diagnosis_dir(PROTOCOL, APPROACH), FREEZE_SKIP_REPORT_NAME)
 
 
 def _write_freeze_skip_report(
@@ -196,17 +176,21 @@ def _so_paths(cp: ConditionPaths, seg: str, app: str) -> dict[str, str]:
     return {t: cp.so_path(seg, app, t) for t in SO_TYPES}
 
 
-def _side_path(canonical: str, tag: str) -> str:
+def _side_path(canonical: str, tag: str, approach: str = APPROACH) -> str:
+    """``SO_<app>/troubleshoot_so/<approach>/<stem>.<tag><ext>``."""
     p = Path(canonical)
-    return str(p.with_name(p.stem + f".{tag}" + p.suffix))
+    return str(p.parent / TROUBLESHOOT_SO_DIRNAME / approach
+               / (p.stem + f".{tag}" + p.suffix))
 
 
-def _move_so_outputs(paths: dict[str, str], tag: str) -> dict[str, str]:
+def _move_so_outputs(paths: dict[str, str], tag: str,
+                     approach: str = APPROACH) -> dict[str, str]:
     out: dict[str, str] = {}
     for kind, src in paths.items():
         if not os.path.isfile(src):
             raise FileNotFoundError(f"SO {kind} missing after run: {src}")
-        dst = _side_path(src, tag)
+        dst = _side_path(src, tag, approach)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
         if os.path.isfile(dst):
             os.remove(dst)
         shutil.move(src, dst)
@@ -217,7 +201,7 @@ def _move_so_outputs(paths: dict[str, str], tag: str) -> dict[str, str]:
         "_activation.sto", "_controls.xml"
     )
     if controls.endswith("_controls.xml") and os.path.isfile(controls):
-        side = _side_path(controls, tag)
+        side = _side_path(controls, tag, approach)
         if os.path.isfile(side):
             os.remove(side)
         shutil.move(controls, side)
@@ -290,10 +274,26 @@ def resolve_cases(
     condition: str | None,
     segments: set[str] | None,
     apps: set[str] | None,
-    from_trouble: bool,
+    manual_freeze_s: float | None = None,
 ) -> list[dict]:
-    if from_trouble:
-        cases: list[dict] = []
+    if manual_freeze_s is not None:
+        if not (namecode and condition and segments and apps):
+            raise SystemExit(
+                "--freeze-s needs --namecode, --condition, --seg and --apps"
+            )
+        cases = [
+            {
+                "namecode": namecode,
+                "condition": condition,
+                "segment": seg,
+                "app": app,
+                "freeze_sim_time": float(manual_freeze_s),
+            }
+            for seg in sorted(segments)
+            for app in sorted(apps)
+        ]
+    else:
+        cases = []
         for e in load_troubles():
             if str(e.get("tool") or "").lower() != "so":
                 continue
@@ -309,9 +309,6 @@ def resolve_cases(
                     "freeze_sim_time": float(ft),
                 }
             )
-    else:
-        use_apps = sorted(apps) if apps else list(ALL_APPS[:1])  # MeasuredEHF
-        cases = _builtin_cases(use_apps)
 
     out: list[dict] = []
     for c in cases:
@@ -348,12 +345,12 @@ def run_one_case(
     cp = ConditionPaths(rp, cond)
     paths = _so_paths(cp, seg, app)
     ctrl = paths["force"].replace("_force.sto", "_controls.xml")
-    all_scratch = (
-        list(paths.values())
-        + [_side_path(p, "front") for p in paths.values()]
-        + [_side_path(p, "back") for p in paths.values()]
-        + [ctrl, _side_path(ctrl, "front"), _side_path(ctrl, "back")]
-    )
+    pieces = [
+        _side_path(p, tag)
+        for p in [*paths.values(), ctrl]
+        for tag in ("front", "back")
+    ]
+    all_scratch = list(paths.values()) + [ctrl] + pieces
 
     _log(
         f"===== {namecode} {cond} {seg} {app}  "
@@ -397,6 +394,8 @@ def run_one_case(
         back_ctrl = _side_path(ctrl, "back")
         if os.path.isfile(back_ctrl):
             shutil.copy2(back_ctrl, ctrl)
+        _delete_if_exists(pieces)
+        _log("  pieces removed (stitched result is canonical)")
 
         if skip_jr:
             _log(f"[OK] {seg}/{app} SO stitch done (JR skipped)")
@@ -419,19 +418,24 @@ def main() -> None:
     parser.add_argument(
         "--namecode",
         default=None,
-        help="Subject namecode filter. Default: built-in KMJ when not "
-             "--from-trouble, else all namecodes in trouble file.",
+        help="Subject namecode filter (default: all namecodes in trouble file).",
     )
     parser.add_argument(
         "--condition",
         default=None,
-        help="Condition filter (e.g. 10kg_16bpm). Default: no filter "
-             "(built-in KMJ list uses 10kg_16bpm).",
+        help="Condition filter (e.g. 10kg_16bpm). Default: no filter.",
     )
     parser.add_argument(
         "--seg",
         default=None,
-        help="Comma-separated segments (default: built-in KMJ freeze list)",
+        help="Comma-separated segment filter (e.g. 4CA,8CA)",
+    )
+    parser.add_argument(
+        "--freeze-s",
+        type=float,
+        default=None,
+        help="Manual freeze sim-time for --namecode/--condition/--seg/--apps "
+             "instead of reading pipeline_trouble.json.",
     )
     parser.add_argument(
         "--exclude",
@@ -455,7 +459,7 @@ def main() -> None:
     parser.add_argument(
         "--from-trouble",
         action="store_true",
-        help="Take cases from pipeline_trouble.json (SO + freeze_sim_time)",
+        help="(default behaviour; kept for old command lines)",
     )
     parser.add_argument(
         "--skip-before",
@@ -514,20 +518,12 @@ def main() -> None:
                 return True
         return False
 
-    namecode = args.namecode
-    condition = args.condition
-    if not args.from_trouble:
-        namecode = namecode or DEFAULT_NAMECODE
-        condition = condition or DEFAULT_CONDITION
-        if not apps:
-            apps = {"MeasuredEHF"}
-
     cases = resolve_cases(
-        namecode=namecode,
-        condition=condition,
+        namecode=args.namecode,
+        condition=args.condition,
         segments=segs,
         apps=apps or None,
-        from_trouble=args.from_trouble,
+        manual_freeze_s=args.freeze_s,
     )
     if exclude_raw:
         before = len(cases)

@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-_CODES = Path(__file__).resolve().parents[1]
+_CODES = Path(__file__).resolve().parents[3]
 if str(_CODES) not in sys.path:
     sys.path.insert(0, str(_CODES))
 
@@ -21,6 +21,9 @@ import PATH_RULE as _path  # noqa: E402
 import SUB_Info as _sub_info  # noqa: E402
 
 ROOT = Path(_path.OPENSIM_DIR) / "Asymmetric"
+# Outputs / cross-inputs live under Analysis/Asymmetric/_diagnosis/quality_check.
+OUT = Path(_path.diagnosis_dir("Asymmetric", "quality_check"))
+TROUBLE_JSON = Path(_path.pipeline_state_path("Asymmetric", "pipeline_trouble.json"))
 FREEZE_RE = re.compile(r"freeze_sim_time_s:\s*([0-9]+(?:\.[0-9]+)?)", re.I)
 STALL_RE = re.compile(r"log.?stall|unchanged|freeze", re.I)
 
@@ -72,7 +75,7 @@ def is_freeze_stall(entry: dict) -> bool:
 
 
 def load_troubles() -> pd.DataFrame:
-    with open(ROOT / "pipeline_trouble.json", encoding="utf-8") as f:
+    with open(TROUBLE_JSON, encoding="utf-8") as f:
         raw = json.load(f)
     nc_map = namecode_to_sub()
     rows = []
@@ -175,9 +178,9 @@ def main() -> int:
     sys.path.insert(0, str(_CODES / "c_Run_Tools"))
 
     troubles = load_troubles()
-    ik = pd.read_csv(ROOT / "quality_check_IK.csv")
-    idf = pd.read_csv(ROOT / "quality_check_ID_reserves.csv")
-    scale = pd.read_csv(ROOT / "quality_check_scaling.csv")
+    ik = pd.read_csv(OUT / "quality_check_IK.csv")
+    idf = pd.read_csv(OUT / "quality_check_ID_reserves.csv")
+    scale = pd.read_csv(OUT / "quality_check_scaling.csv")
 
     print("=== Trouble overview ===")
     print("total", len(troubles))
@@ -275,7 +278,7 @@ def main() -> int:
         merged.append(row)
 
     mdf = pd.DataFrame(merged)
-    out_csv = ROOT / "quality_check_SO_freeze_cross.csv"
+    out_csv = OUT / "quality_check_SO_freeze_cross.csv"
     mdf.to_csv(out_csv, index=False)
     print(f"\nWrote {out_csv} ({len(mdf)} rows)")
 
@@ -440,7 +443,7 @@ def main() -> int:
             print(f"  {c}: rho={rho:.3f}  n={int(mask.sum())}")
 
     # Write short MD addendum
-    md_path = ROOT / "quality_check_SO_culprit.md"
+    md_path = OUT / "quality_check_SO_culprit.md"
     lines = [
         "# SO freeze vs quality metrics — culprit candidates",
         "",

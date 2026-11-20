@@ -17,13 +17,16 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-_CODES = Path(__file__).resolve().parents[1]
+_CODES = Path(__file__).resolve().parents[3]
 sys.path[:0] = [str(_CODES), str(_CODES / "c_Run_Tools")]
 
 import PATH_RULE as _path  # noqa: E402
 import SUB_Info as _sub_info  # noqa: E402
 
 ROOT = Path(_path.OPENSIM_DIR) / "Asymmetric"
+# Outputs / cross-inputs live under Analysis/Asymmetric/_diagnosis/quality_check.
+OUT = Path(_path.diagnosis_dir("Asymmetric", "quality_check"))
+TROUBLE_JSON = Path(_path.pipeline_state_path("Asymmetric", "pipeline_trouble.json"))
 TEMP = Path.home() / "AppData" / "Local" / "Temp"
 
 PRESERVE_RE = re.compile(r"opensim\.log preserved at:\s*(\S+)", re.I)
@@ -153,7 +156,7 @@ def scan_log(path: Path) -> Dict[str, Any]:
 
 
 def load_trouble_freeze_rows() -> pd.DataFrame:
-    with open(ROOT / "pipeline_trouble.json", encoding="utf-8") as f:
+    with open(TROUBLE_JSON, encoding="utf-8") as f:
         raw = json.load(f)
     nc_map = namecode_to_sub()
     rows = []
@@ -256,7 +259,7 @@ def main() -> int:
             print(f"  scanned {len(scanned)}…")
 
     sdf = pd.DataFrame(scanned)
-    out_csv = ROOT / "quality_check_SO_log_warnings.csv"
+    out_csv = OUT / "quality_check_SO_log_warnings.csv"
     sdf.to_csv(out_csv, index=False)
     print(f"Wrote {out_csv} ({len(sdf)} rows)")
 
@@ -296,8 +299,8 @@ def main() -> int:
             print(f"    {c:4d}  {m}")
 
     # Cross with residual / ID metrics
-    cross = ROOT / "quality_check_SO_freeze_cross.csv"
-    idf = ROOT / "quality_check_ID_reserves.csv"
+    cross = OUT / "quality_check_SO_freeze_cross.csv"
+    idf = OUT / "quality_check_ID_reserves.csv"
     if cross.is_file():
         cdf = pd.read_csv(cross)
         m = exist.merge(
@@ -397,7 +400,7 @@ def main() -> int:
         )
 
     # Write MD update
-    md_path = ROOT / "quality_check_SO_log_warnings.md"
+    md_path = OUT / "quality_check_SO_log_warnings.md"
     lines = [
         "# SO opensim.log warnings on freeze failures",
         "",
@@ -488,7 +491,7 @@ def main() -> int:
     print(f"Wrote {md_path}")
 
     # Append short section to culprit MD
-    culprit = ROOT / "quality_check_SO_culprit.md"
+    culprit = OUT / "quality_check_SO_culprit.md"
     if culprit.is_file():
         block = [
             "",

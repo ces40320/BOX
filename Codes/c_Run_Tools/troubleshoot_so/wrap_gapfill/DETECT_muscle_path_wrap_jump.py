@@ -1,13 +1,13 @@
 """Detect Chest wrap path anomalies on SO-failed trials and assign tier A/B/C.
 
 Does not modify shared scaled models. Writes
-``Codes/c_Run_Tools/chest_wrap_work/<SUB#>/chest_wrap_detect_report.json``
-and a flags CSV.
+``Analysis/<protocol>/_diagnosis/wrap_gapfill/<SUB#>/chest_wrap_detect_report.json``
+and ``chest_wrap_detect_flags.csv``.
 
 Example::
 
-    python detect_chest_wrap_anomalies.py --from-trouble --namecode 260519_KMJ
-    python detect_chest_wrap_anomalies.py --self-test
+    python DETECT_muscle_path_wrap_jump.py --from-trouble --namecode 260519_KMJ
+    python DETECT_muscle_path_wrap_jump.py --self-test
 """
 
 from __future__ import annotations
@@ -17,15 +17,11 @@ import csv
 import os
 import sys
 
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-CODES_DIR = os.path.dirname(THIS_DIR)
-if CODES_DIR not in sys.path:
-    sys.path.append(CODES_DIR)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _ts_paths  # noqa: E402,F401
 
 from PATH_RULE import ConditionPaths, ResultPaths  # noqa: E402
-from chest_wrap_lib import (  # noqa: E402
+from wrap_detect_lib import (  # noqa: E402
     Severity,
     classify_tier,
     good_intervals,
@@ -38,7 +34,7 @@ from chest_wrap_lib import (  # noqa: E402
     write_json,
 )
 from pipeline_rules import resolve_model_path  # noqa: E402
-from update_pipeline_progress import (  # noqa: E402
+from UPDATE_pipeline_progress import (  # noqa: E402
     extract_freeze_sim_time,
     load_troubles,
 )
@@ -205,7 +201,7 @@ def main() -> None:
         by_subject.setdefault(case["namecode"], []).append(res)
 
     for nc, results in by_subject.items():
-        out_dir = repair_dir(nc)
+        out_dir = repair_dir(nc, "wrap_gapfill")
         report = os.path.join(out_dir, "chest_wrap_detect_report.json")
         write_json(report, stamped_payload(results))
         csv_path = os.path.join(out_dir, "chest_wrap_detect_flags.csv")

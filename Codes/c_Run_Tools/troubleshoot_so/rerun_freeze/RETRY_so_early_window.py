@@ -39,10 +39,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import get_context
 
 
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-CODES_DIR = os.path.dirname(THIS_DIR)
-if CODES_DIR not in sys.path:
-    sys.path.append(CODES_DIR)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _ts_paths  # noqa: E402,F401
 
 from PATH_RULE import ResultPaths
 from SUB_Info import subjects
@@ -55,7 +53,7 @@ from opensim_pipeline_handlers import (
     run_so,
 )
 from pipeline_rules import ik_suffix, jr_suffixes
-from update_pipeline_progress import (
+from UPDATE_pipeline_progress import (
     extract_freeze_sim_time,
     load_troubles,
     record_trouble,
@@ -933,7 +931,7 @@ def main() -> None:
         selected, skipped = manual_retry_cases(
             namecodes or set(), conditions or set(), segments or set(), apps,
         )
-        _log("[retry_so_edge] mode=manual  (sidecar ignored)")
+        _log("[RETRY_so_early_window] mode=manual  (sidecar ignored)")
     else:
         entries = load_troubles(args.trouble_json)
         selected, skipped = select_retry_cases(
@@ -945,14 +943,14 @@ def main() -> None:
             segments=segments,
             apps=apps,
         )
-    _log(f"[retry_so_edge] selected={len(selected)}  skipped_so={len(skipped)}")
+    _log(f"[RETRY_so_early_window] selected={len(selected)}  skipped_so={len(skipped)}")
     for entry in skipped:
         _log(
             f"[SKIP] {entry.get('namecode')} {entry.get('condition')} "
             f"{entry.get('segment')} {entry.get('app')}  {entry.get('_skip')}"
         )
     if not selected:
-        _log("[retry_so_edge] nothing to do")
+        _log("[RETRY_so_early_window] nothing to do")
         return
 
     payloads = [
@@ -1014,7 +1012,7 @@ def main() -> None:
                     )
 
     if args.skip_bk:
-        _log("[retry_so_edge] --skip-bk: skipping BK pass")
+        _log("[RETRY_so_early_window] --skip-bk: skipping BK pass")
     else:
         seen_seg: set[tuple[str, str, str]] = set()
         for payload in payloads:
@@ -1061,7 +1059,7 @@ def main() -> None:
         except Exception as exc:
             _log(f"[TROUBLE] sheet refresh failed: {type(exc).__name__}: {exc}")
 
-    _log(f"[retry_so_edge] DONE  failures={len(failures)}")
+    _log(f"[RETRY_so_early_window] DONE  failures={len(failures)}")
     if failures:
         raise SystemExit(1)
 

@@ -2,9 +2,12 @@
 
 Refuses Tier B/C. Does not edit the shared scaled model.
 
+Per-island SO pieces are kept in ``SO_<app>/troubleshoot_so/wrap_gapfill/``
+while running and removed once the stitched canonical SO is written.
+
 Example::
 
-    python retry_so_path_gapfill.py --detect-json path/to/chest_wrap_detect_report.json
+    python RETRY_so_gapfill_wrap_jump.py --detect-json path/to/chest_wrap_detect_report.json
 """
 
 from __future__ import annotations
@@ -15,28 +18,26 @@ import os
 import shutil
 import sys
 
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-CODES_DIR = os.path.dirname(THIS_DIR)
-if CODES_DIR not in sys.path:
-    sys.path.append(CODES_DIR)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _ts_paths  # noqa: E402,F401
 
 from PATH_RULE import ConditionPaths, ResultPaths  # noqa: E402
-from chest_wrap_lib import good_intervals, stitch_sto_cubic, write_json  # noqa: E402
+from wrap_detect_lib import good_intervals, stitch_sto_cubic, write_json  # noqa: E402
 from opensim_pipeline_handlers import (  # noqa: E402
     prepare_jr_setup,
     prepare_so_setup,
     run_jr,
     run_so,
 )
-from retry_so_freeze_skip import (  # noqa: E402
+from RETRY_so_skipping_freeze_time import (  # noqa: E402
     SO_TYPES,
     _delete_if_exists,
     _move_so_outputs,
     _side_path,
     _so_paths,
 )
+
+APPROACH = "wrap_gapfill"
 
 
 def _log(msg: str) -> None:
@@ -82,12 +83,12 @@ def repair_tier_a(
     if dry_run:
         return {"status": "dry_run", "n_good": len(goods), "islands": islands}
 
-    scratch = list(paths.values()) + [ctrl]
-    for i in range(len(goods)):
-        for p in paths.values():
-            scratch.append(_side_path(p, f"g{i}"))
-        scratch.append(_side_path(ctrl, f"g{i}"))
-    _delete_if_exists(scratch)
+    pieces = [
+        _side_path(p, f"g{i}", APPROACH)
+        for i in range(len(goods))
+        for p in [*paths.values(), ctrl]
+    ]
+    _delete_if_exists(list(paths.values()) + [ctrl] + pieces)
 
     seg_paths: dict[str, list[str]] = {k: [] for k in SO_TYPES}
     try:
@@ -101,22 +102,18 @@ def repair_tier_a(
                 cp=cp, rp=rp, seg=seg, app=app,
                 timeout_s=timeout_s, model_path=model_path,
             )
-            moved = _move_so_outputs(paths, f"g{i}")
+            moved = _move_so_outputs(paths, f"g{i}", APPROACH)
             for kind in SO_TYPES:
                 seg_paths[kind].append(moved[kind])
-            gctrl = _side_path(ctrl, f"g{i}")
-            if os.path.isfile(ctrl):
-                if os.path.isfile(gctrl):
-                    os.remove(gctrl)
-                shutil.move(ctrl, gctrl)
 
         for kind in SO_TYPES:
             n, ts, te = stitch_sto_cubic(seg_paths[kind], paths[kind])
             _log(f"  [stitch {kind}] n={n} t=[{ts:.4g}, {te:.4g}]")
 
-        last_ctrl = _side_path(ctrl, f"g{len(goods) - 1}")
+        last_ctrl = _side_path(ctrl, f"g{len(goods) - 1}", APPROACH)
         if os.path.isfile(last_ctrl):
             shutil.copy2(last_ctrl, ctrl)
+        _delete_if_exists(pieces)
 
         if not skip_jr:
             _log("[JR] full window on stitched SO")

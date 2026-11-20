@@ -12,13 +12,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-_CODES = Path(__file__).resolve().parents[1]
+_CODES = Path(__file__).resolve().parents[3]
 sys.path[:0] = [str(_CODES), str(_CODES / "c_Run_Tools")]
 
 import PATH_RULE as _path  # noqa: E402
 from optimization.ricto_io import read_opensim_storage  # noqa: E402
 
 ROOT = Path(_path.OPENSIM_DIR) / "Asymmetric"
+# Outputs / cross-inputs live under Analysis/Asymmetric/_diagnosis/quality_check.
+OUT = Path(_path.diagnosis_dir("Asymmetric", "quality_check"))
 
 
 def so_force_index() -> dict:
@@ -99,10 +101,10 @@ def ehf_cols(df: pd.DataFrame) -> list[str]:
 
 
 def main() -> int:
-    cross = pd.read_csv(ROOT / "quality_check_SO_freeze_cross.csv")
-    idf = pd.read_csv(ROOT / "quality_check_ID_reserves.csv")
-    ik = pd.read_csv(ROOT / "quality_check_IK.csv")
-    scale = pd.read_csv(ROOT / "quality_check_scaling.csv")
+    cross = pd.read_csv(OUT / "quality_check_SO_freeze_cross.csv")
+    idf = pd.read_csv(OUT / "quality_check_ID_reserves.csv")
+    ik = pd.read_csv(OUT / "quality_check_IK.csv")
+    scale = pd.read_csv(OUT / "quality_check_scaling.csv")
     so_idx = so_force_index()
 
     # SO coverage
@@ -237,7 +239,7 @@ def main() -> int:
         local_rows.append(row)
 
     loc = pd.DataFrame(local_rows)
-    loc_path = ROOT / "quality_check_SO_freeze_local.csv"
+    loc_path = OUT / "quality_check_SO_freeze_local.csv"
     loc.to_csv(loc_path, index=False)
     print(f"Wrote {loc_path} n={len(loc)}")
 
@@ -288,7 +290,7 @@ def main() -> int:
         print(early[cols].to_string(index=False))
 
     # Update culprit MD with confound-aware conclusion
-    md = ROOT / "quality_check_SO_culprit.md"
+    md = OUT / "quality_check_SO_culprit.md"
     extra = [
         "",
         "## Confound check (important)",
@@ -319,7 +321,7 @@ def main() -> int:
         "- Limb arm/elbow moments stay small vs 200 Nm reserve (not the bottleneck).",
         "- MeasuredEHF ExtLoad hand-force spikes at freeze should be inspected case-by-case "
         "(column names vary); early freezes (≤0.2 s) are few and may be edge/init issues "
-        "(`retry_so_edge` target).",
+        "(`RETRY_so_early_window` target).",
         "",
         "## Ranked culprit narrative",
         "",

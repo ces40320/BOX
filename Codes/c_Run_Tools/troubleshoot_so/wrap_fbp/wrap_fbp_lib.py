@@ -1,32 +1,38 @@
 """Tier B repair: trial-only FunctionBasedPath, else Chest sidecar.
 
 The shared scaled ``.osim`` is never overwritten. Gap-fill is not used.
+
+Outputs (per trial, ``SO_<app>/troubleshoot_so/wrap_fbp/``):
+
+- ``<SUB>_<cond>_<seg>_<app>_WrapFBP.osim``  trial model (or ``_ChestPatch.osim``)
+- ``<SUB>_<cond>_<seg>_<app>_wrap_fbp_record.json``  what was replaced and why
+
+SO / JR results go to the canonical ``SO_<app>`` / ``JR_<app>`` files; the
+pipeline picks the trial model automatically (``pipeline_rules.resolve_model_path``).
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
+import tempfile
+from datetime import datetime
 
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-CODES_DIR = os.path.dirname(THIS_DIR)
-if CODES_DIR not in sys.path:
-    sys.path.append(CODES_DIR)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _ts_paths  # noqa: E402,F401
 
 from pathlib import Path  # noqa: E402
 
 from PATH_RULE import ConditionPaths, ResultPaths  # noqa: E402
-from chest_wrap_lib import (  # noqa: E402
+from wrap_detect_lib import (  # noqa: E402
     CHEST_WRAP_NAMES,
     POSTERIOR_AXIS,
     POSTERIOR_SIGN,
     TIER_A_BAD_FRAC,
     TIER_A_MAX_ISLAND_S,
     import_opensim,
-    repair_dir,
     scan_trial,
 )
 from opensim_pipeline_handlers import (  # noqa: E402
@@ -35,7 +41,7 @@ from opensim_pipeline_handlers import (  # noqa: E402
     run_jr,
     run_so,
 )
-from optimization.ricto_io import read_opensim_storage, write_opensim_storage  # noqa: E402
+from optimization.ricto_io import read_opensim_storage  # noqa: E402
 
 
 def _log(msg: str) -> None:
@@ -50,11 +56,11 @@ def _in_islands(t: float, islands: list) -> bool:
 
 
 def _sidecar_path(cp: ConditionPaths, seg: str, app: str, tag: str) -> str:
-    section = cp.seg_to_section(seg)
-    d = cp.so_dir(section, app)
-    os.makedirs(d, exist_ok=True)
-    stem = f"{cp.sub_label}_{cp.cond}_{seg}_{app}_{tag}"
-    return os.path.join(d, stem + ".osim")
+    """Trial-only osim under ``SO_<app>/troubleshoot_so/wrap_fbp/``."""
+    if tag == "WrapFBP":
+        return cp.wrap_fbp_model_path(seg, app)
+    d = cp.so_troubleshoot_dir(cp.seg_to_section(seg), app, "wrap_fbp")
+    return os.path.join(d, f"{cp.sub_label}_{cp.cond}_{seg}_{app}_{tag}.osim")
 
 
 def _drop_other_muscles(osim, model, keep: set[str]) -> int:
@@ -114,10 +120,13 @@ def _fit_length_polys_numpy(
     meta: dict,
     muscles: list[str],
     order: int = 3,
-) -> dict[str, list[float]]:
-    """Least-squares l(q) on good IK rows. Returns muscle → coefficients."""
+) -> tuple[dict[str, list[float]], dict[str, float]]:
+    """Least-squares l(q) on good IK rows.
+
+    Returns ``(muscle → coefficients, muscle → length RMSE [m])``.
+    """
     import numpy as np
-    from chest_wrap_lib import _apply_ik_row, _ik_in_degrees
+    from wrap_detect_lib import _apply_ik_row, _ik_in_degrees
 
     model = osim.Model(model_path)
     state = model.initSystem()
@@ -138,6 +147,7 @@ def _fit_length_polys_numpy(
     q = np.asarray(q_rows, dtype=float)
     A, _ = _design_matrix(q, order)
     coefs: dict[str, list[float]] = {}
+    rmses: dict[str, float] = {}
     for m in muscles:
         y = np.asarray(L[m], dtype=float)
         if not np.all(np.isfinite(y)):
@@ -149,7 +159,8 @@ def _fit_length_polys_numpy(
         rmse = float(np.sqrt(np.mean((y - yhat) ** 2)))
         _log(f"[FBP] numpy {m}: order={order} RMSE={rmse*100:.3f} cm n={len(y)}")
         coefs[m] = [float(v) for v in c]
-    return coefs
+        rmses[m] = rmse
+    return coefs, rmses
 
 
 def _write_function_based_path_set(
@@ -196,32 +207,35 @@ def build_fbp_sidecar(
     islands: list,
     muscles: list[str],
     out_osim: str,
-    work_dir: str,
-) -> str | None:
+) -> tuple[str | None, dict]:
     """Fit FunctionBasedPaths on good IK frames for ``muscles`` only.
 
     Uses a numpy least-squares fit of ``MultivariatePolynomialFunction``
     coefficients (OpenSim monomial order). ``PolynomialPathFitter`` on this
     OpenSim 4.5 / Windows build yields NaN coeffs for most lumbar paths.
+
+    Returns ``(out_osim or None, fit_info)``; ``fit_info`` goes into the
+    trial repair record.
     """
+    info: dict = {"muscles": list(muscles), "coordinates": list(_FBP_COORD_NAMES)}
     if not muscles:
         _log("[FBP] no target muscles")
-        return None
+        return None, info
     osim = import_opensim()
-    os.makedirs(work_dir, exist_ok=True)
     ik_df, meta = read_opensim_storage(ik_path)
     tcol = "time" if "time" in ik_df.columns else "Time"
     keep_rows = ~ik_df[tcol].map(lambda t: _in_islands(float(t), islands))
     good = ik_df.loc[keep_rows].reset_index(drop=True)
+    info["n_frames_total"] = int(len(ik_df))
+    info["n_frames_fit"] = int(len(good))
     if len(good) < 8:
         _log(f"[FBP] only {len(good)} good frames — skip")
-        return None
-    good_mot = os.path.join(work_dir, "ik_good_frames.mot")
-    write_opensim_storage(good_mot, good, meta)
+        return None, info
 
     order = 3
+    info["poly_order"] = order
     try:
-        coefs = _fit_length_polys_numpy(
+        coefs, rmses = _fit_length_polys_numpy(
             osim,
             model_path=model_path,
             good_df=good,
@@ -231,18 +245,22 @@ def build_fbp_sidecar(
         )
     except Exception as exc:  # noqa: BLE001
         _log(f"[FBP] numpy fit failed: {exc}")
-        return None
+        info["fit_error"] = str(exc)
+        return None, info
+    info["length_rmse_m"] = rmses
 
-    paths_xml = os.path.join(work_dir, "FunctionBasedPathSet_numpy.xml")
-    _write_function_based_path_set(paths_xml, coefs, order=order)
-    proc = osim.ModelProcessor(model_path)
-    proc.append(osim.ModOpReplacePathsWithFunctionBasedPaths(paths_xml))
-    fitted = proc.process()
+    with tempfile.TemporaryDirectory(prefix="wrap_fbp_") as tmp:
+        paths_xml = os.path.join(tmp, "FunctionBasedPathSet_numpy.xml")
+        _write_function_based_path_set(paths_xml, coefs, order=order)
+        proc = osim.ModelProcessor(model_path)
+        proc.append(osim.ModOpReplacePathsWithFunctionBasedPaths(paths_xml))
+        fitted = proc.process()
     fitted.finalizeConnections()
     fitted.initSystem()
+    os.makedirs(os.path.dirname(out_osim), exist_ok=True)
     fitted.printToXML(out_osim)
     _log(f"[FBP] sidecar → {out_osim} ({len(coefs)} paths, numpy)")
-    return out_osim
+    return out_osim, info
 
 
 def _scale_chest(osim, model, scale: float, posterior_m: float) -> None:
@@ -287,8 +305,19 @@ def build_chest_sidecar(
         (1.15, 0.0),
         (1.0, 0.010),
     ]
-    work = os.path.join(repair_dir(namecode), "_chest_grid")
-    os.makedirs(work, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="chest_grid_") as work:
+        return _chest_grid_search(
+            osim=osim, model_path=model_path, ik_path=ik_path,
+            out_osim=out_osim, namecode=namecode, condition=condition,
+            segment=segment, app=app, baseline_bad_s=baseline_bad_s,
+            candidates=candidates, work=work,
+        )
+
+
+def _chest_grid_search(
+    *, osim, model_path, ik_path, out_osim, namecode, condition, segment,
+    app, baseline_bad_s, candidates, work,
+) -> tuple[str | None, dict]:
     best = None
     best_bad = baseline_bad_s
     best_info = {}
@@ -331,6 +360,10 @@ def build_chest_sidecar(
     if best is None or best_bad >= baseline_bad_s * 0.8:
         _log("[Chest] no candidate improved bad time by ≥20%")
         return None, best_info
+    if not best_info.get("reaches_tier_a_metrics"):
+        _log("[Chest] best candidate still has long excursions — not saved")
+        return None, best_info
+    os.makedirs(os.path.dirname(out_osim), exist_ok=True)
     shutil.copy2(best[0], out_osim)
     _log(f"[Chest] sidecar → {out_osim}")
     return out_osim, best_info
@@ -365,16 +398,17 @@ def repair_tier_b(
     timeout_s: float | None = 120.0,
     dry_run: bool = False,
 ) -> dict:
-    """FBP sidecar first, Chest patch second. Returns a status dict."""
+    """FBP sidecar first, Chest patch second. Returns a status dict.
+
+    A trial model is kept only if SO with it succeeds (otherwise it is
+    removed so the pipeline does not pick it up). On success a repair record
+    JSON is written next to it.
+    """
     if str(case.get("tier") or "B") != "B":
         raise ValueError(f"repair_tier_b called for tier {case.get('tier')}")
     rp = ResultPaths(case["namecode"])
     cp = ConditionPaths(rp, case["condition"])
-    work = os.path.join(
-        repair_dir(case["namecode"]),
-        f"{case['condition']}_{case['segment']}_{case['app']}",
-    )
-    os.makedirs(work, exist_ok=True)
+    seg, app = case["segment"], case["app"]
     info = {
         "status": "tier_C",
         "gapfill_rejected_reason": "severity",
@@ -385,25 +419,39 @@ def repair_tier_b(
         info["status"] = "dry_run"
         return info
 
-    fbp_path = _sidecar_path(cp, case["segment"], case["app"], "WrapFBP")
-    built = build_fbp_sidecar(
+    record = {
+        "namecode": case["namecode"],
+        "condition": case["condition"],
+        "segment": seg,
+        "app": app,
+        "source_model": model_path,
+        "ik": ik_path,
+        "excluded_islands_s": islands,
+        "baseline_bad_s": baseline_bad_s,
+    }
+
+    fbp_path = _sidecar_path(cp, seg, app, "WrapFBP")
+    built, fit_info = build_fbp_sidecar(
         model_path=model_path,
         ik_path=ik_path,
         islands=islands,
         muscles=muscles,
         out_osim=fbp_path,
-        work_dir=work,
     )
+    info["fbp_fit"] = fit_info
     if built:
         try:
             _run_full_so(case, built, skip_jr=skip_jr, timeout_s=timeout_s)
             info.update(status="ok", method="function_based_path", sidecar=built)
+            _write_record(cp, seg, app, record, method="function_based_path",
+                          model=built, details=fit_info, skip_jr=skip_jr)
             return info
         except Exception as exc:  # noqa: BLE001
             _log(f"[FBP] SO failed: {exc}")
             info["fbp_so_error"] = str(exc)
+            _remove_quiet(built)
 
-    chest_path = _sidecar_path(cp, case["segment"], case["app"], "ChestPatch")
+    chest_path = _sidecar_path(cp, seg, app, "ChestPatch")
     osim = import_opensim()
     built_c, chest_info = build_chest_sidecar(
         osim=osim,
@@ -412,8 +460,8 @@ def repair_tier_b(
         out_osim=chest_path,
         namecode=case["namecode"],
         condition=case["condition"],
-        segment=case["segment"],
-        app=case["app"],
+        segment=seg,
+        app=app,
         baseline_bad_s=baseline_bad_s,
     )
     info["chest"] = chest_info
@@ -421,19 +469,41 @@ def repair_tier_b(
         info["status"] = "tier_C"
         info["exclude_from_primary"] = True
         return info
-    if not chest_info.get("reaches_tier_a_metrics"):
-        # Still a long excursion: do not pretend quality is fine.
-        info["status"] = "tier_C"
-        info["exclude_from_primary"] = True
-        info["chest_sidecar_unaccepted"] = built_c
-        return info
     try:
         _run_full_so(case, built_c, skip_jr=skip_jr, timeout_s=timeout_s)
     except Exception as exc:  # noqa: BLE001
         _log(f"[Chest] SO failed: {exc}")
+        _remove_quiet(built_c)
         info["status"] = "tier_C"
         info["exclude_from_primary"] = True
         info["chest_so_error"] = str(exc)
         return info
     info.update(status="ok", method="chest_sidecar", sidecar=built_c)
+    _write_record(cp, seg, app, record, method="chest_sidecar",
+                  model=built_c, details=chest_info, skip_jr=skip_jr)
     return info
+
+
+def _remove_quiet(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _write_record(cp: ConditionPaths, seg: str, app: str, record: dict, *,
+                  method: str, model: str, details: dict, skip_jr: bool) -> str:
+    out = cp.wrap_fbp_record_path(seg, app)
+    payload = dict(record)
+    payload.update(
+        method=method,
+        trial_model=model,
+        details=details,
+        jr_run=not skip_jr,
+        canonical_so_force=cp.so_path(seg, app, "force"),
+        created_at=datetime.now().isoformat(timespec="seconds"),
+    )
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    _log(f"[record] {out}")
+    return out

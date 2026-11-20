@@ -1,7 +1,7 @@
 """Chest wrap path anomaly detection, severity tiers, and SO gap-fill helpers.
 
-Shared by ``detect_chest_wrap_anomalies.py``, ``retry_so_path_gapfill.py``,
-``chest_wrap_tier_b.py``, and ``run_chest_wrap_repair.py``.
+Shared by ``wrap_gapfill/`` (detect, gap-fill), ``wrap_fbp/`` (trial l(q)
+model) and ``RUN_fix_muscle_path_wrap_fail.py``.
 
 Does not modify the shared scaled ``.osim``.
 """
@@ -88,26 +88,90 @@ def import_opensim():
     return osim
 
 
-def repair_dir(namecode: str) -> str:
-    """Working / report dir under ``Codes/c_Run_Tools/chest_wrap_work/<SUB#>``.
+def repair_dir(namecode: str, approach: str) -> str:
+    """Report dir ``Analysis/<protocol>/_diagnosis/<approach>/<SUB#>``.
 
-    Never write tools or scratch outputs into ``OpenSim_Process/.../SUB#/``.
+    Never write tools or reports into ``OpenSim_Process/.../SUB#/`` or
+    under ``Codes/``.
     """
-    import sys
-
-    codes = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if codes not in sys.path:
-        sys.path.append(codes)
-    from PATH_RULE import ResultPaths
+    from PATH_RULE import ResultPaths, diagnosis_dir
 
     rp = ResultPaths(namecode)
-    d = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "chest_wrap_work",
-        rp.sub_label,
-    )
-    os.makedirs(d, exist_ok=True)
-    return d
+    return diagnosis_dir(rp.protocol, approach, rp.sub_label)
+
+
+# Path-length change in one IK frame that counts as a wrap side swap.
+JUMP_DL_M = 0.05
+
+
+def detect_length_jumps(
+    osim,
+    model_path: str,
+    ik_path: str,
+    *,
+    muscles: Sequence[str] | None = None,
+    dl_m: float = JUMP_DL_M,
+    pad_s: float = DEFAULT_PAD_S,
+) -> tuple[list[list[float]], list[str]]:
+    """Short mid-trial path-length jumps (Chest wrap side swaps) from IK.
+
+    A jump of ``>= dl_m`` that later returns (opposite sign, ``>= 50 %``
+    magnitude) marks one island; islands are padded by ``pad_s`` and merged.
+    ``muscles`` defaults to every Chest-wrapped muscle. Chronic straight
+    paths (never jump) are ignored.
+
+    Returns ``(islands, muscles_with_jumps)``.
+    """
+    from optimization.ricto_io import read_opensim_storage
+
+    model = osim.Model(model_path)
+    state = model.initSystem()
+    names = list(muscles) if muscles else list_chest_path_muscles(model)
+    ik_df, meta = read_opensim_storage(ik_path)
+    tcol = "time" if "time" in ik_df.columns else "Time"
+    indeg = _ik_in_degrees(meta)
+    times = ik_df[tcol].to_numpy(dtype=float)
+    objs = {m: model.getMuscles().get(m) for m in names}
+    lengths = {m: np.full(len(times), np.nan) for m in names}
+    for fi, (_, row) in enumerate(ik_df.iterrows()):
+        _apply_ik_row(osim, model, state, row, indeg)
+        for m, mus in objs.items():
+            lengths[m][fi] = float(mus.getGeometryPath().getLength(state))
+
+    raw: list[list[float]] = []
+    jumped: list[str] = []
+    n = len(times)
+    for m in names:
+        a = lengths[m]
+        d = np.diff(a)
+        jump = np.zeros(n, dtype=bool)
+        jump[1:] = np.isfinite(d) & (np.abs(d) >= dl_m)
+        if jump.any():
+            jumped.append(m)
+        i = 1
+        while i < n:
+            if not jump[i]:
+                i += 1
+                continue
+            sign = float(a[i] - a[i - 1])
+            j = i + 1
+            while j < n:
+                if jump[j]:
+                    dj = float(a[j] - a[j - 1])
+                    if sign * dj < 0 and abs(dj) >= 0.5 * abs(sign):
+                        break
+                j += 1
+            end = j - 1 if j < n else n - 1
+            raw.append([float(times[i]) - pad_s, float(times[end]) + pad_s])
+            i = j + 1 if j < n else n
+    raw.sort()
+    merged: list[list[float]] = []
+    for lo, hi in raw:
+        if merged and lo <= merged[-1][1] + 1e-9:
+            merged[-1][1] = max(merged[-1][1], hi)
+        else:
+            merged.append([lo, hi])
+    return merged, jumped
 
 
 def list_chest_path_muscles(model) -> list[str]:

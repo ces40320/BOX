@@ -15,13 +15,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-_CODES = Path(__file__).resolve().parents[1]
+_CODES = Path(__file__).resolve().parents[3]
 sys.path[:0] = [str(_CODES), str(_CODES / "c_Run_Tools")]
 
 import PATH_RULE as _path  # noqa: E402
 from optimization.ricto_io import read_opensim_storage  # noqa: E402
 
 ROOT = Path(_path.OPENSIM_DIR) / "Asymmetric"
+# Outputs / cross-inputs live under Analysis/Asymmetric/_diagnosis/quality_check.
+OUT = Path(_path.diagnosis_dir("Asymmetric", "quality_check"))
 
 # coord -> (id_col, so_col, optimal_force)
 SPECS = [
@@ -148,14 +150,14 @@ def summarize(df: pd.DataFrame, label: str) -> None:
 def main() -> int:
     # HeavyHand: fair compare (ID is HeavyHand-only)
     hh = analyze("HeavyHand")
-    out = ROOT / "quality_check_ID_vs_SO_reserves.csv"
+    out = OUT / "quality_check_ID_vs_SO_reserves.csv"
     hh.to_csv(out, index=False)
     print(f"Wrote {out} ({len(hh)} rows)")
     summarize(hh, "HeavyHand SO success")
 
     # Also a MeasuredEHF sample if many exist (ID still HeavyHand)
     me = analyze("MeasuredEHF")
-    out2 = ROOT / "quality_check_ID_vs_SO_reserves_MeasuredEHF.csv"
+    out2 = OUT / "quality_check_ID_vs_SO_reserves_MeasuredEHF.csv"
     me.to_csv(out2, index=False)
     print(f"Wrote {out2} ({len(me)} rows)")
     summarize(me, "MeasuredEHF SO success (ID=HeavyHand)")
@@ -222,7 +224,7 @@ def main() -> int:
     lines.append("")
     lines.append(f"MeasuredEHF companion table: `{out2.name}`.")
     lines.append("")
-    md = ROOT / "quality_check_ID_vs_SO_reserves.md"
+    md = OUT / "quality_check_ID_vs_SO_reserves.md"
     md.write_text("\n".join(lines), encoding="utf-8")
     print(f"Wrote {md}")
     return 0
