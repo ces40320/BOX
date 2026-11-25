@@ -569,6 +569,11 @@ def run_id(
 #  SO  (Static Optimization)
 # ══════════════════════════════════════════════════════════════════
 
+def _in_dir(path: str, out_dir: str | None) -> str:
+    """Same file name as ``path``, moved into ``out_dir`` when given."""
+    return os.path.join(out_dir, os.path.basename(path)) if out_dir else path
+
+
 def prepare_so_setup(
     *,
     cp,
@@ -584,6 +589,7 @@ def prepare_so_setup(
     start_time: float | None = None,
     end_time: float | None = None,
     model_path: str | None = None,
+    results_dir: str | None = None,
 ) -> str:
     """Write ``SETUP_SO_*.xml`` for one (segment, app).
 
@@ -598,9 +604,13 @@ def prepare_so_setup(
 
     ``model_path`` overrides the kg-aware base osim (trial sidecar only).
     The shared scaled model is left untouched.
+
+    ``results_dir`` puts both the setup XML and the SO outputs in that folder
+    instead of the canonical ``SO_<app>``, so candidate models can be run
+    without touching the official result. Pass the same value to ``run_so``.
     """
-    setup_so_xml = cp.setup_so_path(seg, app)
-    results_dir = cp.so_dir(cp.seg_to_section(seg), app)
+    setup_so_xml = _in_dir(cp.setup_so_path(seg, app), results_dir)
+    results_dir = results_dir or cp.so_dir(cp.seg_to_section(seg), app)
     if model_path is None:
         model_path = resolve_model_path(rp, cp.cond, app, "so",
                                         must_exist=not dry_run, seg=seg)
@@ -657,14 +667,17 @@ def run_so(
     dry_run: bool = False,
     timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
     model_path: str | None = None,
+    results_dir: str | None = None,
 ) -> str:
     """Run a previously prepared ``SETUP_SO_*.xml`` for one (segment, app).
 
     Executes inside an isolated Python subprocess so that the in-process
     OpenSim state left over by ``prepare_so_setup`` (or by any earlier
     SETUP build) cannot suppress this run.  See module docstring.
+
+    ``results_dir`` must match the value given to ``prepare_so_setup``.
     """
-    setup_so_xml = cp.setup_so_path(seg, app)
+    setup_so_xml = _in_dir(cp.setup_so_path(seg, app), results_dir)
     if dry_run:
         return setup_so_xml
     if not os.path.isfile(setup_so_xml):
@@ -838,6 +851,8 @@ def prepare_jr_setup(
     start_time: float | None = None,
     end_time: float | None = None,
     model_path: str | None = None,
+    results_dir: str | None = None,
+    so_results_dir: str | None = None,
 ) -> list[str]:
     """Write one or two ``SETUP_JR_*.xml`` files for one (segment, app).
 
@@ -846,9 +861,17 @@ def prepare_jr_setup(
 
     ``start_time`` / ``end_time`` override the TRC window. Used by
     ``RETRY_so_early_window.py`` so JR matches a truncated SO window.
+
+    ``results_dir`` puts the setup XMLs and JR outputs there instead of the
+    canonical ``JR_<app>``; ``so_results_dir`` reads the SO force/activation
+    inputs from there instead of the canonical ``SO_<app>``. Pass the same
+    ``results_dir`` to ``run_jr``.
     """
     suffixes = _jr_suffix_order(app)
-    setup_paths = [cp.setup_jr_path(seg, app, suffix) for suffix in suffixes]
+    setup_paths = [
+        _in_dir(cp.setup_jr_path(seg, app, suffix), results_dir)
+        for suffix in suffixes
+    ]
 
     if dry_run:
         return setup_paths
@@ -867,10 +890,10 @@ def prepare_jr_setup(
     ik_mot, extload_xml = _ik_inputs_for_app(cp, seg, app)
 
     # SO outputs are mandatory inputs for JR (controls + forces).
-    so_controls = cp.so_path(seg, app, "activation")
-    so_forces   = cp.so_path(seg, app, "force")
+    so_controls = _in_dir(cp.so_path(seg, app, "activation"), so_results_dir)
+    so_forces   = _in_dir(cp.so_path(seg, app, "force"), so_results_dir)
 
-    results_dir = cp.jr_dir(cp.seg_to_section(seg), app)
+    results_dir = results_dir or cp.jr_dir(cp.seg_to_section(seg), app)
     os.makedirs(results_dir, exist_ok=True)
 
     for suffix, setup_xml in zip(suffixes, setup_paths):
@@ -917,15 +940,21 @@ def run_jr(
     dry_run: bool = False,
     timeout_s: float | None = DEFAULT_ANALYZE_TIMEOUT_S,
     model_path: str | None = None,
+    results_dir: str | None = None,
 ) -> list[str]:
     """Run all JR setup XMLs for one (segment, app), renaming ground output.
 
     All jobs are executed in a SINGLE isolated subprocess so that the
     rename step (canonical → ``_ground``) sits between the two consecutive
     ``.run()`` calls without going back to the SET-polluted main process.
+
+    ``results_dir`` must match the value given to ``prepare_jr_setup``.
     """
     suffixes = _jr_suffix_order(app)
-    setup_paths = [cp.setup_jr_path(seg, app, suffix) for suffix in suffixes]
+    setup_paths = [
+        _in_dir(cp.setup_jr_path(seg, app, suffix), results_dir)
+        for suffix in suffixes
+    ]
 
     if dry_run:
         return setup_paths
@@ -935,7 +964,7 @@ def run_jr(
                                         seg=seg)
     elif not os.path.isfile(model_path):
         raise FileNotFoundError(f"JR model override missing: {model_path}")
-    canonical_jr_sto = cp.jr_path(seg, app, "")
+    canonical_jr_sto = _in_dir(cp.jr_path(seg, app, ""), results_dir)
 
     jobs: list[dict] = []
     for suffix, setup_xml in zip(suffixes, setup_paths):
@@ -952,7 +981,7 @@ def run_jr(
         if suffix:
             # Rename the canonical sto (just produced by this job) to its
             # suffixed name BEFORE the next (child) job overwrites it.
-            suffixed = cp.jr_path(seg, app, suffix)
+            suffixed = _in_dir(cp.jr_path(seg, app, suffix), results_dir)
             job["rename_after"] = [[canonical_jr_sto, suffixed]]
         jobs.append(job)
 

@@ -3,12 +3,11 @@
 Uses the subject-level ``*_ChestFix.osim`` / ``*_ChestVia.osim`` as
 ``model_path`` for ``prepare_so_setup`` / ``run_so`` / ``run_jr``.
 
-The pipeline writes SO/JR into the canonical ``SO_<app>`` / ``JR_<app>``
-folders. For each trial the original segment files are first copied to
-``compare/baseline/<cond>_<seg>_<app>/``; after each variant run its outputs
-are copied to ``compare/runs/<A|B>/…`` and the originals are restored, so the
-canonical results are unchanged when the script finishes. L5–S1 reaction is
-reported both absolutely and as the difference from the original result.
+Candidate SO/JR outputs (and their setup XMLs) go to
+``SO_<app>/troubleshoot_so/chest_wrap_<A|B>/`` and
+``JR_<app>/troubleshoot_so/chest_wrap_<A|B>/``. The canonical ``SO_<app>`` /
+``JR_<app>`` files are only read, as the baseline for the L5–S1 reaction
+difference.
 
 Example::
 
@@ -20,17 +19,15 @@ Example::
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import os
-import shutil
 import sys
 from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import _ts_paths  # noqa: E402,F401
 
-from PATH_RULE import ConditionPaths, ResultPaths  # noqa: E402
+from PATH_RULE import TROUBLESHOOT_SO_DIRNAME, ConditionPaths, ResultPaths  # noqa: E402
 from DETECT_muscle_path_wrap_jump import resolve_paths, trouble_cases  # noqa: E402
 from opensim_pipeline_handlers import (  # noqa: E402
     prepare_jr_setup,
@@ -60,21 +57,44 @@ def _subject_model(namecode: str, variant: str) -> str:
     raise ValueError(variant)
 
 
-def _run_so_jr(case: dict, model_path: str, *, skip_jr: bool, timeout_s: float | None) -> dict:
+def _variant_dirs(case: dict, variant: str) -> dict[str, str]:
+    """Canonical and candidate SO/JR folders for one trial."""
+    rp = ResultPaths(case["namecode"])
+    cp = ConditionPaths(rp, case["condition"])
+    section = cp.seg_to_section(case["segment"])
+    approach = f"chest_wrap_{variant}"
+    so_canon = cp.so_dir(section, case["app"])
+    jr_canon = cp.jr_dir(section, case["app"])
+    return {
+        "so_canon": so_canon,
+        "jr_canon": jr_canon,
+        "so": os.path.join(so_canon, TROUBLESHOOT_SO_DIRNAME, approach),
+        "jr": os.path.join(jr_canon, TROUBLESHOOT_SO_DIRNAME, approach),
+    }
+
+
+def _run_so_jr(case: dict, model_path: str, dirs: dict[str, str], *,
+               skip_jr: bool, timeout_s: float | None) -> dict:
     rp = ResultPaths(case["namecode"])
     cp = ConditionPaths(rp, case["condition"])
     seg, app = case["segment"], case["app"]
     info = {"so": "ok", "jr": "skipped" if skip_jr else "ok"}
+    os.makedirs(dirs["so"], exist_ok=True)
     try:
-        prepare_so_setup(cp=cp, rp=rp, seg=seg, app=app, model_path=model_path)
-        run_so(cp=cp, rp=rp, seg=seg, app=app, timeout_s=timeout_s, model_path=model_path)
+        prepare_so_setup(cp=cp, rp=rp, seg=seg, app=app, model_path=model_path,
+                         results_dir=dirs["so"])
+        run_so(cp=cp, rp=rp, seg=seg, app=app, timeout_s=timeout_s,
+               model_path=model_path, results_dir=dirs["so"])
     except Exception as exc:  # noqa: BLE001
         info["so"] = f"fail: {exc}"
         return info
     if not skip_jr:
+        os.makedirs(dirs["jr"], exist_ok=True)
         try:
-            prepare_jr_setup(cp=cp, rp=rp, seg=seg, app=app, model_path=model_path)
-            run_jr(cp=cp, rp=rp, seg=seg, app=app, timeout_s=timeout_s, model_path=model_path)
+            prepare_jr_setup(cp=cp, rp=rp, seg=seg, app=app, model_path=model_path,
+                             results_dir=dirs["jr"], so_results_dir=dirs["so"])
+            run_jr(cp=cp, rp=rp, seg=seg, app=app, timeout_s=timeout_s,
+                   model_path=model_path, results_dir=dirs["jr"])
         except Exception as exc:  # noqa: BLE001
             info["jr"] = f"fail: {exc}"
     return info
@@ -109,78 +129,13 @@ def _jr_summary(path: str) -> dict:
     return out
 
 
-def _find_jr_path_in(jr_dir: str, seg: str) -> str:
-    if not os.path.isdir(jr_dir):
-        return ""
-    for pat in (f"*_{seg}_*Reaction*.sto", f"*_{seg}_*.sto"):
-        hits = sorted(glob.glob(os.path.join(jr_dir, pat)))
-        if hits:
-            return hits[0]
-    return ""
-
-
-def _canonical_dirs(case: dict) -> dict[str, str]:
+def _jr_sto(case: dict, jr_dir: str) -> str:
+    """Canonical-named child-frame JR file for this trial inside ``jr_dir``."""
     rp = ResultPaths(case["namecode"])
     cp = ConditionPaths(rp, case["condition"])
-    section = cp.seg_to_section(case["segment"])
-    return {
-        "so": cp.so_dir(section, case["app"]),
-        "jr": cp.jr_dir(section, case["app"]),
-    }
-
-
-def _seg_files(d: str, seg: str) -> list[str]:
-    """Top-level files of one segment in a canonical SO/JR dir."""
-    if not os.path.isdir(d):
-        return []
-    tok = f"_{seg}_"
-    return sorted(
-        os.path.join(d, f) for f in os.listdir(d)
-        if tok in f and os.path.isfile(os.path.join(d, f))
-    )
-
-
-def _copy_verified(src: str, dst: str) -> None:
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    shutil.copy2(src, dst)
-    if not os.path.isfile(dst) or os.path.getsize(dst) != os.path.getsize(src):
-        raise OSError(f"copy verification failed: {src} -> {dst}")
-
-
-def _snapshot(case: dict, dst_root: str) -> dict[str, list[str]]:
-    """Copy current canonical segment files to ``dst_root/{so,jr}/``."""
-    seg = case["segment"]
-    saved: dict[str, list[str]] = {}
-    for kind, d in _canonical_dirs(case).items():
-        saved[kind] = []
-        for src in _seg_files(d, seg):
-            dst = os.path.join(dst_root, kind, os.path.basename(src))
-            _copy_verified(src, dst)
-            saved[kind].append(dst)
-    return saved
-
-
-def _restore(case: dict, backup_root: str, backup: dict[str, list[str]]) -> None:
-    """Put canonical segment files back exactly as backed up.
-
-    Every backup file is verified to exist before any canonical file is
-    removed; files the variant run created that were not in the backup are
-    removed only after the backup has been copied back.
-    """
-    seg = case["segment"]
-    for kind, files in backup.items():
-        for b in files:
-            if not os.path.isfile(b):
-                raise FileNotFoundError(f"backup missing, refusing to restore: {b}")
-    for kind, d in _canonical_dirs(case).items():
-        keep = set()
-        for b in backup.get(kind, []):
-            dst = os.path.join(d, os.path.basename(b))
-            _copy_verified(b, dst)
-            keep.add(os.path.normcase(dst))
-        for f in _seg_files(d, seg):
-            if os.path.normcase(f) not in keep:
-                os.remove(f)
+    name = os.path.basename(cp.jr_path(case["segment"], case["app"], ""))
+    path = os.path.join(jr_dir, name)
+    return path if os.path.isfile(path) else ""
 
 
 def _relative_diff(var: dict, base: dict) -> dict:
@@ -313,37 +268,26 @@ def main() -> int:
         for case in cases:
             tag = f"{case['condition']}_{case['segment']}_{case['app']}"
             print(f"[compare] {var} {tag}", flush=True)
-            dirs = _canonical_dirs(case)
+            dirs = _variant_dirs(case, var)
             if args.dry_run:
                 trials.append({
                     **case, "status": "dry_run", "model": model,
-                    "would_backup": {k: _seg_files(d, case["segment"]) for k, d in dirs.items()},
+                    "so_out": dirs["so"], "jr_out": dirs["jr"],
                 })
                 continue
-            backup_root = os.path.join(cmp_dir, "baseline", tag)
-            run_root = os.path.join(cmp_dir, "runs", var, tag)
-            if os.path.isdir(backup_root) and any(os.scandir(backup_root)):
-                backup = {
-                    k: sorted(glob.glob(os.path.join(backup_root, k, "*")))
-                    for k in ("so", "jr")
-                }
-            else:
-                backup = _snapshot(case, backup_root)
-            base_jr = _find_jr_path_in(os.path.join(backup_root, "jr"), case["segment"])
-            base_summary = _jr_summary(base_jr) if base_jr else {}
-
             status = _run_so_jr(
-                case, model, skip_jr=args.skip_jr, timeout_s=args.timeout,
+                case, model, dirs, skip_jr=args.skip_jr, timeout_s=args.timeout,
             )
-            run_files = _snapshot(case, run_root)
-            _restore(case, backup_root, backup)
-
-            var_jr = _find_jr_path_in(os.path.join(run_root, "jr"), case["segment"])
+            base_jr = _jr_sto(case, dirs["jr_canon"])
+            var_jr = _jr_sto(case, dirs["jr"])
+            base_summary = _jr_summary(base_jr) if base_jr else {}
             var_summary = _jr_summary(var_jr) if var_jr else {}
             trials.append({
                 **case,
                 "status": status,
                 "model": model,
+                "so_out": dirs["so"],
+                "jr_out": dirs["jr"],
                 "baseline_jr_path": base_jr,
                 "jr_path": var_jr,
                 "baseline_jr_summary": base_summary,
@@ -352,7 +296,6 @@ def main() -> int:
                     _relative_diff(var_summary, base_summary)
                     if var_summary and base_summary else {}
                 ),
-                "run_files": run_files,
             })
         variant_payloads[var] = {"model": model, "trials": trials}
 
