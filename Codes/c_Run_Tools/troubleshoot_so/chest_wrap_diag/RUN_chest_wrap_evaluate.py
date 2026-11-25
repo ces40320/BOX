@@ -31,7 +31,9 @@ from wrap_detect_lib import (  # noqa: E402
 )
 from chest_diag_lib import (  # noqa: E402
     L5S1_COORDS,
+    add_case_source_args,
     chest_out_dir,
+    collect_cases,
     length_jump_count,
     numerical_moment_arms,
     rmse,
@@ -229,6 +231,7 @@ def main() -> int:
     p.add_argument("--apps", default="MeasuredEHF")
     p.add_argument("--frame-stride", type=int, default=2)
     p.add_argument("--limit", type=int, default=0)
+    add_case_source_args(p)
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
     if args.self_test:
@@ -244,22 +247,15 @@ def main() -> int:
     segs = {s.strip() for s in (args.seg or "").split(",") if s.strip()} or None
     ok_map = _load_ok_times_by_trial(args.namecode)
 
-    # Build case list from diagnosis CSVs keys, else trouble
-    from DETECT_muscle_path_wrap_jump import trouble_cases
-
-    cases = trouble_cases(
-        namecode=args.namecode,
+    cases = collect_cases(
+        args.namecode,
+        from_wrap_fbp=args.from_wrap_fbp,
+        from_trouble=args.from_trouble,
+        all_ik=args.all_ik,
         condition=args.condition,
         segments=segs,
         apps=apps,
     )
-    if not cases:
-        from chest_diag_lib import iter_subject_ik_cases
-        cases = iter_subject_ik_cases(
-            args.namecode, apps=apps,
-            conditions=[args.condition] if args.condition else None,
-            segments=segs,
-        )
     if args.limit:
         cases = cases[: args.limit]
 

@@ -613,6 +613,156 @@ def length_jump_count(lengths: np.ndarray, times: np.ndarray, dl_m: float = JUMP
     return count
 
 
+WRAP_FBP_SUMMARY_NAMES = (
+    "wrap_fbp_summary.json",
+    "wrap_fbp_summary_reconstructed.json",
+)
+
+
+def wrap_fbp_cases(
+    namecode: str,
+    *,
+    apps: Iterable[str] | None = None,
+    conditions: Iterable[str] | None = None,
+    segments: Iterable[str] | None = None,
+) -> list[dict[str, str]]:
+    """Trials whose SO failure was repaired with a wrap_fbp trial model.
+
+    Reads the wrap_fbp batch summary under
+    ``Analysis/<protocol>/_diagnosis/wrap_fbp/<SUB>/``; if none exists, falls
+    back to the ``*_WrapFBP.osim`` files under the subject's result tree.
+    """
+    from PATH_RULE import ResultPaths
+
+    app_set = set(apps) if apps else None
+    cond_set = set(conditions) if conditions else None
+    seg_set = set(segments) if segments else None
+
+    def keep(cond: str, seg: str, app: str) -> bool:
+        return not (
+            (app_set and app not in app_set)
+            or (cond_set and cond not in cond_set)
+            or (seg_set and seg not in seg_set)
+        )
+
+    out: list[dict[str, str]] = []
+    seen: set[tuple] = set()
+
+    def add(cond: str, seg: str, app: str) -> None:
+        key = (cond, seg, app)
+        if key in seen or not keep(cond, seg, app):
+            return
+        seen.add(key)
+        out.append({"namecode": namecode, "condition": cond,
+                    "segment": seg, "app": app})
+
+    summary_dir = repair_dir(namecode, "wrap_fbp")
+    for name in WRAP_FBP_SUMMARY_NAMES:
+        path = os.path.join(summary_dir, name)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            payload = json.load(f)
+        for t in payload.get("trials") or []:
+            add(str(t.get("condition") or ""), str(t.get("segment") or ""),
+                str(t.get("app") or "MeasuredEHF"))
+        if out:
+            return out
+
+    rp = ResultPaths(namecode)
+    pat = re.compile(
+        rf"^{re.escape(rp.sub_label)}_(?P<cond>.+)_(?P<seg>\d+[ABC]{{2}})_"
+        r"(?P<app>[^_]+)_WrapFBP\.osim$"
+    )
+    for dirpath, _dirs, files in os.walk(rp.sub_dir):
+        for fn in files:
+            m = pat.match(fn)
+            if m:
+                add(m["cond"], m["seg"], m["app"])
+    return out
+
+
+def collect_cases(
+    namecode: str | None,
+    *,
+    from_wrap_fbp: bool = False,
+    from_trouble: bool = False,
+    all_ik: bool = False,
+    condition: str | None = None,
+    segments: Iterable[str] | None = None,
+    apps: Iterable[str] | None = None,
+) -> list[dict[str, str]]:
+    """Union of the requested case sources, de-duplicated in order.
+
+    With no source flag, the wrap_fbp-repaired trials are used.
+    """
+    from DETECT_muscle_path_wrap_jump import trouble_cases
+
+    if not (from_wrap_fbp or from_trouble or all_ik):
+        from_wrap_fbp = True
+    conds = [condition] if condition else None
+    cases: list[dict] = []
+    if from_wrap_fbp and namecode:
+        cases.extend(wrap_fbp_cases(namecode, apps=apps, conditions=conds,
+                                    segments=segments))
+    if from_trouble:
+        cases.extend(trouble_cases(
+            namecode=namecode, condition=condition,
+            segments=set(segments) if segments else None,
+            apps=set(apps) if apps else None,
+        ))
+    if all_ik and namecode:
+        cases.extend(iter_subject_ik_cases(namecode, apps=apps,
+                                           conditions=conds, segments=segments))
+    seen: set[tuple] = set()
+    uniq: list[dict] = []
+    for c in cases:
+        key = (c["namecode"], c["condition"], c["segment"], c["app"])
+        if key not in seen:
+            seen.add(key)
+            uniq.append(c)
+    return uniq
+
+
+def spread_cases(cases: list[dict], limit: int) -> list[dict]:
+    """Up to ``limit`` cases taken round-robin across conditions, and within
+    each condition round-robin across AB·BC·CA segments."""
+    if limit <= 0 or len(cases) <= limit:
+        return list(cases)
+
+    def interleave(groups: list[list[dict]]) -> list[dict]:
+        groups = [list(g) for g in groups]
+        merged: list[dict] = []
+        while any(groups):
+            for g in groups:
+                if g:
+                    merged.append(g.pop(0))
+        return merged
+
+    by_cond: dict[str, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
+    for c in cases:
+        by_cond[c["condition"]][c["segment"][-2:]].append(c)
+    queues = [
+        interleave([secs[s] for s in sorted(secs)])
+        for _, secs in sorted(by_cond.items())
+    ]
+    out: list[dict] = []
+    while len(out) < limit and any(queues):
+        for q in queues:
+            if q and len(out) < limit:
+                out.append(q.pop(0))
+    return out
+
+
+def add_case_source_args(parser) -> None:
+    parser.add_argument("--from-wrap-fbp", action="store_true",
+                        help="Trials repaired by wrap_fbp (default source)")
+    parser.add_argument("--from-trouble", action="store_true",
+                        help="SO trouble list entries")
+    parser.add_argument("--all-ik", action="store_true",
+                        help="Every IK.mot under the subject tree")
+
+
 def iter_subject_ik_cases(
     namecode: str,
     *,

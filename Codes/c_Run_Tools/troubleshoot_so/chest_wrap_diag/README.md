@@ -10,7 +10,7 @@ conda activate osim
 cd Codes\c_Run_Tools\troubleshoot_so
 
 :: 1) Diagnose SUB8 (MeasuredEHF)
-python chest_wrap_diag\RUN_chest_wrap_diagnose.py --from-trouble --all-ik --namecode 260526_PJM --apps MeasuredEHF
+python chest_wrap_diag\RUN_chest_wrap_diagnose.py --namecode 260526_PJM --apps MeasuredEHF
 
 :: 2) Plots (no OpenSim required if CSVs exist)
 python chest_wrap_diag\RUN_chest_wrap_plots.py --namecode 260526_PJM
@@ -33,3 +33,14 @@ python chest_wrap_diag\RUN_chest_wrap_generalize.py --source-namecode 260526_PJM
 ```
 
 Outputs live under `Analysis/<protocol>/_diagnosis/chest_wrap/<SUB>/{diag,A,B,compare}/`.
+
+## Which trials
+
+Every script defaults to the trials whose SO failure was repaired with a
+wrap_fbp trial model (`--from-wrap-fbp`), read from
+`Analysis/<protocol>/_diagnosis/wrap_fbp/<SUB>/wrap_fbp_summary*.json` or, if
+absent, from the `*_WrapFBP.osim` files in the subject tree. `--from-trouble`
+(SO trouble list) and `--all-ik` (every IK.mot) can be added instead or as
+well. `--limit` picks trials round-robin across conditions and AB·BC·CA
+segments. Baseline lengths always come from the shared scaled model, not from
+the `_WrapFBP.osim` trial models.

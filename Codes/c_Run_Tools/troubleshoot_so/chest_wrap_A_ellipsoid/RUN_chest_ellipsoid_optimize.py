@@ -14,8 +14,12 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import _ts_paths  # noqa: E402,F401
 
-from DETECT_muscle_path_wrap_jump import resolve_paths, trouble_cases  # noqa: E402
-from chest_diag_lib import iter_subject_ik_cases  # noqa: E402
+from DETECT_muscle_path_wrap_jump import resolve_paths  # noqa: E402
+from chest_diag_lib import (  # noqa: E402
+    add_case_source_args,
+    collect_cases,
+    spread_cases,
+)
 from chest_ellipsoid_opt_lib import optimize_ellipsoid  # noqa: E402
 
 
@@ -25,37 +29,26 @@ def main() -> int:
     p.add_argument("--apps", default="MeasuredEHF")
     p.add_argument("--condition", default=None)
     p.add_argument("--seg", default=None)
-    p.add_argument("--from-trouble", action="store_true")
-    p.add_argument("--all-ik", action="store_true")
+    add_case_source_args(p)
     p.add_argument("--limit", type=int, default=8,
-                   help="IK trials used in the objective (default 8)")
+                   help="IK trials used in the objective, spread across "
+                        "conditions (default 8)")
     p.add_argument("--maxiter", type=int, default=40)
     p.add_argument("--no-refine", action="store_true")
     args = p.parse_args()
 
     apps = {a.strip() for a in args.apps.split(",") if a.strip()}
     segs = {s.strip() for s in (args.seg or "").split(",") if s.strip()} or None
-    cases: list[dict] = []
-    if args.from_trouble or not args.all_ik:
-        cases.extend(trouble_cases(
-            namecode=args.namecode, condition=args.condition,
-            segments=segs, apps=apps,
-        ))
-    if args.all_ik:
-        cases.extend(iter_subject_ik_cases(
-            args.namecode, apps=apps,
-            conditions=[args.condition] if args.condition else None,
-            segments=segs,
-        ))
-    seen: set[tuple] = set()
-    uniq = []
-    for c in cases:
-        key = (c["namecode"], c["condition"], c["segment"], c["app"])
-        if key in seen:
-            continue
-        seen.add(key)
-        uniq.append(c)
-    cases = uniq[: max(1, args.limit)]
+    cases = collect_cases(
+        args.namecode,
+        from_wrap_fbp=args.from_wrap_fbp,
+        from_trouble=args.from_trouble,
+        all_ik=args.all_ik,
+        condition=args.condition,
+        segments=segs,
+        apps=apps,
+    )
+    cases = spread_cases(cases, max(1, args.limit))
     if not cases:
         print("[A] no IK cases")
         return 1

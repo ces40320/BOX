@@ -28,14 +28,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import _ts_paths  # noqa: E402,F401
 
 from PATH_RULE import TROUBLESHOOT_SO_DIRNAME, ConditionPaths, ResultPaths  # noqa: E402
-from DETECT_muscle_path_wrap_jump import resolve_paths, trouble_cases  # noqa: E402
+from DETECT_muscle_path_wrap_jump import resolve_paths  # noqa: E402
 from opensim_pipeline_handlers import (  # noqa: E402
     prepare_jr_setup,
     prepare_so_setup,
     run_jr,
     run_so,
 )
-from chest_diag_lib import chest_out_dir, stamped_payload, write_json  # noqa: E402
+from chest_diag_lib import (  # noqa: E402
+    add_case_source_args,
+    chest_out_dir,
+    collect_cases,
+    spread_cases,
+    stamped_payload,
+    write_json,
+)
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -235,6 +242,7 @@ def main() -> int:
     p.add_argument("--seg", default=None)
     p.add_argument("--variants", default="A,B")
     p.add_argument("--limit", type=int, default=4)
+    add_case_source_args(p)
     p.add_argument("--skip-jr", action="store_true")
     p.add_argument("--timeout", type=float, default=120.0)
     p.add_argument("--decide-only", action="store_true")
@@ -248,10 +256,16 @@ def main() -> int:
 
     apps = {a.strip() for a in args.apps.split(",") if a.strip()}
     segs = {s.strip() for s in (args.seg or "").split(",") if s.strip()} or None
-    cases = trouble_cases(
-        namecode=args.namecode, condition=args.condition,
-        segments=segs, apps=apps,
-    )[: max(1, args.limit)]
+    cases = collect_cases(
+        args.namecode,
+        from_wrap_fbp=args.from_wrap_fbp,
+        from_trouble=args.from_trouble,
+        all_ik=args.all_ik,
+        condition=args.condition,
+        segments=segs,
+        apps=apps,
+    )
+    cases = spread_cases(cases, max(1, args.limit))
     variants = [v.strip().upper() for v in args.variants.split(",") if v.strip()]
 
     sub = ResultPaths(args.namecode).sub_label

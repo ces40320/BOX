@@ -5,8 +5,10 @@ Writes frame×muscle CSV and summary JSON under
 
 Examples::
 
-    python RUN_chest_wrap_diagnose.py --from-trouble --namecode 260526_PJM --apps MeasuredEHF
+    python RUN_chest_wrap_diagnose.py --namecode 260526_PJM --apps MeasuredEHF
     python RUN_chest_wrap_diagnose.py --all-ik --namecode 260526_PJM --apps MeasuredEHF
+
+With no source flag the wrap_fbp-repaired trials are diagnosed.
     python RUN_chest_wrap_diagnose.py --self-test
 """
 
@@ -22,15 +24,13 @@ import _ts_paths  # noqa: E402,F401
 from PATH_RULE import ConditionPaths, ResultPaths  # noqa: E402
 from pipeline_rules import resolve_model_path  # noqa: E402
 from wrap_detect_lib import import_opensim  # noqa: E402
-from DETECT_muscle_path_wrap_jump import (  # noqa: E402
-    resolve_paths,
-    trouble_cases,
-)
+from DETECT_muscle_path_wrap_jump import resolve_paths  # noqa: E402
 from chest_diag_lib import (  # noqa: E402
+    add_case_source_args,
     chest_out_dir,
+    collect_cases,
     diagnose_trial,
     get_chest_ellipsoid_params,
-    iter_subject_ik_cases,
     stamped_payload,
     summarize_diag_frames,
     write_json,
@@ -68,9 +68,7 @@ def run_self_test() -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--from-trouble", action="store_true")
-    p.add_argument("--all-ik", action="store_true",
-                   help="Enumerate all IK.mot under the subject tree")
+    add_case_source_args(p)
     p.add_argument("--namecode", default=None)
     p.add_argument("--condition", default=None)
     p.add_argument("--seg", default=None, help="Comma-separated segments")
@@ -85,39 +83,21 @@ def main() -> int:
         run_self_test()
         return 0
 
-    if not args.from_trouble and not args.all_ik:
-        p.error("require --from-trouble and/or --all-ik (or --self-test)")
-    if not args.namecode and args.all_ik:
-        p.error("--all-ik requires --namecode")
+    if not args.namecode and not args.from_trouble:
+        p.error("--namecode is required unless only --from-trouble is used")
 
     apps = {a.strip() for a in args.apps.split(",") if a.strip()} or None
     segs = {s.strip() for s in (args.seg or "").split(",") if s.strip()} or None
 
-    cases: list[dict] = []
-    if args.from_trouble:
-        cases.extend(trouble_cases(
-            namecode=args.namecode,
-            condition=args.condition,
-            segments=segs,
-            apps=apps,
-        ))
-    if args.all_ik:
-        cases.extend(iter_subject_ik_cases(
-            args.namecode,
-            apps=apps,
-            conditions=[args.condition] if args.condition else None,
-            segments=segs,
-        ))
-    # de-dup
-    seen: set[tuple] = set()
-    uniq: list[dict] = []
-    for c in cases:
-        key = (c["namecode"], c["condition"], c["segment"], c["app"])
-        if key in seen:
-            continue
-        seen.add(key)
-        uniq.append(c)
-    cases = uniq
+    cases = collect_cases(
+        args.namecode,
+        from_wrap_fbp=args.from_wrap_fbp,
+        from_trouble=args.from_trouble,
+        all_ik=args.all_ik,
+        condition=args.condition,
+        segments=segs,
+        apps=apps,
+    )
     if args.limit and args.limit > 0:
         cases = cases[: args.limit]
 
