@@ -34,7 +34,10 @@ def main() -> int:
                    help="IK trials used in the objective, spread across "
                         "conditions (default 8)")
     p.add_argument("--maxiter", type=int, default=40)
-    p.add_argument("--no-refine", action="store_true")
+    p.add_argument("--maxfev", type=int, default=30,
+                   help="Nelder-Mead objective evaluations (each = one grid point's cost)")
+    p.add_argument("--no-refine", action="store_true",
+                   help="Keep the best grid point; skip Nelder-Mead")
     args = p.parse_args()
 
     apps = {a.strip() for a in args.apps.split(",") if a.strip()}
@@ -73,6 +76,7 @@ def main() -> int:
         baseline_model_path=baseline,
         ik_jobs=ik_jobs,
         maxiter=args.maxiter,
+        maxfev=args.maxfev,
         refine=not args.no_refine,
     )
     print(f"[A] wrote {payload['out_osim']}", flush=True)

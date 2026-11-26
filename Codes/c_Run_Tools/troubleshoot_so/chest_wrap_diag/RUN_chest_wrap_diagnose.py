@@ -76,8 +76,14 @@ def main() -> int:
     p.add_argument("--frame-stride", type=int, default=1)
     p.add_argument("--no-moment-arms", action="store_true")
     p.add_argument("--limit", type=int, default=0, help="Max trials (0=all)")
+    p.add_argument("--model-osim", default=None,
+                   help="Diagnose this model (e.g. an A/B candidate) instead of each trial's model")
+    p.add_argument("--out-subdir", default="diag",
+                   help="Output folder under chest_wrap/<SUB>/ (use e.g. diag_A for candidates)")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
+    if args.model_osim and args.out_subdir == "diag":
+        p.error("--model-osim needs --out-subdir other than 'diag' (baseline diagnosis lives there)")
 
     if args.self_test:
         run_self_test()
@@ -107,12 +113,12 @@ def main() -> int:
 
     osim = import_opensim()
     namecode = cases[0]["namecode"]
-    diag_dir = chest_out_dir(namecode, "diag")
+    diag_dir = chest_out_dir(namecode, args.out_subdir)
     trial_summaries: list[dict] = []
     all_frames = []
 
     # Baseline ellipsoid params from first available model
-    model0, _ = resolve_paths(cases[0])
+    model0 = args.model_osim or resolve_paths(cases[0])[0]
     ell_params = {}
     if os.path.isfile(model0):
         m = osim.Model(model0)
@@ -121,6 +127,8 @@ def main() -> int:
 
     for i, case in enumerate(cases):
         model_path, ik_path = resolve_paths(case)
+        if args.model_osim:
+            model_path = args.model_osim
         print(
             f"[diag] ({i + 1}/{len(cases)}) "
             f"{case['condition']} {case['segment']} {case['app']}",

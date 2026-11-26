@@ -60,21 +60,25 @@ def _ik_in_degrees(meta: dict) -> bool:
     return True
 
 
-def _load_ok_times_by_trial(namecode: str) -> dict[tuple, set[float]]:
-    """Map (cond, seg, app) → set of ok times from diagnosis CSVs."""
+def _load_ok_times_by_trial(namecode: str) -> dict[tuple, dict[str, set[float]]]:
+    """Map (cond, seg, app) → {muscle: ok times} from diagnosis CSVs.
+
+    Per muscle: a frame where only LTpT_T3 fails must still be excluded for
+    LTpT_T3 even if every other muscle was ok there.
+    """
     diag_dir = chest_out_dir(namecode, "diag")
     paths = sorted(glob.glob(os.path.join(diag_dir, "chest_diag_*.csv")))
     paths = [p for p in paths if "chest_diag_all_" not in os.path.basename(p)]
-    out: dict[tuple, set[float]] = {}
+    out: dict[tuple, dict[str, set[float]]] = {}
     for pth in paths:
-        df = pd.read_csv(pth)
+        df = pd.read_csv(pth, usecols=["condition", "segment", "app", "muscle", "time_s", "failure_type"])
         if df.empty:
             continue
-        for (cond, seg, app), g in df.groupby(["condition", "segment", "app"]):
-            ok = g[g["failure_type"] == "ok"]
+        ok = df[df["failure_type"] == "ok"]
+        for (cond, seg, app, mus), g in ok.groupby(["condition", "segment", "app", "muscle"]):
             key = (str(cond), str(seg), str(app))
-            out.setdefault(key, set()).update(
-                float(t) for t in ok["time_s"].tolist()
+            out.setdefault(key, {}).setdefault(str(mus), set()).update(
+                round(float(t), 4) for t in g["time_s"].tolist()
             )
     return out
 
@@ -85,10 +89,9 @@ def evaluate_pair(
     baseline_model: str,
     candidate_model: str,
     ik_path: str,
-    ok_times: set[float] | None,
+    ok_times: dict[str, set[float]] | None,
     muscles: list[str] | None = None,
     frame_stride: int = 2,
-    time_tol: float = 1e-4,
 ) -> dict:
     from optimization.ricto_io import read_opensim_storage
 
@@ -108,15 +111,17 @@ def evaluate_pair(
     ma0 = {m: {c: [] for c in L5S1_COORDS} for m in names}
     ma1 = {m: {c: [] for c in L5S1_COORDS} for m in names}
     t_used: list[float] = []
+    ok_mask = {m: [] for m in names}
+
+    def _is_ok(m: str, t: float) -> bool:
+        if ok_times is None:
+            return True
+        return round(t, 4) in ok_times.get(m, ())
 
     for fi, (_, row) in enumerate(ik_df.iterrows()):
         if fi % max(1, frame_stride) != 0:
             continue
         t = float(row[tcol])
-        if ok_times is not None:
-            if not any(abs(t - ot) <= time_tol for ot in ok_times):
-                # still collect full series for jump count on candidate
-                pass
         _apply_ik_row(osim, m0, s0, row, indeg)
         _apply_ik_row(osim, m1, s1, row, indeg)
         t_used.append(t)
@@ -133,7 +138,8 @@ def evaluate_pair(
                 l1 = float("nan")
             len0[m].append(l0)
             len1[m].append(l1)
-            use_ma = ok_times is None or any(abs(t - ot) <= time_tol for ot in ok_times)
+            use_ma = _is_ok(m, t)
+            ok_mask[m].append(use_ma)
             if use_ma:
                 a0 = numerical_moment_arms(osim, m0, s0, mus0)
                 a1 = numerical_moment_arms(osim, m1, s1, mus1)
@@ -147,13 +153,8 @@ def evaluate_pair(
     for m in names:
         a = np.asarray(len0[m], dtype=float)
         b = np.asarray(len1[m], dtype=float)
-        # good-frame RMSE: where ok_times match — approximate by finite both
-        if ok_times is not None:
-            mask = np.array([
-                any(abs(t - ot) <= time_tol for ot in ok_times) for t in t_used
-            ], dtype=bool)
-        else:
-            mask = np.isfinite(a) & np.isfinite(b)
+        # good-frame RMSE: frames this muscle was ok in the baseline diagnosis
+        mask = np.asarray(ok_mask[m], dtype=bool) & np.isfinite(a) & np.isfinite(b)
         lr = rmse(a[mask], b[mask]) if mask.any() else float("nan")
         lmax = float(np.nanmax(np.abs(a[mask] - b[mask]))) if mask.any() else float("nan")
         # smoothness: 2nd diff of candidate
@@ -184,6 +185,7 @@ def evaluate_pair(
         if nj > 0 or not length_ok or not ma_ok:
             hard_fail = True
         per_muscle[m] = {
+            "n_ok_frames": int(mask.sum()),
             "length_rmse_m": lr,
             "length_max_abs_m": lmax,
             "n_jumps": nj,

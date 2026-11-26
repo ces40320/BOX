@@ -112,11 +112,25 @@ Codes/c_Run_Tools/troubleshoot_so/
 - 원본(정상 trial), A, B 모델로 정적 최적화(SO)와 관절 반력(JR)을 다시 계산한다. 비교 대상은 L5-S1 IVD 반력 fx/fy/fz, 근육 힘(LTpT, LD, 기타 신전근), 예비 토크(reserve)다.
 - 조건(7/15 kg × 10/16 bpm)별, AB·BC·CA 분절별, 주기 %별 평균 곡선을 그린다. 특히 고부하 구간인 주기 30–45%를 집중해서 본다.
 - 기존 `tmp_wrap_vs_normal_stats` 형식을 참고해 `compare/so_jr_<SUB>.json`과 그림을 만든다.
+- 공식 결과 폴더(`SO_<app>`, `JR_<app>`)의 기존 파일은 덮어쓰지 않고, 각 폴더 아래 `troubleshoot_so/chest_wrap_<A|B>/`에 후보 결과를 저장한다.
+
+### 5-2단계 — 외적 타당도 검증 (기존 정상 trial 대상, 피험자 공통)
+
+방안 A(타원체 조정)로 오류 trial을 해결한 뒤, **기존에도 정적 최적화가 정상 통과하던 trial들**에 부작용이 생기지 않았는지 확인한다. 이 검증은 SUB8뿐 아니라 6단계에서 방안 A를 적용하는 **모든 피험자**에 동일하게 수행한다.
+
+1. **IK 근육 경로 진단 (정상 trial 전체):**
+   - 기존 정상 trial 전체(오류 복구 대상 외 나머지 IK 전체)에 대해 `<SUB>_ChestFix.osim`으로 근육 경로 진단을 수행한다.
+   - **판정 기준:** 주요 진단 항목인 길이 튐(`length_jump`)과 관통(`pierce`)의 발생 빈도가 기존 모델보다 증가하지 않아야 하며, 기타 항목(`endpoint_inside`, `unwrap_rewrap`, `tangent_jump`, `wrong_side`)도 급증하지 않아야 한다.
+   - **보관 위치:** `Analysis/<protocol>/_diagnosis/chest_wrap/<SUB>/diag_A_normal/`
+2. **SO·JR 관절 반력 비교 (정상 trial 샘플):**
+   - 기존 정상 trial 중 조건별 대표 샘플(예: 조건당 1건 이상)을 `<SUB>_ChestFix.osim`으로 SO·JR 재계산하여, 기존 공식 `JR_MeasuredEHF`의 L5–S1 관절 반력(fx/fy/fz)과 비교한다.
+   - **판정 기준:** L5–S1 관절 반력이 기존 공식 결과와 유사해야 하며(평균·고부하 구간 차이 ≤ 5% 목표), 큰 편차가 없어야 한다.
+   - **보관 위치:** 개별 SO/JR은 `troubleshoot_so/chest_wrap_A/`, 비교 요약은 `Analysis/<protocol>/_diagnosis/chest_wrap/<SUB>/compare/so_jr_normal_sample_<SUB>.json`
 
 ### 6단계 — 선택 및 다른 피험자로 일반화
 
-- A와 B 중 하나를 선택한다(5절). 그 뒤 다른 피험자(SUB1 등 전체)에 **같은 절차**를 적용한다. 방안 A는 타원체 파라미터를 피험자 스케일로 정규화해 이식하고, 방안 B는 경유점을 body 좌표계에서 스케일 계수로 이식한다. 이식한 다음 피험자별로 다시 검증하고, 실패하는 경우에만 재최적화한다.
-- 산출물은 `compare/cross_subject_summary.json`이다(피험자별 튐 수, 오차, 파라미터 편차).
+- A와 B 중 하나를 선택한다(5절). 그 뒤 다른 피험자(SUB1 등 전체)에 **같은 절차**를 적용한다. 방안 A는 타원체 파라미터를 피험자 스케일로 정규화해 이식하고, 방안 B는 경유점을 body 좌표계에서 스케일 계수로 이식한다. 이식한 다음 피험자별로 다시 검증(오류 trial 해소 확인 + **5-2단계 외적 타당도 검증**)하고, 실패하는 경우에만 재최적화한다.
+- 산출물은 `compare/cross_subject_summary.json`이다(피험자별 튐 수, 오차, 파라미터 편차, 정상 trial 외적 타당도 결과).
 
 ## 3. 사용자가 로컬에서 실행해야 하는 것 (VM에 OpenSim 없음)
 

@@ -104,9 +104,8 @@ def apply_ellipsoid_params(
         if wn not in baseline:
             continue
         base = baseline[wn]
-        bodies = model.getBodySet()
-        body = bodies.get(base["body"])
-        wset = body.updWrapObjectSet()
+        body = model.updBodySet().get(base["body"])
+        wset = body.upd_WrapObjectSet()
         wrap = None
         for i in range(wset.getSize()):
             w = wset.get(i)
@@ -319,6 +318,7 @@ def optimize_ellipsoid(
     baseline_model_path: str,
     ik_jobs: list[dict],
     maxiter: int = 40,
+    maxfev: int = 30,
     grid_radii: Sequence[float] = (0.95, 1.0, 1.05, 1.10, 1.15),
     grid_post_m: Sequence[float] = (0.0, 0.005, 0.010, 0.015),
     refine: bool = True,
@@ -416,6 +416,8 @@ def optimize_ellipsoid(
     if refine and minimize is not None:
         x0 = np.array(best.to_list()[:9], dtype=float)
 
+        n_eval = [0]
+
         def fun(x):
             vec = EllipsoidParamVec(
                 radii_scale=np.asarray(x[0:3], dtype=float),
@@ -423,11 +425,26 @@ def optimize_ellipsoid(
                 rotation_delta=np.asarray(x[6:9], dtype=float),
                 quadrant_mode=best.quadrant_mode,
             )
-            return score_params(vec)
+            c = score_params(vec)
+            n_eval[0] += 1
+            h = history[-1] if history else {}
+            print(
+                f"[A-NM] eval {n_eval[0]}/{maxfev} cost={c:.4g} "
+                f"jumps={h.get('n_jumps', '?')} x={np.round(x, 4).tolist()}",
+                flush=True,
+            )
+            return c
 
-        print("[A] Nelder-Mead refine…", flush=True)
+        # Jump count is integer-valued, so the cost is piecewise flat; use a
+        # coarse initial simplex (5% radii, 5 mm, 0.05 rad) instead of scipy's
+        # 0.00025 default step for zero-valued entries.
+        steps = np.array([0.05] * 3 + [0.005] * 3 + [0.05] * 3)
+        simplex = np.vstack([x0] + [x0 + np.eye(9)[i] * steps[i] for i in range(9)])
+        print(f"[A] Nelder-Mead refine (max {maxfev} evaluations)…", flush=True)
         res = minimize(fun, x0, method="Nelder-Mead",
-                       options={"maxiter": maxiter, "xatol": 1e-3, "fatol": 1e-3})
+                       options={"maxiter": maxiter, "maxfev": maxfev,
+                                "initial_simplex": simplex,
+                                "xatol": 1e-3, "fatol": 1e-3})
         best = EllipsoidParamVec(
             radii_scale=np.asarray(res.x[0:3], dtype=float),
             translation_delta=np.asarray(res.x[3:6], dtype=float),

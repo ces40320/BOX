@@ -213,10 +213,12 @@ def numerical_moment_arms(
         coord = coords.get(cname)
         q0 = float(coord.getValue(state))
         try:
-            coord.setValue(state, q0 + eps_rad, False)
+            # enforce=True so CoordinateCouplers move the dependent spine
+            # coordinates; with False only the L5-S1 joint itself rotates.
+            coord.setValue(state, q0 + eps_rad, True)
             model.realizePosition(state)
             lp = float(gp.getLength(state))
-            coord.setValue(state, q0 - eps_rad, False)
+            coord.setValue(state, q0 - eps_rad, True)
             model.realizePosition(state)
             lm = float(gp.getLength(state))
             dl = (lp - lm) / (2.0 * eps_rad)
@@ -225,7 +227,7 @@ def numerical_moment_arms(
             out[cname] = float("nan")
         finally:
             try:
-                coord.setValue(state, q0, False)
+                coord.setValue(state, q0, True)
                 model.realizePosition(state)
             except Exception:  # noqa: BLE001
                 pass

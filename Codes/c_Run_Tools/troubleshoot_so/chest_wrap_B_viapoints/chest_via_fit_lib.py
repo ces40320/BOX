@@ -274,45 +274,83 @@ def build_via_model(
     use_moving: bool = False,
     moving_coord: str = "L5_S1_Flex_Ext",
 ) -> dict[str, Any]:
-    """Write subject-level model with via points for listed muscles."""
+    """Write subject-level model with via points for listed muscles.
+
+    Edits the .osim XML directly: inserting SWIG-created PathPoints into a
+    PathPointSet aborts inside Model.finalizeConnections (OpenSim 4.x).
+    """
+    from lxml import etree
+
     model = osim.Model(baseline_model_path)
     model.initSystem()
+    bodies = {model.getBodySet().get(i).getName() for i in range(model.getBodySet().getSize())}
+    coord_path = ""
+    if use_moving:
+        cs = model.getCoordinateSet()
+        if not cs.contains(moving_coord):
+            raise ValueError(f"missing coordinate {moving_coord}")
+        coord_path = cs.get(moving_coord).getAbsolutePathString()
+
+    tree = etree.parse(baseline_model_path)
+    root = tree.getroot()
     report: dict[str, Any] = {"muscles": {}, "out_path": out_path}
 
+    def _vec(v) -> str:
+        return " ".join(repr(float(x)) for x in v)
+
+    def _point_el(name: str, body_name: str, loc) -> Any:
+        el = etree.Element("PathPoint", name=name)
+        etree.SubElement(el, "socket_parent_frame").text = f"/bodyset/{body_name}"
+        etree.SubElement(el, "location").text = _vec(loc)
+        return el
+
+    def _moving_el(name: str, body_name: str, spline: dict) -> Any:
+        el = etree.Element("MovingPathPoint", name=name)
+        etree.SubElement(el, "socket_parent_frame").text = f"/bodyset/{body_name}"
+        for ax in ("x", "y", "z"):
+            etree.SubElement(el, f"socket_{ax}_coordinate").text = coord_path
+        for ax in ("x", "y", "z"):
+            fn = etree.SubElement(etree.SubElement(el, f"{ax}_location"), "PiecewiseLinearFunction")
+            etree.SubElement(fn, "x").text = _vec(spline["q_knots"])
+            etree.SubElement(fn, "y").text = _vec(spline[ax])
+        return el
+
     for mname, spec in muscle_specs.items():
-        if not model.getMuscles().contains(mname):
+        hits = [e for e in root.iter() if e.get("name") == mname and e.find("GeometryPath") is not None]
+        if not hits:
             report["muscles"][mname] = {"error": "missing"}
             continue
-        mus = model.getMuscles().get(mname)
-        n_rem = _remove_chest_wraps(mus)
+        gp = hits[0].find("GeometryPath")
+        n_rem = 0
+        for pw in gp.findall("PathWrapSet/objects/PathWrap"):
+            if (pw.findtext("wrap_object") or "").strip() in CHEST_WRAP_NAMES:
+                pw.getparent().remove(pw)
+                n_rem += 1
         body_name = spec.get("body", "torso")
-        if not model.getBodySet().contains(body_name):
+        if body_name not in bodies:
             report["muscles"][mname] = {"error": f"missing body {body_name}"}
             continue
-        body = model.getBodySet().get(body_name)
+        objs = gp.find("PathPointSet/objects")
+        n_orig = len(objs)
         points = spec.get("points") or []
         mode = spec.get("mode", "fixed")
+        new_els = []
         if use_moving and mode == "moving" and "spline" in spec:
-            _insert_moving_path_point(
-                osim, model, mus, f"{mname}_via_mov", body,
-                spec["spline"], moving_coord,
-            )
-            inserted = 1
+            new_els.append(_moving_el(f"{mname}_via_mov", body_name, spec["spline"]))
         else:
-            inserted = 0
-            for i, loc in enumerate(points):
-                _insert_path_point(
-                    osim, mus, f"{mname}_via{i}", body, loc,
-                )
-                inserted += 1
-            # optional second body
-            if spec.get("lumbar_point") and model.getBodySet().contains("lumbar1"):
-                lb = model.getBodySet().get("lumbar1")
-                _insert_path_point(
-                    osim, mus, f"{mname}_via_L1", lb, spec["lumbar_point"],
-                    index=max(0, mus.getGeometryPath().getPathPointSet().getSize() - 2),
-                )
-                inserted += 1
+            new_els.extend(
+                _point_el(f"{mname}_via{i}", body_name, loc) for i, loc in enumerate(points)
+            )
+        # torso via points go just before the insertion (last) point
+        for k, el in enumerate(new_els):
+            objs.insert(max(0, n_orig - 1) + k, el)
+        inserted = len(new_els)
+        if spec.get("lumbar_point") and "lumbar1" in bodies:
+            objs.insert(
+                max(0, n_orig - 2),
+                _point_el(f"{mname}_via_L1", "lumbar1", spec["lumbar_point"]),
+            )
+            inserted += 1
         report["muscles"][mname] = {
             "removed_chest_wraps": n_rem,
             "inserted": inserted,
@@ -321,10 +359,10 @@ def build_via_model(
             "points": points,
         }
 
-    model.finalizeConnections()
-    model.initSystem()
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    model.printToXML(out_path)
+    tree.write(out_path, xml_declaration=True, encoding="UTF-8")
+    check = osim.Model(out_path)
+    check.initSystem()
     return report
 
 
