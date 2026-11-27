@@ -331,56 +331,87 @@ def optimize_ellipsoid(
         refine = False
 
     osim = import_opensim()
+    from optimization.ricto_io import read_opensim_storage
+
     out_dir = chest_out_dir(namecode, "A")
-    work = tempfile.mkdtemp(prefix="chest_ell_")
     history: list[dict] = []
     _base_model = osim.Model(baseline_model_path)
-    _base_model.initSystem()
+    _s0 = _base_model.initSystem()
     _baseline0 = get_chest_ellipsoid_params(osim, _base_model)
+    names = list_chest_path_muscles(_base_model)
+    base_muscles = [(m, _base_model.getMuscles().get(m)) for m in names]
+
+    # Preload IK trials and cache baseline lengths (stride=5) once before optimization.
+    cached_jobs: list[dict[str, Any]] = []
+    for job in ik_jobs:
+        ik = job["ik_path"]
+        ik_df, meta = read_opensim_storage(ik)
+        tcol = "time" if "time" in ik_df.columns else "Time"
+        indeg = _ik_in_degrees(meta)
+        times = ik_df[tcol].to_numpy(dtype=float)
+        stride_idx = np.arange(0, len(times), 5, dtype=int)
+        l0_stride: dict[str, np.ndarray] = {
+            m: np.full(len(stride_idx), np.nan, dtype=float) for m in names
+        }
+        for si, fi in enumerate(stride_idx):
+            _apply_ik_row(osim, _base_model, _s0, ik_df.iloc[int(fi)], indeg)
+            for m, mus0 in base_muscles:
+                try:
+                    l0_stride[m][si] = float(mus0.getGeometryPath().getLength(_s0))
+                except Exception:  # noqa: BLE001
+                    continue
+        cached_jobs.append({
+            "ik_df": ik_df,
+            "times": times,
+            "indeg": indeg,
+            "stride_idx": stride_idx,
+            "l0_stride": l0_stride,
+        })
 
     def score_params(params: EllipsoidParamVec) -> float:
         if not params_within_constraints(_baseline0, params):
             return 1e6
-        model = osim.Model(baseline_model_path)
-        model.initSystem()
-        baseline = get_chest_ellipsoid_params(osim, model)
-        cand = os.path.join(work, "cand.osim")
-        apply_ellipsoid_params(osim, model, baseline, params)
-        model.finalizeConnections()
-        model.initSystem()
-        model.printToXML(cand)
+        m1 = osim.Model(baseline_model_path)
+        m1.initSystem()
+        apply_ellipsoid_params(osim, m1, _baseline0, params)
+        m1.finalizeConnections()
+        s1 = m1.initSystem()
+        cand_muscles = [
+            (m, m1.getMuscles().get(m)) for m in names if m1.getMuscles().contains(m)
+        ]
 
         jump_sum = 0
         length_mse = 0.0
         n_len = 0
-        for job in ik_jobs:
-            ik = job["ik_path"]
-            jump_sum += full_jump_count(osim, cand, ik)
-            # length RMSE on a stride of frames vs baseline
-            from optimization.ricto_io import read_opensim_storage
-            ik_df, meta = read_opensim_storage(ik)
-            tcol = "time" if "time" in ik_df.columns else "Time"
-            indeg = _ik_in_degrees(meta)
-            m0 = osim.Model(baseline_model_path)
-            s0 = m0.initSystem()
-            m1 = osim.Model(cand)
-            s1 = m1.initSystem()
-            names = list_chest_path_muscles(m0)
-            for fi, (_, row) in enumerate(ik_df.iterrows()):
-                if fi % 5 != 0:
-                    continue
-                _apply_ik_row(osim, m0, s0, row, indeg)
-                _apply_ik_row(osim, m1, s1, row, indeg)
-                for m in names:
-                    if not m1.getMuscles().contains(m):
-                        continue
+        for cj in cached_jobs:
+            ik_df = cj["ik_df"]
+            times = cj["times"]
+            indeg = cj["indeg"]
+            stride_idx = cj["stride_idx"]
+            l0_stride = cj["l0_stride"]
+            n_frames = len(times)
+            len1_all = {m: np.full(n_frames, np.nan, dtype=float) for m, _ in cand_muscles}
+
+            # Single pass over IK frames for both jump detection and length RMSE.
+            for fi in range(n_frames):
+                _apply_ik_row(osim, m1, s1, ik_df.iloc[fi], indeg)
+                for m, mus1 in cand_muscles:
                     try:
-                        l0 = float(m0.getMuscles().get(m).getGeometryPath().getLength(s0))
-                        l1 = float(m1.getMuscles().get(m).getGeometryPath().getLength(s1))
+                        len1_all[m][fi] = float(mus1.getGeometryPath().getLength(s1))
                     except Exception:  # noqa: BLE001
                         continue
-                    length_mse += (l0 - l1) ** 2
-                    n_len += 1
+
+            for m, _ in cand_muscles:
+                series = len1_all[m]
+                jump_sum += length_jump_count(series, times, dl_m=JUMP_DL_M)
+                l0_vals = l0_stride[m]
+                l1_vals = series[stride_idx]
+                valid = np.isfinite(l0_vals) & np.isfinite(l1_vals)
+                if np.any(valid):
+                    diff = l0_vals[valid] - l1_vals[valid]
+                    length_mse += float(np.sum(diff * diff))
+                    n_len += int(np.sum(valid))
+
         length_mse = length_mse / max(n_len, 1)
         param_pen = float(
             np.sum((params.radii_scale - 1.0) ** 2)
@@ -456,8 +487,9 @@ def optimize_ellipsoid(
         print("[A] scipy not installed — skipping Nelder-Mead refine", flush=True)
 
     from PATH_RULE import ResultPaths
-    sub = ResultPaths(namecode).sub_label
-    out_osim = os.path.join(out_dir, f"{sub}_ChestFix.osim")
+    rp = ResultPaths(namecode)
+    sub = rp.sub_label
+    out_osim = os.path.join(rp.model_dir, f"{sub}_ChestFix.osim")
     info = write_candidate_osim(osim, baseline_model_path, out_osim, best)
     payload = {
         "namecode": namecode,
@@ -472,8 +504,4 @@ def optimize_ellipsoid(
     }
     json_path = os.path.join(out_dir, f"chest_params_{sub}.json")
     write_json(json_path, payload)
-    try:
-        shutil.rmtree(work, ignore_errors=True)
-    except Exception:  # noqa: BLE001
-        pass
     return payload

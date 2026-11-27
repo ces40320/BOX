@@ -76,7 +76,7 @@ def main() -> int:
         return 1
 
     out = args.out_osim or os.path.join(
-        chest_out_dir(args.namecode, "A"), f"{sub}_ChestFix.osim",
+        ResultPaths(args.namecode).model_dir, f"{sub}_ChestFix.osim",
     )
     osim = import_opensim()
     info = write_candidate_osim(osim, baseline, out, params)
