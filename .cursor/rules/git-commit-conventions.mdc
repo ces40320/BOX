@@ -1,0 +1,15 @@
+---
+description: Git commit grouping and message prefix conventions
+alwaysApply: true
+---
+
+# Git Commit Conventions
+
+When committing changes:
+
+1. **Grouping priority:**
+   - **1st priority:** Group commits by **feature / functional unit**.
+   - **2nd priority:** Order commits by **event / workflow flow** when multiple features or steps exist.
+2. **Message prefix:**
+   - Always start the commit message with a type prefix matching the change: `add:`, `update:`, `fix:`, `chore:`.
+   - For especially important or milestone commits, use **UPPERCASE** for the prefix (e.g., `ADD:`, `FIX:`, `UPDATE:`, `CHORE:`).
