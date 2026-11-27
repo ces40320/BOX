@@ -36,6 +36,7 @@ from chest_diag_lib import (  # noqa: E402
     batch_moment_arms,
     chest_out_dir,
     collect_cases,
+    good_frame_mask,
     length_jump_count,
     rmse,
     stamped_payload,
@@ -61,21 +62,46 @@ def _ik_in_degrees(meta: dict) -> bool:
     return True
 
 
-def _load_ok_times_by_trial(namecode: str) -> dict[tuple, dict[str, set[float]]]:
-    """Map (cond, seg, app) → {muscle: ok times} from diagnosis CSVs.
+_DIAG_COLS = {
+    "condition",
+    "segment",
+    "app",
+    "muscle",
+    "time_s",
+    "failure_type",
+    "in_jump_island",
+}
 
-    Per muscle: a frame where only LTpT_T3 fails must still be excluded for
-    LTpT_T3 even if every other muscle was ok there.
+
+def _filter_good_diag_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep baseline rows that are ok, outside jump islands, and after frame 0."""
+    if df.empty:
+        return df
+    work = df
+    if "in_jump_island" in work.columns and work["in_jump_island"].dtype != bool:
+        work = work.copy()
+        work["in_jump_island"] = work["in_jump_island"].astype(bool)
+    mask = good_frame_mask(work)
+    t0 = work.groupby(["condition", "segment", "app"])["time_s"].transform("min")
+    mask = mask & (work["time_s"] > t0)
+    return work[mask]
+
+
+def _load_ok_times_by_trial(namecode: str) -> dict[tuple, dict[str, set[float]]]:
+    """Map (cond, seg, app) → {muscle: good times} from diagnosis CSVs.
+
+    Per muscle: excludes non-ok frames, baseline jump-island frames
+    (via good_frame_mask), and each trial's first frame (no prev frame).
     """
     diag_dir = chest_out_dir(namecode, "diag")
     paths = sorted(glob.glob(os.path.join(diag_dir, "chest_diag_*.csv")))
     paths = [p for p in paths if "chest_diag_all_" not in os.path.basename(p)]
     out: dict[tuple, dict[str, set[float]]] = {}
     for pth in paths:
-        df = pd.read_csv(pth, usecols=["condition", "segment", "app", "muscle", "time_s", "failure_type"])
+        df = pd.read_csv(pth, usecols=lambda c: c in _DIAG_COLS)
         if df.empty:
             continue
-        ok = df[df["failure_type"] == "ok"]
+        ok = _filter_good_diag_rows(df)
         for (cond, seg, app, mus), g in ok.groupby(["condition", "segment", "app", "muscle"]):
             key = (str(cond), str(seg), str(app))
             out.setdefault(key, {}).setdefault(str(mus), set()).update(
@@ -260,6 +286,16 @@ def run_self_test() -> None:
     assert abs(rmse(a, b) - np.sqrt(((0.002) ** 2) / 3)) < 1e-9
     L = np.array([0.5, 0.5, 0.76, 0.76, 0.5])
     assert length_jump_count(L, np.arange(5) * 0.01) >= 1
+    df = pd.DataFrame(
+        [
+            {"condition": "c", "segment": "s", "app": "a", "muscle": "m", "time_s": 0.0, "failure_type": "ok", "in_jump_island": False},
+            {"condition": "c", "segment": "s", "app": "a", "muscle": "m", "time_s": 0.1, "failure_type": "ok", "in_jump_island": True},
+            {"condition": "c", "segment": "s", "app": "a", "muscle": "m", "time_s": 0.2, "failure_type": "pierce", "in_jump_island": False},
+            {"condition": "c", "segment": "s", "app": "a", "muscle": "m", "time_s": 0.3, "failure_type": "ok", "in_jump_island": False},
+        ]
+    )
+    kept = _filter_good_diag_rows(df)
+    assert kept["time_s"].tolist() == [0.3], f"unexpected kept times: {kept['time_s'].tolist()}"
     print("[eval self-test] OK")
 
 
