@@ -234,6 +234,57 @@ def numerical_moment_arms(
     return out
 
 
+def batch_moment_arms(
+    osim,
+    model,
+    state,
+    muscles: Sequence[tuple[str, Any]],
+    coord_names: Sequence[str] = L5S1_COORDS,
+    eps_rad: float = 1e-4,
+) -> dict[str, np.ndarray]:
+    """Moment arms (m) of all ``muscles`` wrt L5-S1 coords in one pass.
+
+    Same central difference as ``numerical_moment_arms`` (r = -dl/dq,
+    enforce=True so couplers move), but each coordinate is perturbed once
+    and every muscle length is read from that realization (~35x faster).
+    """
+    coords = model.updCoordinateSet()
+    out = {m: np.full(len(coord_names), np.nan) for m, _ in muscles}
+    for ci, cname in enumerate(coord_names):
+        if not coords.contains(cname):
+            continue
+        coord = coords.get(cname)
+        q0 = float(coord.getValue(state))
+        try:
+            coord.setValue(state, q0 + eps_rad, True)
+            model.realizePosition(state)
+            lp: dict[str, float] = {}
+            for m, mus in muscles:
+                try:
+                    lp[m] = float(mus.getGeometryPath().getLength(state))
+                except Exception:  # noqa: BLE001
+                    pass
+            coord.setValue(state, q0 - eps_rad, True)
+            model.realizePosition(state)
+            for m, mus in muscles:
+                if m not in lp:
+                    continue
+                try:
+                    lm = float(mus.getGeometryPath().getLength(state))
+                    out[m][ci] = -(lp[m] - lm) / (2.0 * eps_rad)
+                except Exception:  # noqa: BLE001
+                    continue
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            try:
+                coord.setValue(state, q0, True)
+                model.realizePosition(state)
+            except Exception:  # noqa: BLE001
+                pass
+    return out
+
+
 def classify_failure(
     *,
     wrap_active: bool,

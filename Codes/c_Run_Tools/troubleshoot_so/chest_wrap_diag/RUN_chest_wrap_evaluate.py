@@ -13,6 +13,7 @@ Examples::
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import glob
 import json
 import os
@@ -32,10 +33,10 @@ from wrap_detect_lib import (  # noqa: E402
 from chest_diag_lib import (  # noqa: E402
     L5S1_COORDS,
     add_case_source_args,
+    batch_moment_arms,
     chest_out_dir,
     collect_cases,
     length_jump_count,
-    numerical_moment_arms,
     rmse,
     stamped_payload,
     write_json,
@@ -92,19 +93,24 @@ def evaluate_pair(
     ok_times: dict[str, set[float]] | None,
     muscles: list[str] | None = None,
     frame_stride: int = 2,
+    _models: tuple | None = None,
 ) -> dict:
     from optimization.ricto_io import read_opensim_storage
 
-    m0 = osim.Model(baseline_model)
-    s0 = m0.initSystem()
-    m1 = osim.Model(candidate_model)
-    s1 = m1.initSystem()
-    names = muscles or list_chest_path_muscles(m0)
-    names = [n for n in names if m1.getMuscles().contains(n)]
+    if _models is not None:
+        m0, s0, m1, s1, names, mus0_list, mus1_list = _models
+    else:
+        m0 = osim.Model(baseline_model)
+        s0 = m0.initSystem()
+        m1 = osim.Model(candidate_model)
+        s1 = m1.initSystem()
+        names = muscles or list_chest_path_muscles(m0)
+        names = [n for n in names if m1.getMuscles().contains(n)]
+        mus0_list = [(m, m0.getMuscles().get(m)) for m in names]
+        mus1_list = [(m, m1.getMuscles().get(m)) for m in names]
     ik_df, meta = read_opensim_storage(ik_path)
     tcol = "time" if "time" in ik_df.columns else "Time"
     indeg = _ik_in_degrees(meta)
-    times = ik_df[tcol].to_numpy(dtype=float)
 
     len0 = {m: [] for m in names}
     len1 = {m: [] for m in names}
@@ -118,16 +124,14 @@ def evaluate_pair(
             return True
         return round(t, 4) in ok_times.get(m, ())
 
-    for fi, (_, row) in enumerate(ik_df.iterrows()):
-        if fi % max(1, frame_stride) != 0:
-            continue
+    for fi in range(0, len(ik_df), max(1, frame_stride)):
+        row = ik_df.iloc[fi]
         t = float(row[tcol])
         _apply_ik_row(osim, m0, s0, row, indeg)
         _apply_ik_row(osim, m1, s1, row, indeg)
         t_used.append(t)
-        for m in names:
-            mus0 = m0.getMuscles().get(m)
-            mus1 = m1.getMuscles().get(m)
+        any_ok = False
+        for (m, mus0), (_, mus1) in zip(mus0_list, mus1_list):
             try:
                 l0 = float(mus0.getGeometryPath().getLength(s0))
             except Exception:  # noqa: BLE001
@@ -141,11 +145,15 @@ def evaluate_pair(
             use_ma = _is_ok(m, t)
             ok_mask[m].append(use_ma)
             if use_ma:
-                a0 = numerical_moment_arms(osim, m0, s0, mus0)
-                a1 = numerical_moment_arms(osim, m1, s1, mus1)
-                for c in L5S1_COORDS:
-                    ma0[m][c].append(a0.get(c, float("nan")))
-                    ma1[m][c].append(a1.get(c, float("nan")))
+                any_ok = True
+        if any_ok:
+            b0 = batch_moment_arms(osim, m0, s0, mus0_list)
+            b1 = batch_moment_arms(osim, m1, s1, mus1_list)
+            for m in names:
+                if ok_mask[m][-1]:
+                    for ci, c in enumerate(L5S1_COORDS):
+                        ma0[m][c].append(float(b0[m][ci]))
+                        ma1[m][c].append(float(b1[m][ci]))
 
     per_muscle: dict = {}
     total_jumps = 0
@@ -213,6 +221,39 @@ def evaluate_pair(
     }
 
 
+_WORKER_CACHE: dict = {}
+
+
+def _eval_worker_run(task: tuple) -> tuple[int, dict]:
+    idx, case, base, cand, ik, ok_times, frame_stride = task
+    osim = _WORKER_CACHE.get("osim")
+    if osim is None:
+        osim = import_opensim()
+        _WORKER_CACHE["osim"] = osim
+    key = (base, cand)
+    models = _WORKER_CACHE.get(key)
+    if models is None:
+        m0 = osim.Model(base)
+        s0 = m0.initSystem()
+        m1 = osim.Model(cand)
+        s1 = m1.initSystem()
+        names = [n for n in list_chest_path_muscles(m0) if m1.getMuscles().contains(n)]
+        mus0_list = [(m, m0.getMuscles().get(m)) for m in names]
+        mus1_list = [(m, m1.getMuscles().get(m)) for m in names]
+        models = (m0, s0, m1, s1, names, mus0_list, mus1_list)
+        _WORKER_CACHE[key] = models
+    res = evaluate_pair(
+        osim=osim,
+        baseline_model=base,
+        candidate_model=cand,
+        ik_path=ik,
+        ok_times=ok_times,
+        frame_stride=frame_stride,
+        _models=models,
+    )
+    return idx, {**case, **res}
+
+
 def run_self_test() -> None:
     a = np.array([1.0, 1.0, 1.0])
     b = np.array([1.0, 1.002, 1.0])
@@ -233,6 +274,8 @@ def main() -> int:
     p.add_argument("--apps", default="MeasuredEHF")
     p.add_argument("--frame-stride", type=int, default=2)
     p.add_argument("--limit", type=int, default=0)
+    p.add_argument("--workers", type=int, default=16,
+                   help="Parallel worker processes (default 16; 1=sequential)")
     add_case_source_args(p)
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
@@ -261,27 +304,37 @@ def main() -> int:
     if args.limit:
         cases = cases[: args.limit]
 
-    osim = import_opensim()
-    trial_results = []
-    for case in cases:
+    tasks: list[tuple] = []
+    trial_results: list[dict | None] = [None] * len(cases)
+    for idx, case in enumerate(cases):
         base, ik = resolve_paths(case)
         if args.baseline_osim:
             base = args.baseline_osim
         if not os.path.isfile(base) or not os.path.isfile(ik):
-            trial_results.append({**case, "error": "missing base/ik"})
+            trial_results[idx] = {**case, "error": "missing base/ik"}
             continue
         key = (case["condition"], case["segment"], case["app"])
         ok_times = ok_map.get(key)
-        print(f"[eval] {key}", flush=True)
-        res = evaluate_pair(
-            osim=osim,
-            baseline_model=base,
-            candidate_model=args.candidate_osim,
-            ik_path=ik,
-            ok_times=ok_times,
-            frame_stride=args.frame_stride,
-        )
-        trial_results.append({**case, **res})
+        tasks.append((idx, case, base, args.candidate_osim, ik, ok_times, args.frame_stride))
+
+    n_workers = max(1, min(int(args.workers), len(tasks) or 1))
+    print(f"[eval] {len(tasks)} trials, stride={args.frame_stride}, workers={n_workers}", flush=True)
+    if n_workers == 1:
+        for t in tasks:
+            idx, out_rec = _eval_worker_run(t)
+            trial_results[idx] = out_rec
+            print(f"[eval] done ({idx + 1}/{len(cases)}) {out_rec['condition']} {out_rec['segment']}", flush=True)
+    else:
+        done = 0
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            futs = [pool.submit(_eval_worker_run, t) for t in tasks]
+            for fut in as_completed(futs):
+                idx, out_rec = fut.result()
+                trial_results[idx] = out_rec
+                done += 1
+                if done % 10 == 0 or done == len(tasks):
+                    print(f"[eval] done {done}/{len(tasks)}", flush=True)
+    trial_results = [r for r in trial_results if r is not None]
 
     n_pass = sum(1 for r in trial_results if r.get("pass_hard"))
     n_jump = sum(int(r.get("total_jumps") or 0) for r in trial_results)
