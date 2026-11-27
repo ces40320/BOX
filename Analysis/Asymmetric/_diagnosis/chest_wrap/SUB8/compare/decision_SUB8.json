@@ -1,0 +1,25 @@
+{
+  "kind": "chest_wrap_decision",
+  "created_utc": "2026-11-26T19:46:03.471376Z",
+  "namecode": "260526_PJM",
+  "sub_label": "SUB8",
+  "decision": {
+    "preferred": "A",
+    "reason": [
+      "neither hard-pass; default A, consider A+local B"
+    ],
+    "hard_pass": {
+      "A": false,
+      "B": false
+    },
+    "hybrid_hint": "A_plus_local_B",
+    "jr_fy_mean_abs_rel_diff_vs_baseline": {
+      "A": 0.012847683066767493
+    }
+  },
+  "evals_present": [
+    "A",
+    "B"
+  ],
+  "sojr_present": true
+}
