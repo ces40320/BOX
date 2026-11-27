@@ -24,7 +24,6 @@ from wrap_detect_lib import (
 )
 from chest_diag_lib import (
     L5S1_COORDS,
-    batch_moment_arms,
     chest_out_dir,
     get_chest_ellipsoid_params,
     length_jump_count,
@@ -313,7 +312,6 @@ def write_candidate_osim(
 
 
 FRAME_STRIDE = 5  # frames used for the length term (jumps use all frames)
-MA_STRIDE = 10  # default frames used for the moment-arm term (0 = disable MA term)
 
 
 def _preload_chunk(
@@ -321,9 +319,8 @@ def _preload_chunk(
     baseline_model_path: str,
     ik_paths: Sequence[str],
     frame_stride: int,
-    ma_stride: int,
 ) -> tuple[dict[str, dict[str, Any]], list[str], list[dict[str, Any]]]:
-    """Load baseline model once and cache IK + baseline lengths/MAs for a chunk."""
+    """Load baseline model once and cache IK + baseline lengths for a chunk."""
     from optimization.ricto_io import read_opensim_storage
 
     base_model = osim.Model(baseline_model_path)
@@ -350,30 +347,12 @@ def _preload_chunk(
                 except Exception:  # noqa: BLE001
                     continue
 
-        if ma_stride > 0:
-            ma_idx = np.arange(0, len(times), ma_stride, dtype=int)
-            ma0_stride: dict[str, np.ndarray] | None = {
-                m: np.full((len(ma_idx), len(L5S1_COORDS)), np.nan, dtype=float)
-                for m in names
-            }
-            for mi, fi in enumerate(ma_idx):
-                _apply_ik_row(osim, base_model, s0, ik_df.iloc[int(fi)], indeg)
-                ma_now = batch_moment_arms(osim, base_model, s0, base_muscles)
-                for m in names:
-                    ma0_stride[m][mi] = ma_now[m]
-            ma_len = len(ma_idx)
-        else:
-            ma0_stride = None
-            ma_len = 0
-
         cached.append({
             "ik_df": ik_df,
             "times": times,
             "indeg": indeg,
             "stride_idx": stride_idx,
-            "ma_len": ma_len,
             "l0_stride": l0_stride,
-            "ma0_stride": ma0_stride,
         })
     return baseline0, names, cached
 
@@ -385,8 +364,7 @@ def _eval_chunk(
     names: Sequence[str],
     cached_jobs: Sequence[dict[str, Any]],
     params: EllipsoidParamVec,
-    ma_stride: int,
-) -> tuple[int, float, int, float, int]:
+) -> tuple[int, float, int]:
     """Evaluate one candidate on a cached chunk of IK trials."""
     m1 = osim.Model(baseline_model_path)
     m1.initSystem()
@@ -400,25 +378,14 @@ def _eval_chunk(
     jump_sum = 0
     length_sum = 0.0
     n_len = 0
-    ma_sum = 0.0
-    n_ma = 0
     for cj in cached_jobs:
         ik_df = cj["ik_df"]
         times = cj["times"]
         indeg = cj["indeg"]
         stride_idx = cj["stride_idx"]
         l0_stride = cj["l0_stride"]
-        ma0_stride = cj["ma0_stride"]
         n_frames = len(times)
         len1_all = {m: np.full(n_frames, np.nan, dtype=float) for m, _ in cand_muscles}
-        ma1_stride = (
-            {
-                m: np.full((cj["ma_len"], len(L5S1_COORDS)), np.nan, dtype=float)
-                for m, _ in cand_muscles
-            }
-            if ma_stride > 0 and ma0_stride is not None
-            else None
-        )
 
         for fi in range(n_frames):
             _apply_ik_row(osim, m1, s1, ik_df.iloc[fi], indeg)
@@ -427,11 +394,6 @@ def _eval_chunk(
                     len1_all[m][fi] = float(mus1.getGeometryPath().getLength(s1))
                 except Exception:  # noqa: BLE001
                     continue
-            if ma1_stride is not None and fi % ma_stride == 0:
-                mi = fi // ma_stride
-                ma_now = batch_moment_arms(osim, m1, s1, cand_muscles)
-                for m, _ in cand_muscles:
-                    ma1_stride[m][mi] = ma_now[m]
 
         for m, _ in cand_muscles:
             series = len1_all[m]
@@ -444,23 +406,13 @@ def _eval_chunk(
                 length_sum += float(np.sum(diff * diff))
                 n_len += int(np.sum(valid))
 
-            if ma1_stride is not None and ma0_stride is not None:
-                ma0 = ma0_stride[m]
-                ma1 = ma1_stride[m]
-                ma_valid = np.isfinite(ma0) & np.isfinite(ma1)
-                if np.any(ma_valid):
-                    mdiff = ma0[ma_valid] - ma1[ma_valid]
-                    ma_sum += float(np.sum(mdiff * mdiff))
-                    n_ma += int(np.sum(ma_valid))
-
-    return jump_sum, length_sum, n_len, ma_sum, n_ma
+    return jump_sum, length_sum, n_len
 
 
 def _chunk_worker_loop(
     baseline_model_path: str,
     ik_paths: list[str],
     frame_stride: int,
-    ma_stride: int,
     in_q,
     out_q,
 ) -> None:
@@ -473,7 +425,7 @@ def _chunk_worker_loop(
 
     osim = import_opensim()
     baseline0, names, cached = _preload_chunk(
-        osim, baseline_model_path, ik_paths, frame_stride, ma_stride,
+        osim, baseline_model_path, ik_paths, frame_stride,
     )
     out_q.put(("ready", None))
     while True:
@@ -482,7 +434,7 @@ def _chunk_worker_loop(
             break
         params = EllipsoidParamVec.from_list(msg)
         res = _eval_chunk(
-            osim, baseline_model_path, baseline0, names, cached, params, ma_stride,
+            osim, baseline_model_path, baseline0, names, cached, params,
         )
         out_q.put(("res", res))
 
@@ -499,7 +451,6 @@ def optimize_ellipsoid(
     refine: bool = True,
     tag: str = "",
     workers: int = 16,
-    ma_stride: int = MA_STRIDE,
 ) -> dict[str, Any]:
     """Grid search + optional Nelder-Mead refine. Returns params + paths."""
     try:
@@ -520,7 +471,7 @@ def optimize_ellipsoid(
     n_workers = max(1, min(int(workers), len(ik_paths) or 1))
     print(
         f"[A] preload {len(ik_paths)} trials (workers={n_workers}, "
-        f"len_stride={FRAME_STRIDE}, ma_stride={ma_stride})…",
+        f"len_stride={FRAME_STRIDE})…",
         flush=True,
     )
 
@@ -539,7 +490,7 @@ def optimize_ellipsoid(
             iq = ctx.Queue()
             proc = ctx.Process(
                 target=_chunk_worker_loop,
-                args=(baseline_model_path, ch, FRAME_STRIDE, ma_stride, iq, out_q),
+                args=(baseline_model_path, ch, FRAME_STRIDE, iq, out_q),
             )
             proc.start()
             procs.append(proc)
@@ -550,7 +501,7 @@ def optimize_ellipsoid(
                 raise RuntimeError("Worker failed to initialize")
     else:
         _, names, cached_jobs = _preload_chunk(
-            osim, baseline_model_path, ik_paths, FRAME_STRIDE, ma_stride,
+            osim, baseline_model_path, ik_paths, FRAME_STRIDE,
         )
 
     def score_params(params: EllipsoidParamVec) -> float:
@@ -564,38 +515,27 @@ def optimize_ellipsoid(
             jump_sum = 0
             length_sum = 0.0
             n_len = 0
-            ma_sum = 0.0
-            n_ma = 0
             for _ in procs:
-                _, (js, ls, nl, ms, nm) = out_q.get()
+                _, (js, ls, nl) = out_q.get()
                 jump_sum += js
                 length_sum += ls
                 n_len += nl
-                ma_sum += ms
-                n_ma += nm
         else:
-            jump_sum, length_sum, n_len, ma_sum, n_ma = _eval_chunk(
-                osim, baseline_model_path, _baseline0, names, cached_jobs, params, ma_stride,
+            jump_sum, length_sum, n_len = _eval_chunk(
+                osim, baseline_model_path, _baseline0, names, cached_jobs, params,
             )
 
         length_mse = length_sum / max(n_len, 1)
-        ma_mse = ma_sum / max(n_ma, 1) if ma_stride > 0 else 0.0
         param_pen = float(
             np.sum((params.radii_scale - 1.0) ** 2)
             + np.sum(params.translation_delta ** 2) / 0.01 ** 2
             + np.sum(params.rotation_delta ** 2) / ROT_ABS_RAD ** 2
         )
-        cost = (
-            W_JUMP * jump_sum
-            + W_LENGTH * length_mse
-            + (W_MA * ma_mse if ma_stride > 0 else 0.0)
-            + W_PARAM * param_pen
-        )
+        cost = W_JUMP * jump_sum + W_LENGTH * length_mse + W_PARAM * param_pen
         history.append({
             "params": params.to_list(),
             "n_jumps": jump_sum,
             "length_mse": length_mse,
-            "ma_mse": ma_mse,
             "cost": cost,
         })
         return cost
@@ -686,10 +626,8 @@ def optimize_ellipsoid(
         "history": history[-50:],
         "n_ik_jobs": len(ik_jobs),
         "objective_weights": {
-            "W_JUMP": W_JUMP, "W_LENGTH": W_LENGTH,
-            "W_MA": W_MA if ma_stride > 0 else 0.0, "W_PARAM": W_PARAM,
+            "W_JUMP": W_JUMP, "W_LENGTH": W_LENGTH, "W_PARAM": W_PARAM,
             "frame_stride": FRAME_STRIDE,
-            "ma_stride": ma_stride,
             "workers": n_workers,
         },
     }

@@ -42,8 +42,6 @@ def main() -> int:
                    help="Suffix for output files (e.g. _ma) so runs don't overwrite")
     p.add_argument("--workers", type=int, default=16,
                    help="Parallel worker processes (default 16; 1=sequential)")
-    p.add_argument("--ma-stride", type=int, default=10,
-                   help="Frame step for moment-arm term (0=disable MA term, default 10)")
     args = p.parse_args()
 
     apps = {a.strip() for a in args.apps.split(",") if a.strip()}
@@ -86,7 +84,6 @@ def main() -> int:
         refine=not args.no_refine,
         tag=args.tag,
         workers=args.workers,
-        ma_stride=args.ma_stride,
     )
     print(f"[A] wrote {payload['out_osim']}", flush=True)
     print(f"[A] params → {payload.get('best_params')}", flush=True)
