@@ -1,0 +1,684 @@
+{
+  "kind": "chest_diag_normal",
+  "created_utc": "2026-11-26T09:39:49.196893Z",
+  "namecode": "260526_PJM",
+  "model": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\A\\SUB8_ChestFix.osim",
+  "trials": [
+    {
+      "condition": "15kg_10bpm",
+      "segment": "5AB",
+      "app": "MeasuredEHF",
+      "n_frames": 599,
+      "n_fail_rows": 701,
+      "failure_counts": {
+        "ok": 21462,
+        "endpoint_inside": 599,
+        "tangent_jump": 100,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_5AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_10bpm",
+      "segment": "1BC",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 696,
+      "failure_counts": {
+        "ok": 21504,
+        "endpoint_inside": 600,
+        "tangent_jump": 92,
+        "unwrap_rewrap": 4
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_1BC_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_10bpm",
+      "segment": "10CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 686,
+      "failure_counts": {
+        "ok": 21514,
+        "endpoint_inside": 600,
+        "tangent_jump": 82,
+        "unwrap_rewrap": 4
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_10CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_10bpm",
+      "segment": "11CA",
+      "app": "MeasuredEHF",
+      "n_frames": 561,
+      "n_fail_rows": 637,
+      "failure_counts": {
+        "ok": 20120,
+        "endpoint_inside": 561,
+        "tangent_jump": 76
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_11CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_10bpm",
+      "segment": "1CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 690,
+      "failure_counts": {
+        "ok": 21510,
+        "endpoint_inside": 600,
+        "tangent_jump": 88,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_1CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_10bpm",
+      "segment": "2CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 692,
+      "failure_counts": {
+        "ok": 21508,
+        "endpoint_inside": 600,
+        "tangent_jump": 90,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_2CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_10bpm",
+      "segment": "3CA",
+      "app": "MeasuredEHF",
+      "n_frames": 599,
+      "n_fail_rows": 685,
+      "failure_counts": {
+        "ok": 21478,
+        "endpoint_inside": 599,
+        "tangent_jump": 84,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_3CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_10bpm",
+      "segment": "6CA",
+      "app": "MeasuredEHF",
+      "n_frames": 599,
+      "n_fail_rows": 680,
+      "failure_counts": {
+        "ok": 21483,
+        "endpoint_inside": 599,
+        "tangent_jump": 79,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_10bpm_6CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "6AB",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 456,
+      "failure_counts": {
+        "ok": 13419,
+        "endpoint_inside": 375,
+        "tangent_jump": 79,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_6AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "8AB",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 475,
+      "failure_counts": {
+        "ok": 13400,
+        "endpoint_inside": 375,
+        "tangent_jump": 98,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_8AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "9AB",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 457,
+      "failure_counts": {
+        "ok": 13418,
+        "endpoint_inside": 375,
+        "tangent_jump": 80,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_9AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "10CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 456,
+      "failure_counts": {
+        "ok": 13419,
+        "endpoint_inside": 375,
+        "tangent_jump": 81
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_10CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "12CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 456,
+      "failure_counts": {
+        "ok": 13419,
+        "endpoint_inside": 375,
+        "tangent_jump": 81
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_12CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "1CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 459,
+      "failure_counts": {
+        "ok": 13416,
+        "endpoint_inside": 375,
+        "tangent_jump": 82,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_1CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "2CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 456,
+      "failure_counts": {
+        "ok": 13419,
+        "endpoint_inside": 375,
+        "tangent_jump": 81
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_2CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "3CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 457,
+      "failure_counts": {
+        "ok": 13418,
+        "endpoint_inside": 375,
+        "tangent_jump": 80,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_3CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "5CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 466,
+      "failure_counts": {
+        "ok": 13409,
+        "endpoint_inside": 375,
+        "tangent_jump": 89,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_5CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "6CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 465,
+      "failure_counts": {
+        "ok": 13410,
+        "endpoint_inside": 375,
+        "tangent_jump": 90
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_6CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "7CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 451,
+      "failure_counts": {
+        "ok": 13424,
+        "endpoint_inside": 375,
+        "tangent_jump": 74,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_7CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "8CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 465,
+      "failure_counts": {
+        "ok": 13410,
+        "endpoint_inside": 375,
+        "tangent_jump": 88,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_8CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "15kg_16bpm",
+      "segment": "9CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 463,
+      "failure_counts": {
+        "ok": 13412,
+        "endpoint_inside": 375,
+        "tangent_jump": 88
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_15kg_16bpm_9CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "10AB",
+      "app": "MeasuredEHF",
+      "n_frames": 599,
+      "n_fail_rows": 668,
+      "failure_counts": {
+        "ok": 21495,
+        "endpoint_inside": 599,
+        "tangent_jump": 67,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_10AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "1AB",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 714,
+      "failure_counts": {
+        "ok": 21486,
+        "endpoint_inside": 600,
+        "tangent_jump": 112,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_1AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "2AB",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 694,
+      "failure_counts": {
+        "ok": 21506,
+        "endpoint_inside": 600,
+        "tangent_jump": 92,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_2AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "3AB",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 692,
+      "failure_counts": {
+        "ok": 21508,
+        "endpoint_inside": 600,
+        "tangent_jump": 90,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_3AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "7AB",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 676,
+      "failure_counts": {
+        "ok": 21524,
+        "endpoint_inside": 600,
+        "tangent_jump": 74,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_7AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "1CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 703,
+      "failure_counts": {
+        "ok": 21497,
+        "endpoint_inside": 600,
+        "tangent_jump": 103
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_1CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "2CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 696,
+      "failure_counts": {
+        "ok": 21504,
+        "endpoint_inside": 600,
+        "tangent_jump": 96
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_2CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "3CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 697,
+      "failure_counts": {
+        "ok": 21503,
+        "endpoint_inside": 600,
+        "tangent_jump": 97
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_3CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "4CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 713,
+      "failure_counts": {
+        "ok": 21487,
+        "endpoint_inside": 600,
+        "tangent_jump": 111,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_4CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "5CA",
+      "app": "MeasuredEHF",
+      "n_frames": 600,
+      "n_fail_rows": 707,
+      "failure_counts": {
+        "ok": 21493,
+        "endpoint_inside": 600,
+        "tangent_jump": 105,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_5CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_10bpm",
+      "segment": "7CA",
+      "app": "MeasuredEHF",
+      "n_frames": 599,
+      "n_fail_rows": 684,
+      "failure_counts": {
+        "ok": 21479,
+        "endpoint_inside": 599,
+        "tangent_jump": 83,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_10bpm_7CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "2AB",
+      "app": "MeasuredEHF",
+      "n_frames": 374,
+      "n_fail_rows": 443,
+      "failure_counts": {
+        "ok": 13395,
+        "endpoint_inside": 374,
+        "tangent_jump": 67,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_2AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "3AB",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 458,
+      "failure_counts": {
+        "ok": 13417,
+        "endpoint_inside": 375,
+        "tangent_jump": 81,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_3AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "5AB",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 461,
+      "failure_counts": {
+        "ok": 13414,
+        "endpoint_inside": 375,
+        "tangent_jump": 84,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_5AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "7AB",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 434,
+      "failure_counts": {
+        "ok": 13441,
+        "endpoint_inside": 375,
+        "tangent_jump": 57,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_7AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "9AB",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 444,
+      "failure_counts": {
+        "ok": 13431,
+        "endpoint_inside": 375,
+        "tangent_jump": 67,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_9AB_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "10CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 456,
+      "failure_counts": {
+        "ok": 13419,
+        "endpoint_inside": 375,
+        "tangent_jump": 81
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_10CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "1CA",
+      "app": "MeasuredEHF",
+      "n_frames": 374,
+      "n_fail_rows": 450,
+      "failure_counts": {
+        "ok": 13388,
+        "endpoint_inside": 374,
+        "tangent_jump": 74,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_1CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "2CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 458,
+      "failure_counts": {
+        "ok": 13417,
+        "endpoint_inside": 375,
+        "tangent_jump": 81,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_2CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "3CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 454,
+      "failure_counts": {
+        "ok": 13421,
+        "endpoint_inside": 375,
+        "tangent_jump": 79
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_3CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "4CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 464,
+      "failure_counts": {
+        "ok": 13411,
+        "endpoint_inside": 375,
+        "tangent_jump": 87,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_4CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "6CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 474,
+      "failure_counts": {
+        "ok": 13401,
+        "endpoint_inside": 375,
+        "tangent_jump": 97,
+        "unwrap_rewrap": 2
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_6CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "7CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 461,
+      "failure_counts": {
+        "ok": 13414,
+        "endpoint_inside": 375,
+        "tangent_jump": 86
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_7CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "8CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 455,
+      "failure_counts": {
+        "ok": 13420,
+        "endpoint_inside": 375,
+        "tangent_jump": 80
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_8CA_MeasuredEHF.csv",
+      "error": ""
+    },
+    {
+      "condition": "7kg_16bpm",
+      "segment": "9CA",
+      "app": "MeasuredEHF",
+      "n_frames": 375,
+      "n_fail_rows": 450,
+      "failure_counts": {
+        "ok": 13425,
+        "endpoint_inside": 375,
+        "tangent_jump": 75
+      },
+      "csv_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\diag_A_normal\\chest_diag_7kg_16bpm_9CA_MeasuredEHF.csv",
+      "error": ""
+    }
+  ]
+}
