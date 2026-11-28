@@ -4,8 +4,8 @@ Uses the subject-level ``*_ChestFix.osim`` / ``*_ChestVia.osim`` as
 ``model_path`` for ``prepare_so_setup`` / ``run_so`` / ``run_jr``.
 
 Candidate SO/JR outputs (and their setup XMLs) go to
-``SO_<app>/troubleshoot_so/chest_wrap_<A|B>/`` and
-``JR_<app>/troubleshoot_so/chest_wrap_<A|B>/``. The canonical ``SO_<app>`` /
+``SO_<app>/troubleshoot_so/chest_wrap_geometry_fitting/`` (variant A) and
+``JR_<app>/troubleshoot_so/chest_wrap_geometry_fitting/`` (variant A). The canonical ``SO_<app>`` /
 ``JR_<app>`` files are only read, as the baseline for the L5–S1 reaction
 difference.
 
@@ -69,7 +69,7 @@ def _variant_dirs(case: dict, variant: str) -> dict[str, str]:
     rp = ResultPaths(case["namecode"])
     cp = ConditionPaths(rp, case["condition"])
     section = cp.seg_to_section(case["segment"])
-    approach = f"chest_wrap_{variant}"
+    approach = "chest_wrap_geometry_fitting" if variant.upper() == "A" else f"chest_wrap_{variant}"
     so_canon = cp.so_dir(section, case["app"])
     jr_canon = cp.jr_dir(section, case["app"])
     return {
