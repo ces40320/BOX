@@ -16,7 +16,14 @@ TS_DIR = os.path.dirname(os.path.abspath(__file__))
 RUN_TOOLS_DIR = os.path.dirname(TS_DIR)
 CODES_DIR = os.path.dirname(RUN_TOOLS_DIR)
 
-APPROACHES = ("rerun_freeze", "wrap_gapfill", "wrap_fbp", "diagnosis")
+APPROACHES = (
+    "rerun_freeze",
+    "wrap_gapfill",
+    "wrap_fbp",
+    "diagnosis",
+    "chest_wrap_diag",
+    "chest_wrap_A_ellipsoid",
+)
 
 for _p in (
     CODES_DIR,
