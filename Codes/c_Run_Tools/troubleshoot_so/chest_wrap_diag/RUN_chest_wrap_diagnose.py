@@ -15,6 +15,7 @@ With no source flag the wrap_fbp-repaired trials are diagnosed.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import sys
 
@@ -43,6 +44,46 @@ def _case_stem(case: dict) -> str:
     return (
         f"{case['condition']}_{case['segment']}_{case['app']}"
     )
+
+
+_DIAG_WORKER_OSIM = None
+
+
+def _diag_worker_run(task: tuple) -> tuple[int, dict, str]:
+    global _DIAG_WORKER_OSIM
+    idx, case, model_path, ik_path, diag_dir, frame_stride, compute_ma = task
+    if _DIAG_WORKER_OSIM is None:
+        _DIAG_WORKER_OSIM = import_opensim()
+    df, meta = diagnose_trial(
+        osim=_DIAG_WORKER_OSIM,
+        model_path=model_path,
+        ik_path=ik_path,
+        namecode=case["namecode"],
+        condition=case["condition"],
+        segment=case["segment"],
+        app=case["app"],
+        frame_stride=frame_stride,
+        compute_moment_arms=compute_ma,
+    )
+    stem = _case_stem(case)
+    csv_path = os.path.join(diag_dir, f"chest_diag_{stem}.csv")
+    if not df.empty:
+        df.to_csv(csv_path, index=False)
+    meta.csv_path = csv_path
+    summary = summarize_diag_frames(df)
+    rec = {
+        **case,
+        "model_path": model_path,
+        "ik_path": ik_path,
+        "csv_path": csv_path,
+        "error": meta.error,
+        "n_frames": meta.n_frames,
+        "n_fail_rows": meta.n_fail_rows,
+        "failure_counts": meta.failure_counts,
+        "summary": summary,
+        "chest_muscles": meta.chest_muscles,
+    }
+    return idx, rec, (csv_path if not df.empty else "")
 
 
 def run_self_test() -> None:
@@ -80,6 +121,8 @@ def main() -> int:
                    help="Diagnose this model (e.g. an A/B candidate) instead of each trial's model")
     p.add_argument("--out-subdir", default="diag",
                    help="Output folder under chest_wrap/<SUB>/ (use e.g. diag_A for candidates)")
+    p.add_argument("--workers", type=int, default=1,
+                   help="Parallel worker processes (default 1=sequential)")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
     if args.model_osim and args.out_subdir == "diag":
@@ -125,53 +168,84 @@ def main() -> int:
         m.initSystem()
         ell_params = get_chest_ellipsoid_params(osim, m)
 
-    for i, case in enumerate(cases):
-        model_path, ik_path = resolve_paths(case)
-        if args.model_osim:
-            model_path = args.model_osim
-        print(
-            f"[diag] ({i + 1}/{len(cases)}) "
-            f"{case['condition']} {case['segment']} {case['app']}",
-            flush=True,
-        )
-        df, meta = diagnose_trial(
-            osim=osim,
-            model_path=model_path,
-            ik_path=ik_path,
-            namecode=case["namecode"],
-            condition=case["condition"],
-            segment=case["segment"],
-            app=case["app"],
-            frame_stride=args.frame_stride,
-            compute_moment_arms=not args.no_moment_arms,
-        )
-        stem = _case_stem(case)
-        csv_path = os.path.join(diag_dir, f"chest_diag_{stem}.csv")
-        if not df.empty:
-            df.to_csv(csv_path, index=False)
-            all_frames.append(df)
-        meta.csv_path = csv_path
-        summary = summarize_diag_frames(df)
-        trial_summaries.append({
-            **case,
-            "model_path": model_path,
-            "ik_path": ik_path,
-            "csv_path": csv_path,
-            "error": meta.error,
-            "n_frames": meta.n_frames,
-            "n_fail_rows": meta.n_fail_rows,
-            "failure_counts": meta.failure_counts,
-            "summary": summary,
-            "chest_muscles": meta.chest_muscles,
-        })
-        if meta.error:
-            print(f"  ERROR: {meta.error}", flush=True)
-        else:
+    n_workers = max(1, min(int(args.workers), len(cases) or 1))
+    if n_workers == 1:
+        for i, case in enumerate(cases):
+            model_path, ik_path = resolve_paths(case)
+            if args.model_osim:
+                model_path = args.model_osim
             print(
-                f"  rows={len(df)} fail_rows={meta.n_fail_rows} "
-                f"types={meta.failure_counts}",
+                f"[diag] ({i + 1}/{len(cases)}) "
+                f"{case['condition']} {case['segment']} {case['app']}",
                 flush=True,
             )
+            df, meta = diagnose_trial(
+                osim=osim,
+                model_path=model_path,
+                ik_path=ik_path,
+                namecode=case["namecode"],
+                condition=case["condition"],
+                segment=case["segment"],
+                app=case["app"],
+                frame_stride=args.frame_stride,
+                compute_moment_arms=not args.no_moment_arms,
+            )
+            stem = _case_stem(case)
+            csv_path = os.path.join(diag_dir, f"chest_diag_{stem}.csv")
+            if not df.empty:
+                df.to_csv(csv_path, index=False)
+                all_frames.append(df)
+            meta.csv_path = csv_path
+            summary = summarize_diag_frames(df)
+            trial_summaries.append({
+                **case,
+                "model_path": model_path,
+                "ik_path": ik_path,
+                "csv_path": csv_path,
+                "error": meta.error,
+                "n_frames": meta.n_frames,
+                "n_fail_rows": meta.n_fail_rows,
+                "failure_counts": meta.failure_counts,
+                "summary": summary,
+                "chest_muscles": meta.chest_muscles,
+            })
+            if meta.error:
+                print(f"  ERROR: {meta.error}", flush=True)
+            else:
+                print(
+                    f"  rows={len(df)} fail_rows={meta.n_fail_rows} "
+                    f"types={meta.failure_counts}",
+                    flush=True,
+                )
+    else:
+        import pandas as pd
+
+        tasks = []
+        for i, case in enumerate(cases):
+            model_path, ik_path = resolve_paths(case)
+            if args.model_osim:
+                model_path = args.model_osim
+            tasks.append((
+                i, case, model_path, ik_path, diag_dir,
+                args.frame_stride, not args.no_moment_arms,
+            ))
+        print(f"[diag] {len(tasks)} trials, stride={args.frame_stride}, workers={n_workers}", flush=True)
+        ordered_recs: list[dict | None] = [None] * len(tasks)
+        ordered_csvs: list[str] = [""] * len(tasks)
+        done = 0
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            futs = [pool.submit(_diag_worker_run, t) for t in tasks]
+            for fut in as_completed(futs):
+                idx, rec, csv_path = fut.result()
+                ordered_recs[idx] = rec
+                ordered_csvs[idx] = csv_path
+                done += 1
+                if done % 10 == 0 or done == len(tasks):
+                    print(f"[diag] done {done}/{len(tasks)}", flush=True)
+        trial_summaries = [r for r in ordered_recs if r is not None]
+        for csv_path in ordered_csvs:
+            if csv_path and os.path.isfile(csv_path):
+                all_frames.append(pd.read_csv(csv_path))
 
     import pandas as pd
 
