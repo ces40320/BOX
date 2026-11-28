@@ -1,0 +1,296 @@
+{
+  "kind": "chest_wrap_so_jr_normal",
+  "created_utc": "2026-11-26T10:21:27.913642Z",
+  "namecode": "260526_PJM",
+  "model": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\Analysis\\Asymmetric\\_diagnosis\\chest_wrap\\SUB8\\A\\SUB8_ChestFix.osim",
+  "trials": [
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_10bpm",
+      "segment": "5AB",
+      "app": "MeasuredEHF",
+      "status": {
+        "so": "ok",
+        "jr": "ok"
+      },
+      "baseline_jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\15kg_10bpm\\AB\\JR_MeasuredEHF\\SUB8_15kg_10bpm_5AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\15kg_10bpm\\AB\\JR_MeasuredEHF\\troubleshoot_so\\chest_wrap_A\\SUB8_15kg_10bpm_5AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "baseline_jr_summary": {
+        "fx": {
+          "mean": 654.9360762779634,
+          "mean_hi30_45": 784.5789167343335,
+          "peak_abs": 1642.34234177
+        },
+        "fy": {
+          "mean": 3545.2111249482305,
+          "mean_hi30_45": 4709.699564706779,
+          "peak_abs": 8263.52834806
+        },
+        "fz": {
+          "mean": -91.26332064485808,
+          "mean_hi30_45": -94.89161144544447,
+          "peak_abs": 442.39481116
+        }
+      },
+      "jr_summary": {
+        "fx": {
+          "mean": 652.9996846353923,
+          "mean_hi30_45": 784.5314124561111,
+          "peak_abs": 1631.13443755
+        },
+        "fy": {
+          "mean": 3542.7961673275963,
+          "mean_hi30_45": 4709.8775563653335,
+          "peak_abs": 8188.11019747
+        },
+        "fz": {
+          "mean": -91.83310469357262,
+          "mean_hi30_45": -95.40784371888888,
+          "peak_abs": 449.14841485
+        }
+      },
+      "jr_vs_baseline": {
+        "fx": {
+          "mean_diff": -1.9363916425710386,
+          "mean_rel": -0.002956611664417168,
+          "mean_hi30_45_diff": -0.047504278222390894,
+          "mean_hi30_45_rel": -6.0547482489229744e-05,
+          "peak_abs_diff": -11.207904220000046,
+          "peak_abs_rel": -0.0068243410249783625
+        },
+        "fy": {
+          "mean_diff": -2.4149576206341408,
+          "mean_rel": -0.000681188661414179,
+          "mean_hi30_45_diff": 0.17799165855467436,
+          "mean_hi30_45_rel": 3.77925717148703e-05,
+          "peak_abs_diff": -75.41815058999964,
+          "peak_abs_rel": -0.009126628168184998
+        },
+        "fz": {
+          "mean_diff": -0.5697840487145385,
+          "mean_rel": -0.006243297358549938,
+          "mean_hi30_45_diff": -0.516232273444416,
+          "mean_hi30_45_rel": -0.005440230865309002,
+          "peak_abs_diff": 6.753603689999977,
+          "peak_abs_rel": 0.015266010178309744
+        }
+      }
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "15kg_16bpm",
+      "segment": "6AB",
+      "app": "MeasuredEHF",
+      "status": {
+        "so": "ok",
+        "jr": "ok"
+      },
+      "baseline_jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\15kg_16bpm\\AB\\JR_MeasuredEHF\\SUB8_15kg_16bpm_6AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\15kg_16bpm\\AB\\JR_MeasuredEHF\\troubleshoot_so\\chest_wrap_A\\SUB8_15kg_16bpm_6AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "baseline_jr_summary": {
+        "fx": {
+          "mean": 860.7085818087968,
+          "mean_hi30_45": 642.9815450751786,
+          "peak_abs": 2222.87834084
+        },
+        "fy": {
+          "mean": 4077.446291447968,
+          "mean_hi30_45": 4132.413827408036,
+          "peak_abs": 8251.92264469
+        },
+        "fz": {
+          "mean": -94.87478374248664,
+          "mean_hi30_45": -84.27573778125,
+          "peak_abs": 483.69454868
+        }
+      },
+      "jr_summary": {
+        "fx": {
+          "mean": 862.1743897551735,
+          "mean_hi30_45": 643.4304218853571,
+          "peak_abs": 2221.2992463
+        },
+        "fy": {
+          "mean": 4083.607025138266,
+          "mean_hi30_45": 4134.281930665536,
+          "peak_abs": 8255.15768027
+        },
+        "fz": {
+          "mean": -95.61950110698666,
+          "mean_hi30_45": -84.50820499642857,
+          "peak_abs": 487.56419338
+        }
+      },
+      "jr_vs_baseline": {
+        "fx": {
+          "mean_diff": 1.4658079463766853,
+          "mean_rel": 0.0017030246675317907,
+          "mean_hi30_45_diff": 0.4488768101784899,
+          "mean_hi30_45_rel": 0.0006981177198888444,
+          "peak_abs_diff": -1.5790945399999146,
+          "peak_abs_rel": -0.0007103828000785653
+        },
+        "fy": {
+          "mean_diff": 6.160733690298002,
+          "mean_rel": 0.001510929451902167,
+          "mean_hi30_45_diff": 1.8681032574995697,
+          "mean_hi30_45_rel": 0.0004520610315233834,
+          "peak_abs_diff": 3.23503558000084,
+          "peak_abs_rel": 0.0003920341621334201
+        },
+        "fz": {
+          "mean_diff": -0.7447173645000191,
+          "mean_rel": -0.007849476279401744,
+          "mean_hi30_45_diff": -0.23246721517857338,
+          "mean_hi30_45_rel": -0.002758412104109679,
+          "peak_abs_diff": 3.8696446999999807,
+          "peak_abs_rel": 0.008000182575057382
+        }
+      }
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_10bpm",
+      "segment": "10AB",
+      "app": "MeasuredEHF",
+      "status": {
+        "so": "ok",
+        "jr": "ok"
+      },
+      "baseline_jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\7kg_10bpm\\AB\\JR_MeasuredEHF\\SUB8_7kg_10bpm_10AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\7kg_10bpm\\AB\\JR_MeasuredEHF\\troubleshoot_so\\chest_wrap_A\\SUB8_7kg_10bpm_10AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "baseline_jr_summary": {
+        "fx": {
+          "mean": 521.6151311434782,
+          "mean_hi30_45": 615.5170327741573,
+          "peak_abs": 1639.05398021
+        },
+        "fy": {
+          "mean": 2733.7719646173414,
+          "mean_hi30_45": 3778.759310943707,
+          "peak_abs": 7360.53053072
+        },
+        "fz": {
+          "mean": -32.970060073712375,
+          "mean_hi30_45": -63.456072522921346,
+          "peak_abs": 309.3977373
+        }
+      },
+      "jr_summary": {
+        "fx": {
+          "mean": 520.9278878961602,
+          "mean_hi30_45": 617.6914900842222,
+          "peak_abs": 1640.83726212
+        },
+        "fy": {
+          "mean": 2735.878590595008,
+          "mean_hi30_45": 3783.049989006111,
+          "peak_abs": 7345.02308004
+        },
+        "fz": {
+          "mean": -33.48776158838064,
+          "mean_hi30_45": -65.17837075366666,
+          "peak_abs": 316.76213623
+        }
+      },
+      "jr_vs_baseline": {
+        "fx": {
+          "mean_diff": -0.6872432473179515,
+          "mean_rel": -0.0013175293550464794,
+          "mean_hi30_45_diff": 2.174457310064895,
+          "mean_hi30_45_rel": 0.003532732961530793,
+          "peak_abs_diff": 1.7832819100001416,
+          "peak_abs_rel": 0.0010879946185614112
+        },
+        "fy": {
+          "mean_diff": 2.106625977666681,
+          "mean_rel": 0.000770593160268053,
+          "mean_hi30_45_diff": 4.290678062403913,
+          "mean_hi30_45_rel": 0.0011354727066044223,
+          "peak_abs_diff": -15.507450679999238,
+          "peak_abs_rel": -0.002106838714312393
+        },
+        "fz": {
+          "mean_diff": -0.5177015146682677,
+          "mean_rel": -0.01570217080317183,
+          "mean_hi30_45_diff": -1.7222982307453094,
+          "mean_hi30_45_rel": -0.02714158255103462,
+          "peak_abs_diff": 7.364398929999993,
+          "peak_abs_rel": 0.023802368415058194
+        }
+      }
+    },
+    {
+      "namecode": "260526_PJM",
+      "condition": "7kg_16bpm",
+      "segment": "2AB",
+      "app": "MeasuredEHF",
+      "status": {
+        "so": "ok",
+        "jr": "ok"
+      },
+      "baseline_jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\7kg_16bpm\\AB\\JR_MeasuredEHF\\SUB8_7kg_16bpm_2AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "jr_path": "C:\\Users\\ok\\Documents\\GitHub\\BOX\\OpenSim_Process\\_Main_\\Asymmetric\\SUB8\\7kg_16bpm\\AB\\JR_MeasuredEHF\\troubleshoot_so\\chest_wrap_A\\SUB8_7kg_16bpm_2AB_MeasuredEHF_JointReaction_ReactionLoads.sto",
+      "baseline_jr_summary": {
+        "fx": {
+          "mean": 623.5358630868449,
+          "mean_hi30_45": 491.4243297994643,
+          "peak_abs": 1810.52804571
+        },
+        "fy": {
+          "mean": 3251.169125350829,
+          "mean_hi30_45": 3231.192487297857,
+          "peak_abs": 7333.91880268
+        },
+        "fz": {
+          "mean": -34.941052673155085,
+          "mean_hi30_45": -53.93437412910714,
+          "peak_abs": 168.64644062
+        }
+      },
+      "jr_summary": {
+        "fx": {
+          "mean": 623.3242135715775,
+          "mean_hi30_45": 491.99233729875,
+          "peak_abs": 1809.40013144
+        },
+        "fy": {
+          "mean": 3251.3967951285294,
+          "mean_hi30_45": 3233.5023480614286,
+          "peak_abs": 7338.0587284
+        },
+        "fz": {
+          "mean": -35.62425045243316,
+          "mean_hi30_45": -54.02914629642857,
+          "peak_abs": 178.11434511
+        }
+      },
+      "jr_vs_baseline": {
+        "fx": {
+          "mean_diff": -0.21164951526736786,
+          "mean_rel": -0.0003394343898995425,
+          "mean_hi30_45_diff": 0.5680074992856703,
+          "mean_hi30_45_rel": 0.0011558391899673696,
+          "peak_abs_diff": -1.1279142700000193,
+          "peak_abs_rel": -0.0006229753097018206
+        },
+        "fy": {
+          "mean_diff": 0.22766977770061203,
+          "mean_rel": 7.002704840094854e-05,
+          "mean_hi30_45_diff": 2.309860763571578,
+          "mean_hi30_45_rel": 0.0007148632502247616,
+          "peak_abs_diff": 4.139925720000065,
+          "peak_abs_rel": 0.00056449025839872
+        },
+        "fz": {
+          "mean_diff": -0.6831977792780748,
+          "mean_rel": -0.019552867673130234,
+          "mean_hi30_45_diff": -0.09477216732143035,
+          "mean_hi30_45_rel": -0.001757175620404279,
+          "peak_abs_diff": 9.467904489999995,
+          "peak_abs_rel": 0.05614055330899871
+        }
+      }
+    }
+  ]
+}
